@@ -3,316 +3,191 @@
 <head>
 <meta charset="utf-8">
 <title>AIBrofist — Skin Editor</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" type="text/css" href="style.css">
-<link rel="stylesheet" type="text/css" href="mobile.css">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="ui.css">
 <script src="device.js"></script>
 <style>
-body{font-family:sans-serif;margin:0;color:#191919;background:#fff}
-.header{background:#f5f5f5;width:100%;height:50px;display:flex;justify-content:space-between;align-items:center}
-.brand-container{float:left;display:flex;align-items:center;padding-left:12px}
-.brand-icon{width:32px}
-.brand-logo{font-size:22px;font-weight:bold;margin-left:8px;color:#000;text-decoration:none}
-.header-link-container{display:flex}
-.header-link-item{display:flex;align-items:center;margin:0 4px;position:relative}
-.header-link-item-button{padding:14px 16px;color:#000;cursor:pointer}
-.header-link-a{padding:14px 14px;color:#000;text-decoration:none;display:flex;align-items:center}
-.profile-container{float:right;position:relative;padding-right:12px;display:flex;align-items:center}
-.profile-icon{width:45px;border:1px solid;border-radius:113px;background:#fff;overflow:hidden}
-.profile-image{width:100%;display:block}
-.profile-menu{position:absolute;right:0;margin-top:120px;background:#f5f5f5;border-radius:4px;
-  box-shadow:0 4px 8px rgba(0,0,0,.15);z-index:5}
-.menu-item{padding:8px 26px;color:#191919;cursor:pointer;text-align:center;white-space:nowrap}
-.menu-item:hover{background:#e2e2e2}
-
-.seWrap{max-width:1060px;margin:22px auto 70px;padding:0 16px;display:flex;gap:26px;flex-wrap:wrap}
-.seLeft{flex:0 0 292px}
-.seRight{flex:1;min-width:300px}
-.seStage{border:2px solid #e4e4e4;border-radius:12px;padding:14px 0 6px;text-align:center;
-  box-shadow:0 10px 14px -10px #ccc;background:#fbfcfd}
+.seLayout{display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:start}
+.seStage{border:1px solid var(--line);border-radius:16px;background:var(--soft);
+  padding:16px 0 10px;text-align:center;position:sticky;top:calc(var(--hdr) + 12px)}
 .seStage svg{max-width:100%;height:auto}
-.seCoins{display:flex;align-items:center;justify-content:center;gap:8px;font-size:19px;
-  font-weight:bold;margin:14px 0 10px;color:#b8860b}
-.seName{width:100%;box-sizing:border-box;text-align:center;font-size:18px;padding:9px 0;
-  border:1px solid #cfd6de;border-radius:6px;margin-bottom:12px;background:#f7f7f7;color:#555}
-.seBtn{width:100%;font-size:17px;padding:11px 0;background:#fff;color:#2196F3;border:1px solid #2196F3;
-  border-radius:6px;cursor:pointer;margin-bottom:9px}
-.seBtn:hover{background:#2196F3;color:#fff}
-.seBtn.ghost{color:#6b7280;border-color:#cfd6de}
-.seBtn.ghost:hover{background:#eef2f6;color:#374151}
-.seMsg{text-align:center;font-size:14px;min-height:19px;margin-top:4px}
-
-.seTabs{display:flex;gap:0;border-bottom:1px solid #e6ebf0;margin-bottom:12px}
-.seTab{padding:10px 20px;cursor:pointer;font-weight:bold;color:#8b93a1;border-bottom:3px solid transparent}
-.seTab.on{color:#191919;border-bottom-color:#2196F3}
-.seSlots{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
-.seSlot{border:1px solid #d7dee6;border-radius:20px;padding:7px 15px;cursor:pointer;font-size:14px;background:#fff}
-.seSlot.on{background:#2196F3;border-color:#2196F3;color:#fff}
-.seGrid{display:flex;flex-wrap:wrap;gap:12px}
-.seCard{width:118px;border:2px solid #e4e4e4;border-radius:9px;text-align:center;padding:8px 4px 8px;
-  box-shadow:0 7px 9px -7px #ccc;background:#fff;position:relative}
-.seCard.on{border-color:#2196F3}
-.seCard svg{display:block;margin:0 auto}
-.seCardName{font-size:12px;color:#4b5563;height:30px;display:flex;align-items:center;
-  justify-content:center;padding:0 4px;line-height:1.15}
-.sePrice{font-size:13px;font-weight:bold;color:#b8860b;margin-bottom:6px}
-.sePrice.free{color:#2e9b2e}
-.seAct{border:1px solid #2196F3;color:#2196F3;background:#fff;border-radius:5px;
-  padding:5px 0;width:92%;cursor:pointer;font-size:13px}
-.seAct:hover{background:#2196F3;color:#fff}
-.seAct.own{border-color:#2e9b2e;color:#2e9b2e}
-.seAct.own:hover{background:#2e9b2e;color:#fff}
-.seAct[disabled]{border-color:#cbd5e1;color:#94a3b8;cursor:default;background:#f8fafc}
-.seHint{color:#8b93a1;font-size:13px;text-align:center;padding:26px 10px}
-.seSwatch{width:46px;height:46px;border-radius:50%;margin:8px auto 6px;border:2px solid #e5e7eb}
-@media(max-width:720px){.seLeft{flex:1 1 100%}.seCard{width:104px}}
+.seNick{width:100%;text-align:center;font-size:17px;padding:10px 0;border:1px solid var(--line);
+  border-radius:10px;background:var(--soft);color:var(--muted);margin:12px 0 10px}
+.seSwatch{width:52px;height:52px;border-radius:50%;margin:10px auto 4px;border:2px solid var(--line)}
+.seFree{color:var(--green);font-weight:700;font-size:12px;margin-bottom:6px}
+.seLimit{font-size:13px;color:var(--muted);text-align:center;margin-top:2px}
+@media (max-width:820px){
+  .seLayout{grid-template-columns:1fr;gap:16px}
+  .seStage{position:static}
+}
 </style>
 </head>
 <body>
-<div class="container">
 
-  <div class="header">
-    <div class="brand-container">
-      <a href="/"><img class="brand-icon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKklEQVR42mNgGAWjYBSMglEwCkbBKBgFo2AUjIJRMApGwSgYBaNgFAwCAAg8AAF1lPBWAAAAAElFTkSuQmCC" alt="AIBrofist"></a>
-      <span class="brand-logo">AIBROFIST</span>
-    </div>
-    <div class="header-link-container">
-      <div class="header-link-item"><div class="header-link-item-button" data-i18n="leaderboard">Leaderboard</div></div>
-      <div class="header-link-item"><div class="header-link-item-button" data-i18n="mapEditor">Map Editor</div></div>
-      <div class="header-link-item"><div class="header-link-item-button" data-i18n="mapsBrowser">Maps Browser</div></div>
-      <a href="avatar.html" class="header-link-a" data-i18n="avatar">Avatar</a>
-      <div class="header-link-item"><div class="header-link-item-button" id="menuButton" data-i18n="menu">Menu</div></div>
-    </div>
-    <div class="profile-container">
-      <div class="profile-icon" id="profileIcon"><img class="profile-image" src="/avatar/0.png" alt="profile"></div>
-      <div class="profile-menu" id="profileMenu" style="display:none">
-        <div class="menu-item" data-i18n="viewProfile">View profile</div>
-        <div class="menu-item" data-i18n="settings">Settings</div>
-        <div class="menu-item" data-i18n="logout">Log out</div>
-      </div>
-    </div>
-  </div>
+<div class="bfWrap">
+  <div class="bfTitle" data-i18n="skinTitle">Редактор скинов</div>
+  <div class="bfSub" data-i18n="skinSub">Все детали бесплатны. Готовый образ можно выложить в Skins Browser.</div>
 
-  <div class="seWrap">
-    <div class="seLeft">
+  <div class="seLayout">
+    <div>
       <div class="seStage" id="seStage"></div>
-      <div class="seCoins">🪙 <span id="seCoins">0</span></div>
-      <input class="seName" id="seNick" readonly>
-      <button class="seBtn" id="seSave" data-i18n="save">Save</button>
-      <button class="seBtn ghost" id="seRandom" data-i18n="randomize">Randomise</button>
-      <button class="seBtn ghost" id="seReset" data-i18n="resetAll">Reset</button>
-      <div class="seMsg" id="seMsg"></div>
+      <input class="seNick" id="seNick" readonly>
+      <button class="bfBtn go" id="seSave" data-i18n="save">Сохранить</button>
+      <button class="bfBtn" id="sePublish" data-i18n="publishSkin">Выложить в Skins Browser</button>
+      <div class="seLimit" id="seLimit"></div>
+      <button class="bfBtn ghost" id="seRandom" data-i18n="randomize">Случайный образ</button>
+      <button class="bfBtn ghost" id="seReset" data-i18n="resetAll">Сбросить</button>
+      <div class="bfMsg" id="seMsg"></div>
     </div>
 
-    <div class="seRight">
-      <div class="seTabs">
-        <div class="seTab on" data-tab="shop" data-i18n="shopTab">Shop</div>
-        <div class="seTab" data-tab="mine" data-i18n="myTab">My items</div>
-      </div>
-      <div class="seSlots" id="seSlots"></div>
-      <div id="seList"><div class="seHint" data-i18n="loading">Loading…</div></div>
+    <div>
+      <div class="bfChips" id="seSlots"></div>
+      <div id="seList"><div class="bfHint" data-i18n="loading">Загрузка…</div></div>
     </div>
   </div>
-
 </div>
 
+<link rel="stylesheet" href="mobile.css">
 <script src="i18n.js"></script>
 <script src="skinRender.js"></script>
+<script src="shell.js"></script>
 <script src="account.js" defer></script>
-<script src="topnav.js" defer></script>
+<script src="owner.js" defer></script>
 <script>
 (function () {
   'use strict';
+  var T = function (k, f) { return (window.I18N && I18N.t(k) !== k) ? I18N.t(k) : (f || k); };
+  var SLOT_LABEL = { color:'slotColor', head:'slotHead', face:'slotFace', body:'slotBody', back:'slotBack' };
 
-  var T = function (k) { return window.I18N ? I18N.t(k) : k; };
-  var SLOT_LABEL = {
-    color: 'slotColor', head: 'slotHead', face: 'slotFace',
-    body: 'slotBody', hands: 'slotHands', feet: 'slotFeet', back: 'slotBack'
-  };
-
-  var state = {
-    slots: [], items: [], byId: {}, owned: {}, skin: {}, coins: 0,
-    guest: true, slot: 'color', tab: 'shop', dirty: false
-  };
-
+  var st = { slots:[], items:[], byId:{}, skin:{}, slot:'color', guest:true, coins:0 };
   var $ = function (id) { return document.getElementById(id); };
-  var msgEl = $('seMsg');
 
   function msg(text, ok) {
-    msgEl.textContent = text;
-    msgEl.style.color = ok ? '#2e9b2e' : '#e04141';
+    var m = $('seMsg');
+    m.textContent = text;
+    m.style.color = ok ? 'var(--green)' : 'var(--red)';
     clearTimeout(msg._t);
-    msg._t = setTimeout(function () { msgEl.textContent = ''; }, 3200);
+    msg._t = setTimeout(function () { m.textContent = ''; }, 4000);
   }
 
   function post(url, data) {
     var body = Object.keys(data).map(function (k) {
       return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]);
     }).join('&');
-    return fetch(url, {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
-    }).then(function (r) { return r.json(); });
+    return fetch(url, { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
+      .then(function (r) { return r.json(); });
   }
 
-  /* ---------- отрисовка ---------- */
   function drawStage() {
-    $('seStage').innerHTML = BFSkin.svg(state.skin, state.byId, { width: 232, height: 300 });
+    $('seStage').innerHTML = BFSkin.svg(st.skin, st.byId, { height: 300 });
   }
 
   function drawSlots() {
-    var box = $('seSlots');
-    box.innerHTML = '';
-    state.slots.forEach(function (s) {
+    var box = $('seSlots'); box.innerHTML = '';
+    st.slots.forEach(function (s) {
       var b = document.createElement('div');
-      b.className = 'seSlot' + (s === state.slot ? ' on' : '');
+      b.className = 'bfChip' + (s === st.slot ? ' on' : '');
       b.textContent = T(SLOT_LABEL[s] || s);
-      b.onclick = function () { state.slot = s; drawSlots(); drawList(); };
+      b.onclick = function () { st.slot = s; drawSlots(); drawList(); };
       box.appendChild(b);
     });
   }
 
-  function itemLabel(it) {
-    // названия вещей приходят с сервера по-русски; на других языках
-    // показываем их как есть — это имена предметов, не элементы интерфейса
-    return it.name;
-  }
-
   function drawList() {
     var host = $('seList');
-    var list = state.items.filter(function (i) { return i.slot === state.slot; });
-    if (state.tab === 'mine') list = list.filter(function (i) { return state.owned[i.id]; });
-
-    if (!list.length) { host.innerHTML = '<div class="seHint">—</div>'; return; }
-
-    var html = '<div class="seGrid">';
+    var list = st.items.filter(function (i) { return i.slot === st.slot; });
+    var html = '<div class="bfGrid">';
     list.forEach(function (it) {
-      var owned = !!state.owned[it.id];
-      var on = state.skin[it.slot] === it.id;
+      var on = st.skin[it.slot] === it.id;
       var art = (it.slot === 'color')
-        ? '<div class="seSwatch" style="background:' + (it.v || '#191919') + '"></div>'
-        : BFSkin.preview(it, state.byId, state.skin, 76);
-
-      var price = owned
-        ? '<div class="sePrice free">' + T('ownedTxt') + '</div>'
-        : (it.price ? '<div class="sePrice">' + it.price + ' 🪙</div>'
-                    : '<div class="sePrice free">' + T('free') + '</div>');
-
-      var act = on
-        ? '<button class="seAct own" disabled>' + T('equipped') + '</button>'
-        : (owned
-            ? '<button class="seAct own" data-equip="' + it.id + '">' + T('equip') + '</button>'
-            : '<button class="seAct" data-buy="' + it.id + '">' + T('buy') + '</button>');
-
-      html += '<div class="seCard' + (on ? ' on' : '') + '">' + art +
-              '<div class="seCardName">' + itemLabel(it) + '</div>' + price + act + '</div>';
+        ? '<div class="seSwatch" style="background:' + (it.v || '#111827') + '"></div>'
+        : BFSkin.preview(it, st.byId, st.skin, 96);
+      html += '<div class="bfCard' + (on ? ' on' : '') + '">' + art
+            + '<div class="bfCardName">' + it.name + '</div>'
+            + '<div class="seFree">' + T('free', 'Бесплатно') + '</div>'
+            + (on ? '<button class="bfMini own" disabled>' + T('equipped') + '</button>'
+                  : '<button class="bfMini" data-pick="' + it.id + '">' + T('equip') + '</button>')
+            + '</div>';
     });
     host.innerHTML = html + '</div>';
   }
 
-  function refreshCoins() { $('seCoins').textContent = state.coins; }
-
-  /* ---------- действия ---------- */
   document.addEventListener('click', function (e) {
-    var buy = e.target.closest && e.target.closest('[data-buy]');
-    var eq = e.target.closest && e.target.closest('[data-equip]');
-
-    if (buy) {
-      if (state.guest) { msg(T('loginFirst')); return; }
-      var id = buy.dataset.buy;
-      buy.disabled = true;
-      post('/skin/buy', { id: id }).then(function (r) {
-        buy.disabled = false;
-        if (r.status !== 'success') {
-          if (r.code === 'poor') msg(T('notEnough') + ' (' + r.need + ' 🪙)');
-          else if (r.code === 'guest') msg(T('loginFirst'));
-          else msg(T('errorTxt'));
-          return;
-        }
-        state.coins = r.coins;
-        state.owned = {};
-        r.owned.forEach(function (x) { state.owned[x] = true; });
-        refreshCoins();
-        // купил — сразу надеваем
-        equip(id);
-      }).catch(function () { buy.disabled = false; msg(T('serverDown')); });
-    }
-
-    if (eq) equip(eq.dataset.equip);
+    var b = e.target.closest && e.target.closest('[data-pick]');
+    if (!b) return;
+    var it = st.byId[b.dataset.pick];
+    if (!it) return;
+    st.skin[it.slot] = it.id;      // сразу видно на модели, даже у гостя
+    drawStage(); drawList();
+    if (!st.guest) post('/skin/equip', { slot: it.slot, id: it.id }).catch(function () {});
   });
 
-  function equip(id) {
-    var it = state.byId[id];
-    if (!it) return;
-    if (state.guest) { msg(T('loginFirst')); return; }
-    post('/skin/equip', { slot: it.slot, id: id }).then(function (r) {
-      if (r.status !== 'success') { msg(T('errorTxt')); return; }
-      state.skin = r.skin;
-      drawStage(); drawList();
-    }).catch(function () { msg(T('serverDown')); });
-  }
-
   $('seSave').onclick = function () {
-    if (state.guest) { msg(T('loginFirst')); return; }
-    post('/skin/save', { skin: JSON.stringify(state.skin) }).then(function (r) {
-      if (r.status === 'success') { state.skin = r.skin; drawStage(); msg(T('saved'), true); }
-      else msg(T('loginFirst'));
-    }).catch(function () { msg(T('serverDown')); });
+    if (st.guest) { msg(T('loginFirst')); return; }
+    post('/skin/save', { skin: JSON.stringify(st.skin) })
+      .then(function (r) { r.status === 'success' ? msg(T('saved'), true) : msg(T('loginFirst')); })
+      .catch(function () { msg(T('serverDown')); });
   };
 
   $('seRandom').onclick = function () {
-    state.slots.forEach(function (s) {
-      var pool = state.items.filter(function (i) { return i.slot === s && state.owned[i.id]; });
-      if (pool.length) state.skin[s] = pool[Math.floor(Math.random() * pool.length)].id;
+    st.slots.forEach(function (s) {
+      var pool = st.items.filter(function (i) { return i.slot === s; });
+      st.skin[s] = pool[Math.floor(Math.random() * pool.length)].id;
     });
     drawStage(); drawList();
-    if (!state.guest) post('/skin/save', { skin: JSON.stringify(state.skin) }).catch(function () {});
   };
 
   $('seReset').onclick = function () {
-    state.slots.forEach(function (s) {
-      var free = state.items.filter(function (i) { return i.slot === s && i.price === 0; })[0];
-      if (free) state.skin[s] = free.id;
-    });
+    st.skin = { color:'c_black', head:'h_none', face:'f_none', body:'b_none', back:'k_none' };
     drawStage(); drawList();
-    if (!state.guest) post('/skin/save', { skin: JSON.stringify(state.skin) }).catch(function () {});
   };
 
-  document.querySelectorAll('.seTab').forEach(function (tb) {
-    tb.onclick = function () {
-      document.querySelectorAll('.seTab').forEach(function (x) { x.classList.remove('on'); });
-      this.classList.add('on');
-      state.tab = this.dataset.tab;
-      drawList();
-    };
-  });
+  function limitLine() {
+    fetch('/skins/limit', { credentials:'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.guest) { $('seLimit').textContent = ''; return; }
+        $('seLimit').textContent = T('skinsLeft', 'Сегодня можно выложить') + ': ' +
+          d.left + ' / ' + d.limit + '  ·  +' + d.reward + ' 🪙';
+      }).catch(function () {});
+  }
 
-  /* ---------- загрузка ---------- */
-  fetch('/skin/catalog', { credentials: 'same-origin' })
+  $('sePublish').onclick = function () {
+    if (st.guest) { msg(T('loginFirst')); return; }
+    var name = prompt(T('skinNameAsk', 'Название скина (2–30 символов):'), '');
+    if (name === null) return;
+    name = name.trim();
+    if (name.length < 2) { msg(T('skinNameShort', 'Слишком короткое название')); return; }
+
+    post('/skins/publish', { skinName: name, skin: JSON.stringify(st.skin) })
+      .then(function (r) {
+        if (r.status !== 'success') { msg(r.message || T('errorTxt')); return; }
+        msg(r.message, true);
+        limitLine();
+        if (window.BFShell) BFShell.refreshCoins(r.coins);
+        if (confirm(r.message + '\n\n' + T('openSkinsBrowser', 'Открыть Skins Browser?')))
+          location.href = 'skinsBrowser.html';
+      })
+      .catch(function () { msg(T('serverDown')); });
+  };
+
+  fetch('/skin/catalog', { credentials:'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      state.slots = d.slots;
-      state.items = d.items;
-      state.coins = d.coins;
-      state.guest = d.guest;
-      state.skin = d.skin;
-      d.items.forEach(function (i) { state.byId[i.id] = i; });
-      d.owned.forEach(function (i) { state.owned[i] = true; });
-      state.slot = d.slots[0];
-      refreshCoins();
-      drawStage(); drawSlots(); drawList();
+      st.slots = d.slots; st.items = d.items; st.skin = d.skin;
+      st.guest = d.guest; st.coins = d.coins; st.slot = d.slots[0];
+      d.items.forEach(function (i) { st.byId[i.id] = i; });
+      drawStage(); drawSlots(); drawList(); limitLine();
     })
-    .catch(function () { $('seList').innerHTML = '<div class="seHint">' + T('serverDown') + '</div>'; });
+    .catch(function () { $('seList').innerHTML = '<div class="bfHint">' + T('serverDown') + '</div>'; });
 
-  fetch('/getMyBio', { credentials: 'same-origin' })
+  fetch('/getMyBio', { credentials:'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) { $('seNick').value = d.name || T('guest'); })
     .catch(function () { $('seNick').value = T('guest'); });
 
-  window.addEventListener('bf-lang', function () {
-    drawSlots(); drawList();
-    if (!$('seNick').value) $('seNick').value = T('guest');
-  });
+  window.addEventListener('bf-lang', function () { drawSlots(); drawList(); });
 })();
 </script>
 </body>

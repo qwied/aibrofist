@@ -1,154 +1,172 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-	<title>AIBrofist — Avatar</title>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" type="text/css" href="style.css">
-	<link rel="stylesheet" type="text/css" href="Gplayer3.css">
-	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-	<script src="gamemode.script.ejs.js"></script>
-	<script src="device.js"></script>
-	<link rel="stylesheet" type="text/css" href="mobile.css">
-	<style>
-		.avWrap{max-width:760px;margin:24px auto;padding:0 16px 60px;display:flex;gap:26px;flex-wrap:wrap}
-		.avLeft{flex:0 0 240px;text-align:center}
-		.avRight{flex:1;min-width:240px}
-		.avFig{width:150px;height:200px;margin:0 auto 14px;position:relative}
-		.avHead{width:70px;height:70px;border-radius:50%;background:#111;margin:0 auto}
-		.avBody{width:64px;height:118px;border-radius:16px;background:#111;margin:6px auto 0}
-		.avName{width:100%;box-sizing:border-box;text-align:center;font-size:19px;
-			padding:9px 0;border:1px solid #cfd6de;border-radius:6px;margin-bottom:14px;background:#f7f7f7;color:#555}
-		.avRow{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px}
-		.avRow label{font-size:15px}
-		.avSave{width:100%;font-size:19px;padding:10px 0;background:#fff;color:#2196F3;
-			border:1px solid #2196F3;border-radius:6px;cursor:pointer}
-		.avSave:hover{background:#2196F3;color:#fff}
-		.avMsg{text-align:center;margin-top:10px;font-size:14px;min-height:18px}
-		.avTabs{display:flex;gap:0;border-bottom:1px solid #e6ebf0;margin-bottom:14px}
-		.avTab{padding:10px 20px;cursor:pointer;font-weight:bold;color:#8b93a1;border-bottom:3px solid transparent}
-		.avTab.on{color:#191919;border-bottom-color:#2196F3}
-		.avGrid{display:flex;flex-wrap:wrap;gap:12px}
-		.avCard{width:96px;border:1px solid #e4e4e4;border-radius:7px;text-align:center;
-			padding:8px 0 6px;box-shadow:0 6px 8px -6px #ccc}
-		.avCardFig{width:44px;height:60px;margin:0 auto 6px;position:relative}
-		.avCardFig .h{width:22px;height:22px;border-radius:50%;background:#111;margin:0 auto}
-		.avCardFig .b{width:20px;height:34px;border-radius:6px;background:#111;margin:2px auto 0}
-		.avPrice{font-size:13px;color:#e2a600;font-weight:bold}
-		.avHint{color:#8b93a1;font-size:13px;text-align:center;padding:26px 10px}
-	</style>
+<meta charset="utf-8">
+<title>AIBrofist — Avatar</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="ui.css">
+<script src="device.js"></script>
+<style>
+.avLayout{display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:start}
+.avStage{border:1px solid var(--line);border-radius:16px;background:var(--soft);
+  padding:16px 0 10px;text-align:center;position:sticky;top:calc(var(--hdr) + 12px)}
+.avStage svg{max-width:100%;height:auto}
+.avNick{width:100%;text-align:center;font-size:17px;padding:10px 0;border:1px solid var(--line);
+  border-radius:10px;background:var(--soft);color:var(--muted);margin:12px 0 6px}
+.avBy{text-align:center;font-size:13px;color:var(--muted);margin-bottom:12px;min-height:18px}
+.avBy a{color:var(--blue);text-decoration:none}
+.avArt{background:var(--soft);border-radius:10px;padding:8px 0;margin-bottom:8px}
+.avPrice{font-weight:700;color:var(--gold);font-size:14px;margin-bottom:6px}
+.avPrice.free{color:var(--green)}
+@media (max-width:820px){
+  .avLayout{grid-template-columns:1fr;gap:16px}
+  .avStage{position:static}
+}
+</style>
 </head>
 <body>
-<div class="container"></div>
 
-<div class="avWrap">
-	<div class="avLeft">
-		<div class="avFig" id="avFig" style="width:180px;height:240px"></div>
-		<input class="avName" id="avName" readonly>
-		<div class="avRow">
-			<label for="avColor">Цвет чата:</label>
-			<input type="color" id="avColor" value="#000000">
-		</div>
-		<button class="avSave" id="avSave">Сохранить</button>
-		<div class="avMsg" id="avMsg"></div>
-	</div>
-	<div class="avRight">
-		<div class="avTabs">
-			<div class="avTab on" data-tab="buy" data-i18n="shopTab">Магазин</div>
-			<div class="avTab" data-tab="owned" data-i18n="myTab">Мои</div>
-		</div>
-		<div id="avList"><div class="avHint" data-i18n="loading">Загрузка…</div></div>
-		<button class="avSave" style="margin-top:16px" id="avGoSkin" data-i18n="skinEditor">Редактор скинов</button>
-	</div>
+<div class="bfWrap">
+  <div class="bfTitle" data-i18n="avatar">Avatar</div>
+  <div class="bfSub" data-i18n="avatarSub">Готовые скины, отобранные разработчиком. Автор каждого скина указан на карточке.</div>
+
+  <div class="avLayout">
+    <div>
+      <div class="avStage" id="avStage"></div>
+      <input class="avNick" id="avNick" readonly>
+      <div class="avBy" id="avBy"></div>
+      <button class="bfBtn" id="avGoEditor" data-i18n="skinEditor">Редактор скинов</button>
+      <button class="bfBtn ghost" id="avGoBrowser" data-i18n="skinsBrowser">Skins Browser</button>
+      <div class="bfMsg" id="avMsg"></div>
+    </div>
+
+    <div>
+      <div id="avList"><div class="bfHint" data-i18n="loading">Загрузка…</div></div>
+    </div>
+  </div>
 </div>
 
+<link rel="stylesheet" href="mobile.css">
+<script src="i18n.js"></script>
 <script src="skinRender.js"></script>
-<script src="topnav.js" defer></script>
+<script src="shell.js"></script>
 <script src="account.js" defer></script>
+<script src="owner.js" defer></script>
 <script>
 (function () {
-	var msg = document.getElementById('avMsg');
-	var nameEl = document.getElementById('avName');
-	var colorEl = document.getElementById('avColor');
-	var listEl = document.getElementById('avList');
-	var tab = 'buy';
+  'use strict';
+  var T = function (k, f) { return (window.I18N && I18N.t(k) !== k) ? I18N.t(k) : (f || k); };
+  var $ = function (id) { return document.getElementById(id); };
+  var byId = {}, mySkin = {}, wearing = '';
 
-	function getJSON(url) {
-		return fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); });
-	}
+  function msg(t, ok) {
+    var m = $('avMsg');
+    m.textContent = t; m.style.color = ok ? 'var(--green)' : 'var(--red)';
+    clearTimeout(msg._t); msg._t = setTimeout(function () { m.textContent = ''; }, 4000);
+  }
+  function post(url, data) {
+    var body = Object.keys(data).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]);
+    }).join('&');
+    return fetch(url, { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
+      .then(function (r) { return r.json(); });
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c];
+    });
+  }
 
-	// подставить текущий профиль
-	getJSON('/getMyBio').then(function (d) {
-		nameEl.value = d.name || 'Гость';
-		if (/^#[0-9a-fA-F]{6}$/.test(d.chatColor)) colorEl.value = d.chatColor;
-	}).catch(function () { nameEl.value = 'Гость'; });
+  function drawMe() {
+    $('avStage').innerHTML = BFSkin.svg(mySkin, byId, { height: 300 });
+  }
 
-	document.getElementById('avSave').onclick = function () {
-		fetch('/setMyBio', {
-			method: 'POST', credentials: 'same-origin',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-			body: 'avatar=0&chatColor=' + encodeURIComponent(colorEl.value)
-		}).then(function (r) { return r.json(); }).then(function (r) {
-			if (r.status === 'success') { msg.style.color = '#2e9b2e'; msg.textContent = 'Сохранено'; }
-			else { msg.style.color = 'red'; msg.textContent = r.message || 'Войдите в аккаунт'; }
-		}).catch(function () { msg.style.color = 'red'; msg.textContent = 'Ошибка сети'; });
-	};
+  function whoMadeIt() {
+    fetch('/getMyName', { credentials:'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (name) {
+        $('avNick').value = name || T('guest');
+        if (!name) return;
+        return fetch('/skins/wornBy?name=' + encodeURIComponent(name), { credentials:'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            $('avBy').innerHTML = d.author
+              ? T('skinBy', 'Скин') + ': «' + esc(d.skinName) + '» — '
+                + '<a href="users.html?name=' + encodeURIComponent(d.author) + '">' + esc(d.author) + '</a>'
+              : '<span style="color:#9aa3ad">' + T('ownSkin', 'Собственный образ') + '</span>';
+          });
+      }).catch(function () { $('avNick').value = T('guest'); });
+  }
 
-	var CAT = { items: [], byId: {}, owned: {}, skin: {} };
+  function card(s) {
+    var art = BFSkin.svg(s.skin, byId, { height: 148 });
+    var price = (s.price > 0)
+      ? '<div class="avPrice">' + s.price + ' 🪙</div>'
+      : '<div class="avPrice free">' + T('free', 'Бесплатно') + '</div>';
+    var act = (s.id === wearing)
+      ? '<button class="bfMini own" disabled>' + T('equipped') + '</button>'
+      : (s.owned || s.price === 0
+          ? '<button class="bfMini own" data-wear="' + s.id + '">' + T('equip') + '</button>'
+          : '<button class="bfMini" data-buy="' + s.id + '">' + T('buy') + '</button>');
 
-	function drawFig() {
-		var el = document.getElementById('avFig');
-		if (el && window.BFSkin) el.innerHTML = BFSkin.svg(CAT.skin, CAT.byId, { width: 180, height: 240 });
-	}
+    return '<div class="bfCard' + (s.id === wearing ? ' on' : '') + '">'
+      + '<div class="avArt">' + art + '</div>'
+      + '<div class="bfCardName">' + esc(s.skinName) + '</div>'
+      + '<div class="bfCardMeta">' + T('colAuthor', 'Автор') + ': '
+      +   '<a href="users.html?name=' + encodeURIComponent(s.author) + '" style="color:var(--blue);text-decoration:none">'
+      +   esc(s.author) + '</a></div>'
+      + price + act + '</div>';
+  }
 
-	getJSON('/skin/catalog').then(function (d) {
-		CAT.items = d.items || [];
-		CAT.skin = d.skin || {};
-		(d.items || []).forEach(function (i) { CAT.byId[i.id] = i; });
-		(d.owned || []).forEach(function (i) { CAT.owned[i] = true; });
-		drawFig();
-		loadList();
-	}).catch(drawFig);
+  function load() {
+    fetch('/skins/avatar', { credentials:'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        wearing = d.wearing || '';
+        if (window.BFShell && d.coins !== undefined) BFShell.refreshCoins(d.coins);
+        $('avList').innerHTML = d.skins.length
+          ? '<div class="bfGrid">' + d.skins.map(card).join('') + '</div>'
+          : '<div class="bfHint">' + T('avatarEmpty',
+              'Разработчик пока не отобрал ни одного скина. Свои образы можно выкладывать в Skins Browser.') + '</div>';
+      })
+      .catch(function () { $('avList').innerHTML = '<div class="bfHint">' + T('serverDown') + '</div>'; });
+  }
 
-	document.getElementById('avGoSkin').onclick = function () { location.href = 'skinEditor.html'; };
+  document.addEventListener('click', function (e) {
+    var w = e.target.closest && e.target.closest('[data-wear]');
+    var b = e.target.closest && e.target.closest('[data-buy]');
+    if (w) {
+      post('/skins/wear', { id: w.dataset.wear }).then(function (r) {
+        if (r.status !== 'success') { msg(r.message || T('errorTxt')); return; }
+        mySkin = r.skin; wearing = w.dataset.wear;
+        drawMe(); whoMadeIt(); load();
+        msg(T('wornOk', 'Скин надет'), true);
+      }).catch(function () { msg(T('serverDown')); });
+    }
+    if (b) {
+      post('/skins/buy', { id: b.dataset.buy }).then(function (r) {
+        if (r.status !== 'success') { msg(r.message || T('errorTxt')); return; }
+        if (window.BFShell) BFShell.refreshCoins(r.coins);
+        msg(T('bought', 'Куплено'), true);
+        load();
+      }).catch(function () { msg(T('serverDown')); });
+    }
+  });
 
-	function card(item) {
-		var owned = !!CAT.owned[item.id];
-		var art = (item.slot === 'color')
-			? '<div style="width:40px;height:40px;border-radius:50%;margin:6px auto;background:' +
-			  (item.v || '#191919') + '"></div>'
-			: (window.BFSkin ? BFSkin.preview(item, CAT.byId, CAT.skin, 62) : '');
-		return '<div class="avCard">' + art
-			+ '<div style="font-size:11px;color:#4b5563;padding:0 3px;min-height:26px">' + item.name + '</div>'
-			+ (owned ? '<div class="avPrice" style="color:#2e9b2e">Есть</div>'
-			         : '<div class="avPrice">' + (item.price ? item.price + ' 🪙' : 'Бесплатно') + '</div>')
-			+ '</div>';
-	}
+  $('avGoEditor').onclick = function () { location.href = 'skinEditor.html'; };
+  $('avGoBrowser').onclick = function () { location.href = 'skinsBrowser.html'; };
 
-	function loadList() {
-		if (!CAT.items.length) { listEl.innerHTML = '<div class="avHint">Загрузка…</div>'; return; }
-		var list = (tab === 'buy')
-			? CAT.items.filter(function (i) { return i.price > 0 && !CAT.owned[i.id]; })
-			: CAT.items.filter(function (i) { return CAT.owned[i.id]; });
-		listEl.innerHTML = list.length
-			? '<div class="avGrid">' + list.slice(0, 24).map(card).join('') + '</div>'
-			: '<div class="avHint">Пусто</div>';
-	}
+  fetch('/skin/catalog', { credentials:'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      (d.items || []).forEach(function (i) { byId[i.id] = i; });
+      mySkin = d.skin; drawMe(); load(); whoMadeIt();
+    })
+    .catch(function () { $('avList').innerHTML = '<div class="bfHint">' + T('serverDown') + '</div>'; });
 
-	var tabs = document.querySelectorAll('.avTab');
-	for (var i = 0; i < tabs.length; i++) {
-		tabs[i].addEventListener('click', function () {
-			for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove('on');
-			this.classList.add('on');
-			tab = this.dataset.tab;
-			loadList();
-		});
-	}
-
-	loadList();
+  window.addEventListener('bf-lang', function () { load(); whoMadeIt(); });
 })();
 </script>
-	<script src="i18n.js"></script>
-	<script src="owner.js" defer></script>
 </body>
 </html>

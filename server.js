@@ -16,7 +16,7 @@ const io = socketIo(server, {
 let accountsRef = null;   // заполняется ниже, нужен для проверки прав на owner.js
 
 // служебные файлы наружу не отдаём
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v13.md'];
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v14.md'];
 app.use((req, res, next) => {
   const p = req.path.toLowerCase();
   if (PRIVATE.indexOf(p) !== -1 || p.indexOf('/data') === 0 || p.indexOf('/node_modules') === 0)
@@ -47,7 +47,9 @@ const accounts = require('./accounts.js');
 accountsRef = accounts;
 accounts.register(app);
 require('./maps.js').register(app, accounts.currentUser);
-require('./skins.js').register(app, accounts);
+const skinsApi = require('./skins.js');
+skinsApi.register(app, accounts);
+require('./userSkins.js').register(app, accounts, skinsApi);
 require('./lang.js').register(app, accounts);
 require('./extras.js').register(app, accounts);
 
@@ -83,8 +85,8 @@ app.get('/getBestRoom', (req, res) => {
 
 app.get('/editor/index.html', (req, res) => res.redirect('/editor.html'));
 app.get('/skinEditor/index.html', (req, res) => res.redirect('/skinEditor.html'));
-app.get('/skinsBrowser/index.html', (req, res) => res.redirect('/skinEditor.html'));
-app.get('/shop/index.html', (req, res) => res.redirect('/skinEditor.html'));
+app.get('/skinsBrowser/index.html', (req, res) => res.redirect('/skinsBrowser.html'));
+app.get('/shop/index.html', (req, res) => res.redirect('/avatar.html'));
 app.get('/avatar/index.html', (req, res) => res.redirect('/avatar.html'));
 app.get('/settings/index.html', (req, res) => res.redirect('/avatar.html'));
 app.get('/supporters/index.html', (req, res) => res.redirect('/leaderboard.html'));

@@ -15,9 +15,10 @@
     'редактор скинов':      'skinEditor.html',
     'maps browser':         'mapsBrowser.html',
     'browser':              'mapsBrowser.html',
-    'skins browser':        'skinEditor.html',
-    'shop':                 'skinEditor.html',
-    'магазин':              'skinEditor.html',
+    'skins browser':        'skinsBrowser.html',
+    'обзор скинов':         'skinsBrowser.html',
+    'shop':                 'avatar.html',
+    'магазин':              'avatar.html',
     'logs':                 'logs.html',
     'новости':              'logs.html',
     'avatar':               'avatar.html',
@@ -70,8 +71,8 @@
     Array.prototype.forEach.call(box.querySelectorAll('.header-more-link-button'), function (a) {
       have[label(a)] = true;
     });
-    [['Skin Editor', 'skinEditor.html'], ['Logs', 'logs.html'],
-     ['Leaderboards', 'leaderboard.html']].forEach(function (pair) {
+    [['Skin Editor', 'skinEditor.html'], ['Skins Browser', 'skinsBrowser.html'],
+     ['Logs', 'logs.html'], ['Leaderboards', 'leaderboard.html']].forEach(function (pair) {
       if (have[pair[0].toLowerCase()]) return;
       var a = document.createElement('a');
       a.className = 'header-more-link-button';

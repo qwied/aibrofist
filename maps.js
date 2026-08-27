@@ -127,7 +127,7 @@ function register(app, getUser) {
     maps.push({
       mapName, mapType, mapData,
       author: u.name, date: Date.now(), created: Date.now(),
-      rating: 0, votes: {}, boostLikes: 0, boostDislikes: 0, inGame: false
+      rating: 0, votes: {}, boostLikes: 0, boostDislikes: 0, inGameModes: []
     });
     save();
     const left = DAILY_LIMIT - todayCount(u.name);
@@ -163,7 +163,8 @@ function register(app, getUser) {
       const t = tally(m);
       return {
         mapName: m.mapName, rating: t.rating, likes: t.likes, dislikes: t.dislikes,
-        author: m.author, date: m.date, mapType: m.mapType, inGame: !!m.inGame
+        author: m.author, date: m.date, mapType: m.mapType,
+        inGameModes: Array.isArray(m.inGameModes) ? m.inGameModes : []
       };
     });
 
@@ -187,7 +188,11 @@ function register(app, getUser) {
     // в игру кнопкой «Добавить в игру» в Maps Browser
     const pool = (!t || t === 'sandbox')
       ? maps.slice()
-      : maps.filter(m => m.mapType === t && (isOwnerName(m.author) || m.inGame === true));
+      : maps.filter(m => {
+          if (isOwnerName(m.author) && m.mapType === t) return true;
+          // владелец мог вручную добавить чужую карту в конкретный режим
+          return Array.isArray(m.inGameModes) && m.inGameModes.indexOf(t) !== -1;
+        });
     if (!pool.length) return res.json(null);
     let m = pool[Math.floor(Math.random() * pool.length)];
     // не повторяем ту же карту подряд, если есть выбор
@@ -258,16 +263,26 @@ function setBoost(author, mapName, likes, dislikes) {
   save();
   return t;
 }
-function setInGame(author, mapName, on) {
+// добавить/убрать карту в конкретном игровом режиме
+function setInGame(author, mapName, mode, on) {
   const m = find(author, mapName);
   if (!m) return null;
-  m.inGame = !!on;
+  if (MODES.indexOf(mode) === -1 && mode !== 'sandbox') return { bad: true };
+
+  m.inGameModes = Array.isArray(m.inGameModes) ? m.inGameModes : [];
+  const i = m.inGameModes.indexOf(mode);
+  if (on && i === -1) m.inGameModes.push(mode);
+  if (!on && i !== -1) m.inGameModes.splice(i, 1);
   save();
-  return { inGame: m.inGame, mapName: m.mapName, author: m.author, mapType: m.mapType };
+  return {
+    modes: m.inGameModes.slice(), mode, on: !!on,
+    mapName: m.mapName, author: m.author, mapType: m.mapType
+  };
 }
 function inGameList() {
-  return maps.filter(m => m.inGame)
-             .map(m => ({ mapName: m.mapName, author: m.author, mapType: m.mapType }));
+  return maps.filter(m => Array.isArray(m.inGameModes) && m.inGameModes.length)
+             .map(m => ({ mapName: m.mapName, author: m.author,
+                          mapType: m.mapType, modes: m.inGameModes.slice() }));
 }
 
 module.exports = { register, MODES, OWNER, COIN_LIMIT, find, setBoost, setInGame, inGameList, tally };

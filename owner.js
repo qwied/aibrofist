@@ -5,7 +5,9 @@
   'use strict';
 
   var me = { owner: false, name: '', ownerName: 'AIBrofist' };
-  var inGame = {};          // "автор::карта" -> true
+  var inGame = {};          // "автор::карта" -> [режимы]
+  var MODES = ['hideAndSeek', 'twoPlayer', 'race', 'sandbox'];
+  var MODE_RU = { hideAndSeek: 'Прятки', twoPlayer: 'На двоих', race: 'Гонка', sandbox: 'Песочница' };
   var T = function (k, fallback) {
     return (window.I18N && window.I18N.t(k) !== k) ? I18N.t(k) : (fallback || k);
   };
@@ -51,7 +53,13 @@
     + 'cursor:pointer;margin-left:5px;background:#fff;white-space:nowrap}'
     + '.ow-tag.add{border-color:#2e9b2e;color:#2e9b2e}.ow-tag.add:hover{background:#2e9b2e;color:#fff}'
     + '.ow-tag.on{border-color:#2e9b2e;background:#2e9b2e;color:#fff}'
-    + '.ow-tag.vote{border-color:#d97706;color:#d97706}.ow-tag.vote:hover{background:#d97706;color:#fff}';
+    + '.ow-tag.vote{border-color:#d97706;color:#d97706}.ow-tag.vote:hover{background:#d97706;color:#fff}'
+    + '.ow-modes{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;width:100%}'
+    + '.ow-mode{border:1px solid #94a3b8;color:#475569;border-radius:5px;padding:3px 7px;'
+    + 'font-size:11.5px;cursor:pointer;background:#fff;white-space:nowrap}'
+    + '.ow-mode:hover{border-color:#2196F3;color:#2196F3}'
+    + '.ow-mode.on{background:#2e9b2e;border-color:#2e9b2e;color:#fff}'
+    + '@media(max-width:640px){.ow-box{width:calc(100vw - 24px)}.ow-fab{right:12px;bottom:78px}}';
 
   function injectCss() {
     var s = document.createElement('style');
@@ -141,7 +149,8 @@
       var list = (r && r.maps) || [];
       el.innerHTML = list.length
         ? list.map(function (x) {
-            return '· ' + x.mapName + ' <span style="color:#9aa3ad">(' + x.author + ' · ' + x.mapType + ')</span>';
+            var m = (x.modes || []).map(function (k) { return MODE_RU[k] || k; }).join(', ');
+            return '· ' + x.mapName + ' <span style="color:#9aa3ad">(' + x.author + ')</span> → ' + m;
           }).join('<br>')
         : '<span style="color:#9aa3ad">пока ничего не добавлено</span>';
     }).catch(function () {});
@@ -167,25 +176,36 @@
     if (!host) return;
     row.__owWired = true;
 
-    var on = !!inGame[keyOf(info.author, info.mapName)];
+    var current = inGame[keyOf(info.author, info.mapName)] || [];
 
-    var add = document.createElement('span');
-    add.className = 'ow-tag add' + (on ? ' on' : '');
-    add.textContent = on ? ('✔ ' + T('inGameTxt', 'В игре')) : ('➕ ' + T('addToGame', 'Добавить в игру'));
-    add.onclick = function (e) {
-      e.stopPropagation();
-      var next = !add.classList.contains('on');
-      add.textContent = '…';
-      post('/owner/mapInGame', { author: info.author, mapName: info.mapName, on: String(next) })
-        .then(function (r) {
-          if (r.status !== 'success') { add.textContent = '⚠'; return; }
-          inGame[keyOf(info.author, info.mapName)] = r.inGame;
-          add.classList.toggle('on', r.inGame);
-          add.textContent = r.inGame ? ('✔ ' + T('inGameTxt', 'В игре'))
-                                     : ('➕ ' + T('addToGame', 'Добавить в игру'));
-        })
-        .catch(function () { add.textContent = '⚠'; });
-    };
+    // по кнопке на каждый режим: клик добавляет, повторный убирает
+    var modes = document.createElement('div');
+    modes.className = 'ow-modes';
+    var label = document.createElement('span');
+    label.style.cssText = 'font-size:11.5px;color:#6b7280;width:100%';
+    label.textContent = T('addToGame', 'Добавить в игру') + ':';
+    modes.appendChild(label);
+
+    MODES.forEach(function (mode) {
+      var b = document.createElement('span');
+      b.className = 'ow-mode' + (current.indexOf(mode) !== -1 ? ' on' : '');
+      b.textContent = MODE_RU[mode];
+      b.onclick = function (e) {
+        e.stopPropagation();
+        var next = !b.classList.contains('on');
+        var prev = b.textContent;
+        b.textContent = '…';
+        post('/owner/mapInGame', {
+          author: info.author, mapName: info.mapName, mode: mode, on: String(next)
+        }).then(function (r) {
+          b.textContent = prev;
+          if (r.status !== 'success') { b.textContent = '⚠'; return; }
+          inGame[keyOf(info.author, info.mapName)] = r.modes;
+          b.classList.toggle('on', r.modes.indexOf(mode) !== -1);
+        }).catch(function () { b.textContent = '⚠'; });
+      };
+      modes.appendChild(b);
+    });
 
     var vote = document.createElement('span');
     vote.className = 'ow-tag vote';
@@ -198,8 +218,8 @@
       box.querySelector('#owVLikes').focus();
     };
 
-    host.appendChild(add);
     host.appendChild(vote);
+    host.appendChild(modes);
   }
 
   function scan() {
@@ -209,7 +229,9 @@
 
   function watchBrowser() {
     get('/owner/inGame').then(function (r) {
-      ((r && r.maps) || []).forEach(function (x) { inGame[keyOf(x.author, x.mapName)] = true; });
+      ((r && r.maps) || []).forEach(function (x) {
+        inGame[keyOf(x.author, x.mapName)] = x.modes || [];
+      });
       scan();
     }).catch(scan);
 

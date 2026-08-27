@@ -13,10 +13,10 @@
     'редактор скинов':'skinEditor.html',
     'maps browser':  'mapsBrowser.html',
     'browser':       'mapsBrowser.html',
-    'skins browser': 'skinEditor.html',
+    'skins browser': 'skinsBrowser.html',
     'avatar':        'avatar.html',
-    'shop':          'skinEditor.html',
-    'магазин':       'skinEditor.html',
+    'shop':          'avatar.html',
+    'магазин':       'avatar.html',
     'supporters':    'leaderboard.html',
     'editor tutorial':'editor.html',
     'leaderboard':   'leaderboard.html',
@@ -46,11 +46,15 @@
     });
   }
 
-  // добавить кнопку Leaderboard в верхнюю панель, если её там нет
+  // добавить кнопку Leaderboard в верхнюю панель, если её там нет.
+  // Проверяем по data-i18n, а не по тексту: текст к этому моменту уже
+  // мог быть переведён, и сравнение со словом leaderboard давало дубль.
   function addLeaderboardButton(header) {
+    if (header.querySelector('[data-i18n="leaderboard"]')) return;
     var buttons = header.querySelectorAll('.header-link-item-button');
     for (var i = 0; i < buttons.length; i++) {
-      if (label(buttons[i]) === 'leaderboard' || label(buttons[i]) === 'leaderboards') return;
+      var t = label(buttons[i]);
+      if (t === 'leaderboard' || t === 'leaderboards' || MAP[t] === 'leaderboard.html') return;
     }
     // берём любой существующий пункт как образец разметки
     var sample = header.querySelector('.header-link-item');
@@ -61,6 +65,7 @@
     if (sub) sub.parentNode.removeChild(sub);
     var btn = item.querySelector('.header-link-item-button') || item;
     btn.textContent = 'Leaderboard';
+    btn.setAttribute('data-i18n', 'leaderboard');
     btn.removeAttribute('href');
     // вставляем первым в контейнере ссылок
     var container = sample.parentNode;

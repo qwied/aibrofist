@@ -163,15 +163,18 @@ function register(app, acc) {
     if (!ownerOnly(req, res)) return;
     const author = String(req.body.author || '').trim();
     const mapName = String(req.body.mapName || '').trim();
+    const mode = String(req.body.mode || '').trim();
     const on = String(req.body.on || 'true') === 'true';
 
-    const r = mapsApi.setInGame(author, mapName, on);
+    const r = mapsApi.setInGame(author, mapName, mode, on);
     if (!r) return res.json({ status: 'error', message: 'Карта не найдена' });
+    if (r.bad) return res.json({ status: 'error', message: 'Неизвестный режим: ' + mode });
+
     res.json({
-      status: 'success', inGame: r.inGame,
-      message: r.inGame
-        ? '«' + r.mapName + '» теперь в игре (' + r.mapType + ')'
-        : '«' + r.mapName + '» убрана из игры'
+      status: 'success', modes: r.modes,
+      message: r.on
+        ? '«' + r.mapName + '» добавлена в режим ' + mode
+        : '«' + r.mapName + '» убрана из режима ' + mode
     });
   });
 

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>AIBrofist — Skins Browser</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="ui.css">
+<script src="device.js"></script>
+<style>
+.sbFilters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:9px;margin-bottom:6px}
+.sbFilters .bfInput,.sbFilters .bfSelect{margin-bottom:0}
+.sbFilters .bfBtn{margin-bottom:0;width:auto;padding:11px 20px}
+.sbGrid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));margin-top:14px}
+.sbCard{border:1px solid var(--line);border-radius:14px;padding:12px 10px 10px;background:#fff;
+  text-align:center;display:flex;flex-direction:column}
+.sbArt{background:var(--soft);border-radius:10px;padding:8px 0;margin-bottom:8px}
+.sbName{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbAuthor{font-size:13px;color:var(--muted);margin:2px 0 6px}
+.sbAuthor a{color:var(--blue);text-decoration:none}
+.sbRating{font-weight:700;font-size:15px;margin-bottom:7px}
+.sbOwner{border-top:1px dashed var(--line);margin-top:9px;padding-top:9px}
+.sbOwner input{width:100%;font-size:13px;padding:7px 9px;border:1px solid #cfd6de;
+  border-radius:8px;margin-bottom:6px}
+.sbTag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:20px;
+  background:#eef7ff;color:var(--blue);margin-bottom:6px}
+@media (max-width:640px){
+  .sbFilters{grid-template-columns:1fr 1fr;gap:8px}
+  .sbFilters .bfBtn{grid-column:1/-1;width:100%}
+  .sbGrid{grid-template-columns:repeat(2,1fr);gap:10px}
+}
+</style>
+</head>
+<body>
+
+<div class="bfWrap">
+  <div class="bfTitle" data-i18n="skinsBrowser">Skins Browser</div>
+  <div class="bfSub" data-i18n="skinsSub">Скины игроков. Оценивайте чужие работы и примеряйте понравившиеся.</div>
+
+  <div class="sbFilters">
+    <input class="bfInput" id="sbAuthor" data-i18n-ph="colAuthor" placeholder="Автор">
+    <input class="bfInput" id="sbName" data-i18n-ph="colName" placeholder="Название">
+    <select class="bfSelect" id="sbSort">
+      <option value="date" data-i18n="sortDate">Сортировать по дате</option>
+      <option value="rating" data-i18n="sortRating">Сортировать по рейтингу</option>
+    </select>
+    <button class="bfBtn go" id="sbGo" data-i18n="refresh">Обновить</button>
+  </div>
+
+  <div class="bfPager">
+    <button id="sbPrev">&lt;</button>
+    <span id="sbPage">1</span>
+    <button id="sbNext">&gt;</button>
+  </div>
+
+  <div id="sbList"><div class="bfHint" data-i18n="loading">Загрузка…</div></div>
+  <div class="bfMsg" id="sbMsg"></div>
+</div>
+
+<link rel="stylesheet" href="mobile.css">
+<script src="i18n.js"></script>
+<script src="skinRender.js"></script>
+<script src="shell.js"></script>
+<script src="account.js" defer></script>
+<script src="owner.js" defer></script>
+<script>
+(function () {
+  'use strict';
+  var T = function (k, f) { return (window.I18N && I18N.t(k) !== k) ? I18N.t(k) : (f || k); };
+  var $ = function (id) { return document.getElementById(id); };
+  var byId = {}, page = 1, pages = 1, owner = false;
+
+  function msg(t, ok) {
+    var m = $('sbMsg');
+    m.textContent = t; m.style.color = ok ? 'var(--green)' : 'var(--red)';
+    clearTimeout(msg._t); msg._t = setTimeout(function () { m.textContent = ''; }, 4000);
+  }
+  function post(url, data) {
+    var body = Object.keys(data).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]);
+    }).join('&');
+    return fetch(url, { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
+      .then(function (r) { return r.json(); });
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c];
+    });
+  }
+
+  function card(s) {
+    var art = window.BFSkin ? BFSkin.svg(s.skin, byId, { height: 150 }) : '';
+    var h = '<div class="sbCard" data-id="' + s.id + '">'
+      + '<div class="sbArt">' + art + '</div>'
+      + (s.inAvatar ? '<div class="sbTag">Avatar · ' + s.price + ' 🪙</div>' : '')
+      + '<div class="sbName">' + esc(s.skinName) + '</div>'
+      + '<div class="sbAuthor">' + T('colAuthor', 'Автор') + ': '
+      +   '<a href="users.html?name=' + encodeURIComponent(s.author) + '">' + esc(s.author) + '</a></div>'
+      + '<div class="sbRating">' + (s.rating > 0 ? '+' : '') + s.rating + '</div>'
+      + '<div class="bfVote">'
+      +   '<button class="up' + (s.myVote > 0 ? ' on' : '') + '" data-vote="1" data-sid="' + s.id + '">👍 ' + s.likes + '</button>'
+      +   '<button class="down' + (s.myVote < 0 ? ' on' : '') + '" data-vote="-1" data-sid="' + s.id + '">👎 ' + s.dislikes + '</button>'
+      + '</div>'
+      + '<button class="bfMini" data-wear="' + s.id + '">' + T('tryOn', 'Примерить') + '</button>';
+
+    if (owner) {
+      h += '<div class="sbOwner">'
+        + '<input type="number" min="0" placeholder="' + T('priceCoins', 'Цена в монетах') + '" '
+        +   'data-price="' + s.id + '" value="' + (s.price || 0) + '">'
+        + '<button class="bfMini' + (s.inAvatar ? ' own' : '') + '" data-avatar="' + s.id + '">'
+        +   (s.inAvatar ? T('removeAvatar', 'Убрать из Avatar') : T('toAvatar', 'В Avatar'))
+        + '</button></div>';
+    }
+    return h + '</div>';
+  }
+
+  function load() {
+    $('sbList').innerHTML = '<div class="bfHint">' + T('loading') + '</div>';
+    var q = '?author=' + encodeURIComponent($('sbAuthor').value.trim())
+          + '&skinName=' + encodeURIComponent($('sbName').value.trim())
+          + '&sortBy=' + $('sbSort').value + '&page=' + page;
+    fetch('/skins/list' + q, { credentials:'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        owner = !!d.owner; page = d.page; pages = d.pages;
+        $('sbPage').textContent = page + '/' + pages;
+        $('sbPrev').disabled = page <= 1;
+        $('sbNext').disabled = page >= pages;
+        $('sbList').innerHTML = d.skins.length
+          ? '<div class="sbGrid">' + d.skins.map(card).join('') + '</div>'
+          : '<div class="bfHint">' + T('noSkins', 'Скины не найдены') + '</div>';
+      })
+      .catch(function () { $('sbList').innerHTML = '<div class="bfHint">' + T('serverDown') + '</div>'; });
+  }
+
+  $('sbGo').onclick = function () { page = 1; load(); };
+  $('sbPrev').onclick = function () { if (page > 1) { page--; load(); } };
+  $('sbNext').onclick = function () { if (page < pages) { page++; load(); } };
+  $('sbSort').onchange = function () { page = 1; load(); };
+
+  document.addEventListener('click', function (e) {
+    var v = e.target.closest && e.target.closest('[data-vote]');
+    var w = e.target.closest && e.target.closest('[data-wear]');
+    var a = e.target.closest && e.target.closest('[data-avatar]');
+
+    if (v) {
+      post('/skins/vote', { id: v.dataset.sid, vote: v.dataset.vote })
+        .then(function (r) { r.status === 'success' ? load() : msg(r.message || T('errorTxt')); })
+        .catch(function () { msg(T('serverDown')); });
+    }
+    if (w) {
+      post('/skins/wear', { id: w.dataset.wear })
+        .then(function (r) {
+          if (r.status === 'success') msg(T('wornOk', 'Скин надет') + ' — ' + r.skinName, true);
+          else msg(r.message || T('errorTxt'));
+        })
+        .catch(function () { msg(T('serverDown')); });
+    }
+    if (a) {
+      var id = a.dataset.avatar;
+      var on = a.classList.contains('own') ? 'false' : 'true';
+      var priceEl = document.querySelector('[data-price="' + id + '"]');
+      post('/owner/skinToAvatar', { id: id, on: on, price: priceEl ? priceEl.value : 0 })
+        .then(function (r) { r.status === 'success' ? (msg(r.message, true), load()) : msg(r.message); })
+        .catch(function () { msg(T('serverDown')); });
+    }
+  });
+
+  fetch('/skin/catalog', { credentials:'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { (d.items || []).forEach(function (i) { byId[i.id] = i; }); load(); })
+    .catch(load);
+
+  window.addEventListener('bf-lang', load);
+})();
+</script>
+</body>
+</html>
