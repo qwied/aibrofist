@@ -27,7 +27,8 @@
         }).join('') +
       '</nav>' +
       '<div class="bfRight">' +
-        '<span class="bfCoin" id="bfHeadCoins" style="display:none">🪙 <span>0</span></span>' +
+        '<span class="bfCoin" id="bfHeadCoins" style="display:none">' +
+          (window.BFCoin ? BFCoin.svg(17) : '') + ' <span>0</span></span>' +
         '<div class="bfAvatar" id="bfHeadAvatar" title="Профиль">' + MARK + '</div>' +
       '</div>';
     document.body.insertBefore(h, document.body.firstChild);

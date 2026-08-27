@@ -2,25 +2,11 @@
 // Всё бесплатно: цена нужна только для скинов, которые владелец
 // вручную выкладывает в Avatar (см. userSkins.js).
 
-const SLOTS = ['color', 'head', 'face', 'body', 'back'];
+// Цвет персонажа задаёт игра (в прятках он показывает роль),
+// поэтому в редакторе только аксессуары.
+const SLOTS = ['head', 'face', 'body', 'back'];
 
 const CATALOG = [
-  // ---------- цвет персонажа ----------
-  { id: 'c_black',  slot: 'color', price: 0, name: 'Классика',    v: '#111827' },
-  { id: 'c_blue',   slot: 'color', price: 0, name: 'Синий',       v: '#2196F3' },
-  { id: 'c_green',  slot: 'color', price: 0, name: 'Зелёный',     v: '#22a45d' },
-  { id: 'c_red',    slot: 'color', price: 0, name: 'Красный',     v: '#e04141' },
-  { id: 'c_orange', slot: 'color', price: 0, name: 'Оранжевый',   v: '#f08a24' },
-  { id: 'c_purple', slot: 'color', price: 0, name: 'Фиолетовый',  v: '#8b5cf6' },
-  { id: 'c_pink',   slot: 'color', price: 0, name: 'Розовый',     v: '#ec4899' },
-  { id: 'c_cyan',   slot: 'color', price: 0, name: 'Бирюзовый',   v: '#06b6d4' },
-  { id: 'c_gold',   slot: 'color', price: 0, name: 'Золото',      v: '#d4a017' },
-  { id: 'c_silver', slot: 'color', price: 0, name: 'Серебро',     v: '#9aa3ad' },
-  { id: 'c_neon',   slot: 'color', price: 0, name: 'Неон',        v: '#39ff5e' },
-  { id: 'c_ice',    slot: 'color', price: 0, name: 'Лёд',         v: '#7dd3fc' },
-  { id: 'c_brown',  slot: 'color', price: 0, name: 'Шоколад',     v: '#7c4a24' },
-  { id: 'c_white',  slot: 'color', price: 0, name: 'Белый',       v: '#e8ecf1' },
-
   // ---------- голова ----------
   { id: 'h_none',    slot: 'head', price: 0, name: 'Ничего' },
   { id: 'h_cap',     slot: 'head', price: 0, name: 'Кепка',       v: '#e04141' },
@@ -71,9 +57,7 @@ const CATALOG = [
 const BY_ID = {};
 CATALOG.forEach(i => { BY_ID[i.id] = i; });
 
-const DEFAULT_SKIN = {
-  color: 'c_black', head: 'h_none', face: 'f_none', body: 'b_none', back: 'k_none'
-};
+const DEFAULT_SKIN = { head: 'h_none', face: 'f_none', body: 'b_none', back: 'k_none' };
 
 // всё бесплатное, поэтому доступно всем без покупки
 function ownedList() { return CATALOG.map(i => i.id); }

@@ -59,6 +59,7 @@
 <link rel="stylesheet" href="mobile.css">
 <script src="i18n.js"></script>
 <script src="skinRender.js"></script>
+<script src="coin.js"></script>
 <script src="shell.js"></script>
 <script src="account.js" defer></script>
 <script src="owner.js" defer></script>
@@ -92,7 +93,7 @@
     var art = window.BFSkin ? BFSkin.svg(s.skin, byId, { height: 150 }) : '';
     var h = '<div class="sbCard" data-id="' + s.id + '">'
       + '<div class="sbArt">' + art + '</div>'
-      + (s.inAvatar ? '<div class="sbTag">Avatar · ' + s.price + ' 🪙</div>' : '')
+      + (s.inAvatar ? '<div class="sbTag">Avatar · ' + s.price + ' ' + BFCoin.svg(14) + '</div>' : '')
       + '<div class="sbName">' + esc(s.skinName) + '</div>'
       + '<div class="sbAuthor">' + T('colAuthor', 'Автор') + ': '
       +   '<a href="users.html?name=' + encodeURIComponent(s.author) + '">' + esc(s.author) + '</a></div>'

@@ -122,7 +122,7 @@ function register(app, acc, skinsApi) {
       coins: u.coins,
       left: Math.max(0, DAILY_LIMIT - todayCount(u.name)),
       limit: DAILY_LIMIT,
-      message: 'Скин опубликован. +' + REWARD + ' 🪙  ·  сегодня осталось: ' +
+      message: 'Скин опубликован. +' + REWARD + ' монет  ·  сегодня осталось: ' +
                Math.max(0, DAILY_LIMIT - todayCount(u.name)) + ' из ' + DAILY_LIMIT
     });
   });
@@ -205,7 +205,7 @@ function register(app, acc, skinsApi) {
       u.boughtSkins = Array.isArray(u.boughtSkins) ? u.boughtSkins : [];
       if (u.boughtSkins.indexOf(s.id) === -1)
         return res.json({ status: 'error', code: 'buy', price: s.price,
-                          message: 'Сначала купите этот скин за ' + s.price + ' 🪙' });
+                          message: 'Сначала купите этот скин за ' + s.price + ' монет' });
     }
 
     u.skin = skinsApi.normalize(s.skin);
@@ -244,7 +244,7 @@ function register(app, acc, skinsApi) {
 
     const price = s.price || 0;
     if ((u.coins || 0) < price)
-      return res.json({ status: 'error', message: 'Не хватает ' + (price - (u.coins || 0)) + ' 🪙' });
+      return res.json({ status: 'error', message: 'Не хватает ' + (price - (u.coins || 0)) + ' монет' });
 
     u.coins = (u.coins || 0) - price;
     u.boughtSkins.push(s.id);
@@ -265,7 +265,7 @@ function register(app, acc, skinsApi) {
     res.json({
       status: 'success', inAvatar: s.inAvatar, price: s.price || 0,
       message: on
-        ? '«' + s.skinName + '» в Avatar за ' + (s.price || 0) + ' 🪙'
+        ? '«' + s.skinName + '» в Avatar за ' + (s.price || 0) + ' монет'
         : '«' + s.skinName + '» убран из Avatar'
     });
   });

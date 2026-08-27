@@ -34,6 +34,10 @@
   // навесить правильный переход на элемент меню
   function wire(el) {
     if (MENU_LABELS.indexOf(label(el)) !== -1) return;   // Menu не трогаем
+    // кнопка с подменю открывает список, а не ведёт на страницу
+    if (el.classList && el.classList.contains('header-link-item-button') &&
+        el.parentNode && el.parentNode.querySelector &&
+        el.parentNode.querySelector('.header-link-item-sub-menu')) return;
     var dest = MAP[label(el)];
     if (!dest) return;
     if (el.tagName === 'A') el.setAttribute('href', dest);
@@ -73,9 +77,37 @@
     wire(btn);
   }
 
+  // подменю по клику — на телефоне наведения мышью нет
+  function wireSubMenus(header) {
+    Array.prototype.forEach.call(header.querySelectorAll('.header-link-item'), function (item) {
+      var sub = item.querySelector('.header-link-item-sub-menu');
+      var btn = item.querySelector('.header-link-item-button');
+      if (!sub || !btn || item.__subWired) return;
+      item.__subWired = true;
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = sub.style.display === 'block';
+        Array.prototype.forEach.call(
+          document.querySelectorAll('.header-link-item-sub-menu'),
+          function (x) { x.style.display = 'none'; });
+        sub.style.display = open ? 'none' : 'block';
+      }, true);
+      sub.addEventListener('click', function (e) { e.stopPropagation(); });
+    });
+    if (!document.__subCloser2) {
+      document.__subCloser2 = true;
+      document.addEventListener('click', function () {
+        Array.prototype.forEach.call(
+          document.querySelectorAll('.header-link-item-sub-menu'),
+          function (x) { x.style.display = 'none'; });
+      });
+    }
+  }
+
   function fix() {
     var header = document.querySelector('.header');
     if (!header) return false;
+    wireSubMenus(header);
 
     // 1) починить все существующие пункты
     var items = header.querySelectorAll(

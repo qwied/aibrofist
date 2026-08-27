@@ -106,7 +106,32 @@
   }
 
   // сказанные реплики: 2 секунды плавно уплывают вверх и тают
-  var SAY_FADE = 2000;
+  // ---------- скины ----------
+  var mySkinStr = '';                 // компактная запись для передачи по сети
+  function skinToStr(sk) {
+    if (!sk) return '';
+    return [sk.head, sk.face, sk.body, sk.back].join('|');
+  }
+  function strToSkin(v) {
+    if (!v) return null;
+    var a = String(v).split('|');
+    if (a.length !== 4) return null;
+    return { head: a[0], face: a[1], body: a[2], back: a[3] };
+  }
+  function loadMySkin() {
+    fetch('/skin/catalog', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        window.BF_SKIN_ITEMS = {};
+        (d.items || []).forEach(function (i) { window.BF_SKIN_ITEMS[i.id] = i; });
+        GAME.mySkin = d.skin || null;
+        mySkinStr = skinToStr(GAME.mySkin);
+      })
+      .catch(function () {});
+  }
+  loadMySkin();
+
+  var SAY_FADE = 2600;
   var spoken = {};
   function speak(who, text) {
     if (!text) return;
@@ -304,6 +329,7 @@
       o.tx = d.position.x; o.ty = d.position.y;
       if (d.position.w) { o.w = d.position.w; o.h = d.position.h; }
       o.color = d.position.color || COLOR_NORMAL;
+      if (d.position.sk !== undefined) o.skin = strToSkin(d.position.sk);
       o.say = d.position.say || '';
       o.fin = !!d.position.fin;
     });
@@ -324,7 +350,8 @@
     lastSent = now;
     socket.emit('movePlayer', { position: {
       x: Math.round(p.x), y: Math.round(p.y), w: p.w, h: p.h,
-      color: GAME.myColor || COLOR_NORMAL, say: typing || '', fin: !!GAME.done
+      color: GAME.myColor || COLOR_NORMAL, say: typing || '', fin: !!GAME.done,
+      sk: mySkinStr
     }});
 
     checkAllFinished();
@@ -377,7 +404,7 @@
       var w = o.w || 22, h = o.h || 74;
       ctx.save();
       ctx.translate(o.x, o.y);
-      GAME.figure(w, h, o.caught ? COLOR_CAUGHT : (o.color || COLOR_NORMAL), true);
+      GAME.figure(w, h, o.caught ? COLOR_CAUGHT : (o.color || COLOR_NORMAL), true, o.skin || null);
       ctx.restore();
       drawTag(ctx, o.name || '', o.say, o.x + w / 2, o.y, (o.h || 74));
     });
@@ -394,23 +421,26 @@
     ctx.fillStyle = '#2e9b2e';
     ctx.fillText(name, cx, topY + h + 17);
 
-    if (say) {
-      // то, что печатают прямо сейчас — чётко и на месте
-      ctx.fillStyle = '#3a3a3a';
-      ctx.fillText(say, cx, topY - 14);
-    } else {
-      var sp = spoken[name];
-      if (sp) {
-        var age = Date.now() - sp.born;
-        if (age >= SAY_FADE) { delete spoken[name]; }
-        else {
-          var k = age / SAY_FADE;                 // 0 → 1
-          ctx.globalAlpha = 1 - k * k;            // тает к концу быстрее
-          ctx.fillStyle = '#3a3a3a';
-          ctx.fillText(sp.text, cx, topY - 14 - k * 34);   // уплывает вверх
-          ctx.globalAlpha = 1;
-        }
+    // отправленная реплика плавно уплывает вверх и тает —
+    // и не пропадает от того, что игрок уже набирает следующую
+    var sp = spoken[name];
+    if (sp) {
+      var age = Date.now() - sp.born;
+      if (age >= SAY_FADE) {
+        delete spoken[name];
+      } else {
+        var k = age / SAY_FADE;                   // 0 → 1
+        ctx.globalAlpha = k < 0.75 ? 1 : (1 - (k - 0.75) / 0.25);
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillText(sp.text, cx, topY - 16 - k * 46);
+        ctx.globalAlpha = 1;
       }
+    }
+
+    // то, что печатают прямо сейчас — ниже уплывающей реплики, чтобы не наложились
+    if (say) {
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(say + '▏', cx, topY - 14);
     }
     ctx.restore();
   }
@@ -420,8 +450,13 @@
   var typing = '';
   var inp = $('gMsg');
 
+  // Enter только отправляет: поле остаётся в фокусе, чтобы можно было
+  // сразу писать дальше, а на телефоне не закрывалась клавиатура
+  function clearTyping() {
+    typing = ''; inp.value = '';
+  }
   function stopTyping() {
-    typing = ''; inp.value = ''; inp.blur();
+    clearTyping(); inp.blur();
   }
 
   inp.addEventListener('input', function () { typing = inp.value; });
@@ -430,7 +465,7 @@
     if (e.key === 'Enter') {
       e.preventDefault();
       var v = inp.value.trim();
-      stopTyping();                         // сначала гасим набор, чтобы текст не задвоился
+      clearTyping();                        // гасим набор, но фокус не теряем
       if (v) {
         speak(me.name, v);                  // своя реплика сразу уплывает
         if (socket) socket.emit('sendChat', { text: v });

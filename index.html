@@ -524,12 +524,16 @@ body{
 		}
 
 		// Editor / Browser hover sub-menus
-		document.querySelectorAll('.header-link-item').forEach(function (item) {
-			var sub = item.querySelector('.header-link-item-sub-menu');
-			if (!sub) return;
-			item.addEventListener('mouseenter', function () { sub.style.display = 'block'; });
-			item.addEventListener('mouseleave', function () { sub.style.display = 'none'; });
-		});
+		// наведение только там, где есть мышь: на сенсорном экране
+		// hover не срабатывает и подменю выглядело сломанным (открывает nav.js по клику)
+		if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+			document.querySelectorAll('.header-link-item').forEach(function (item) {
+				var sub = item.querySelector('.header-link-item-sub-menu');
+				if (!sub) return;
+				item.addEventListener('mouseenter', function () { sub.style.display = 'block'; });
+				item.addEventListener('mouseleave', function () { sub.style.display = 'none'; });
+			});
+		}
 
 		// Profile menu toggle
 		var profileIcon = document.getElementById('profileIcon');
@@ -575,5 +579,6 @@ body{
 	<script src="topnav.js" defer></script>
 	<script src="i18n.js"></script>
 	<script src="owner.js" defer></script>
+	<script src="coin.js"></script>
 </body>
 </html>

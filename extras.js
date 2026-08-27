@@ -139,7 +139,7 @@ function register(app, acc) {
     res.json({
       status: 'success',
       coins: target.coins,
-      message: '«' + target.name + '» — теперь ' + target.coins + ' 🪙'
+      message: '«' + target.name + '» — теперь ' + target.coins + ' монет'
     });
   });
 

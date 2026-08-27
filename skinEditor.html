@@ -13,7 +13,6 @@
 .seStage svg{max-width:100%;height:auto}
 .seNick{width:100%;text-align:center;font-size:17px;padding:10px 0;border:1px solid var(--line);
   border-radius:10px;background:var(--soft);color:var(--muted);margin:12px 0 10px}
-.seSwatch{width:52px;height:52px;border-radius:50%;margin:10px auto 4px;border:2px solid var(--line)}
 .seFree{color:var(--green);font-weight:700;font-size:12px;margin-bottom:6px}
 .seLimit{font-size:13px;color:var(--muted);text-align:center;margin-top:2px}
 @media (max-width:820px){
@@ -50,6 +49,7 @@
 <link rel="stylesheet" href="mobile.css">
 <script src="i18n.js"></script>
 <script src="skinRender.js"></script>
+<script src="coin.js"></script>
 <script src="shell.js"></script>
 <script src="account.js" defer></script>
 <script src="owner.js" defer></script>
@@ -57,9 +57,9 @@
 (function () {
   'use strict';
   var T = function (k, f) { return (window.I18N && I18N.t(k) !== k) ? I18N.t(k) : (f || k); };
-  var SLOT_LABEL = { color:'slotColor', head:'slotHead', face:'slotFace', body:'slotBody', back:'slotBack' };
+  var SLOT_LABEL = { head:'slotHead', face:'slotFace', body:'slotBody', back:'slotBack' };
 
-  var st = { slots:[], items:[], byId:{}, skin:{}, slot:'color', guest:true, coins:0 };
+  var st = { slots:[], items:[], byId:{}, skin:{}, slot:'head', guest:true, coins:0 };
   var $ = function (id) { return document.getElementById(id); };
 
   function msg(text, ok) {
@@ -100,9 +100,7 @@
     var html = '<div class="bfGrid">';
     list.forEach(function (it) {
       var on = st.skin[it.slot] === it.id;
-      var art = (it.slot === 'color')
-        ? '<div class="seSwatch" style="background:' + (it.v || '#111827') + '"></div>'
-        : BFSkin.preview(it, st.byId, st.skin, 96);
+      var art = BFSkin.preview(it, st.byId, st.skin, 96);
       html += '<div class="bfCard' + (on ? ' on' : '') + '">' + art
             + '<div class="bfCardName">' + it.name + '</div>'
             + '<div class="seFree">' + T('free', 'Бесплатно') + '</div>'
@@ -139,7 +137,7 @@
   };
 
   $('seReset').onclick = function () {
-    st.skin = { color:'c_black', head:'h_none', face:'f_none', body:'b_none', back:'k_none' };
+    st.skin = { head:'h_none', face:'f_none', body:'b_none', back:'k_none' };
     drawStage(); drawList();
   };
 
@@ -149,7 +147,8 @@
       .then(function (d) {
         if (!d || d.guest) { $('seLimit').textContent = ''; return; }
         $('seLimit').textContent = T('skinsLeft', 'Сегодня можно выложить') + ': ' +
-          d.left + ' / ' + d.limit + '  ·  +' + d.reward + ' 🪙';
+          d.left + ' / ' + d.limit + '  ·  +' + d.reward + ' ';
+        $('seLimit').innerHTML = $('seLimit').textContent + BFCoin.svg(15);
       }).catch(function () {});
   }
 

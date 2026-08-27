@@ -82,6 +82,40 @@
     });
   }
 
+  // На телефоне нет наведения мышью, поэтому подменю «Editor» и «Browser»
+  // не открывались вовсе — их пункты выглядели нерабочими. Открываем по клику.
+  function wireSubMenus() {
+    var items = document.querySelectorAll('.header-link-item');
+    Array.prototype.forEach.call(items, function (item) {
+      var sub = item.querySelector('.header-link-item-sub-menu');
+      var btn = item.querySelector('.header-link-item-button');
+      if (!sub || !btn || item.__subWired) return;
+      item.__subWired = true;
+
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var open = sub.style.display === 'block';
+        Array.prototype.forEach.call(
+          document.querySelectorAll('.header-link-item-sub-menu'),
+          function (x) { x.style.display = 'none'; }
+        );
+        sub.style.display = open ? 'none' : 'block';
+      });
+      sub.addEventListener('click', function (e) { e.stopPropagation(); });
+    });
+
+    if (!document.__subCloser) {
+      document.__subCloser = true;
+      document.addEventListener('click', function () {
+        Array.prototype.forEach.call(
+          document.querySelectorAll('.header-link-item-sub-menu'),
+          function (x) { x.style.display = 'none'; }
+        );
+      });
+    }
+  }
+
   function wireNav() {
     Array.prototype.forEach.call(document.querySelectorAll('.card'), function (card) {
       var title = card.querySelector('div');
@@ -100,6 +134,12 @@
       if (el.__navWired) return;
       el.__navWired = true;
       el.style.cursor = 'pointer';
+
+      // кнопку с подменю не превращаем в ссылку — ей управляет wireSubMenus
+      if (el.classList.contains('header-link-item-button') &&
+          el.parentNode && el.parentNode.querySelector('.header-link-item-sub-menu')) {
+        return;
+      }
 
       if (isMenu(el)) {
         el.addEventListener('click', function (e) {
@@ -137,7 +177,7 @@
   }
 
   function boot() {
-    ensureSignIn(); fillMenu(); wireNav();
+    ensureSignIn(); fillMenu(); wireSubMenus(); wireNav();
     if (window.I18N) I18N.apply(document.body);
   }
 

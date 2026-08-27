@@ -370,3 +370,27 @@ html[data-page="editor"] .ow-fab { bottom: 96px !important; }
   .header-link-item-button, .menu-item { min-height: 40px; }
   input, select, textarea { font-size: 16px !important; }  /* iOS не зумит поле */
 }
+
+/* =====================================================================
+   v15 — доводка
+   ===================================================================== */
+
+/* подменю открывается по касанию — оно должно быть кликабельным */
+@media (max-width: 900px) {
+  .header-link-item-sub-menu { z-index: 70; }
+  .header-link-item-sub-menu a { min-height: 44px; display: flex !important;
+    align-items: center; justify-content: center; }
+}
+
+/* кнопка инструментов владельца не должна закрывать игровые кнопки */
+html.is-mobile .ow-fab, html.is-tablet .ow-fab { bottom: 92px !important; right: 12px !important; }
+html[data-page="editor"].is-mobile .ow-fab { bottom: 130px !important; }
+
+/* иконка монеты вместо эмодзи */
+.bfCoinIcon { display: inline-block; }
+.bfCoin { display: inline-flex; align-items: center; gap: 4px; }
+
+/* на телефоне карточки скинов не должны становиться слишком мелкими */
+@media (max-width: 420px) {
+  .sbGrid { grid-template-columns: repeat(2, 1fr) !important; }
+}

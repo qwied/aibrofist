@@ -91,7 +91,8 @@
         '<div class="ow-x">X</div>'
       + '<div class="ow-h">' + T('ownerTools', 'Инструменты владельца') + ' · ' + me.name + '</div>'
 
-      + '<div class="ow-sub">🪙 ' + T('giveCoins', 'Выдать монеты') + '</div>'
+      + '<div class="ow-sub">' + (window.BFCoin ? BFCoin.svg(15) : '') + ' ' +
+        T('giveCoins', 'Выдать монеты') + '</div>'
       + '<input class="ow-i" id="owCName" placeholder="' + T('playerName', 'Ник игрока') + '">'
       + '<div class="ow-row2">'
       +   '<input class="ow-i" id="owCAmt" type="number" placeholder="' + T('amount', 'Количество') + '">'
@@ -260,7 +261,7 @@
       + '<input class="bf-i" id="bfLinkPass" type="password" placeholder="Пароль от него">'
       + '<div class="bf-b" id="bfLinkGo">Привязать</div>'
       + '<div class="bf-e" id="bfLinkMsg"></div>'
-      + '<div class="bf-t" style="font-size:14px">🪙 Выдать монеты</div>'
+      + '<div class="bf-t" style="font-size:14px">монет Выдать монеты</div>'
       + '<input class="bf-i" id="bfCoinName" placeholder="Ник игрока">'
       + '<input class="bf-i" id="bfCoinAmt" type="number" placeholder="Сколько монет">'
       + '<div class="bf-b" id="bfCoinGo">Начислить</div>'
@@ -306,7 +307,8 @@
       if (!list.length) { el.innerHTML = '<span style="color:#9aa3ad">пока ничего не привязано</span>'; return; }
       el.innerHTML = list.map(function (u) {
         return '<div style="display:flex;gap:6px;align-items:center;margin:4px 0">'
-             + '<span style="flex:1">' + u.name + ' · ' + u.coins + ' 🪙</span>'
+             + '<span style="flex:1">' + u.name + ' · ' + u.coins + ' ' +
+             (window.BFCoin ? BFCoin.svg(14) : '') + '</span>'
              + '<button data-go="' + u.name + '" style="border:1px solid #2196F3;background:#fff;'
              + 'color:#2196F3;border-radius:4px;padding:3px 9px;cursor:pointer">Войти</button>'
              + '<button data-rm="' + u.name + '" style="border:1px solid #e74c3c;background:#fff;'
