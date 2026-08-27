@@ -8,9 +8,36 @@ const MAPS_FILE = path.join(DATA_DIR, 'maps.json');
 const MODES = ['hideAndSeek', 'twoPlayer', 'race'];
 // в игровые режимы попадают только карты владельца сайта
 // (имя можно поменять переменной окружения OWNER_NAME, без правки кода)
-const OWNER = process.env.OWNER_NAME || 'Аккаунт';
+const OWNER = process.env.OWNER_NAME || 'AIBrofist';
+const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'AIBrofist,System')
+  .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+if (OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.toLowerCase());
+const isOwnerName = n => OWNER_ALIASES.indexOf(String(n || '').toLowerCase()) !== -1;
 
 const DAILY_LIMIT = 3;                 // сколько новых карт можно выложить за сутки
+const COIN_LIMIT  = 3;                 // максимум монет в одной карте — защита от накрутки
+
+// сколько монет лежит в карте (mapData — JSON из редактора)
+function coinsInMap(raw) {
+  try {
+    const m = JSON.parse(raw);
+    const list = Array.isArray(m) ? m : (m && Array.isArray(m.objects) ? m.objects : []);
+    return list.filter(o => o && o.type === 'coin').length;
+  } catch (e) { return 0; }
+}
+
+// счётчики оценок: голоса игроков + ручная правка владельца
+function tally(m) {
+  const votes = Object.values(m.votes || {});
+  const likes = votes.filter(v => v > 0).length + (m.boostLikes || 0);
+  const dislikes = votes.filter(v => v < 0).length + (m.boostDislikes || 0);
+  return { likes, dislikes, rating: likes - dislikes };
+}
+function retally(m) {
+  const t = tally(m);
+  m.rating = t.rating;
+  return t;
+}
 
 // сколько новых карт автор выложил сегодня
 function todayCount(author) {
@@ -59,6 +86,14 @@ function register(app, getUser) {
     if (!mapData)
       return res.json({ status: 'error', message: 'Карта пустая' });
 
+    const coins = coinsInMap(mapData);
+    if (coins > COIN_LIMIT)
+      return res.json({
+        status: 'error',
+        message: 'В карте ' + coins + ' монет. Разрешено не больше ' + COIN_LIMIT +
+                 ' — уберите лишние и попробуйте снова.'
+      });
+
     const i = maps.findIndex(m => low(m.author) === low(u.name) && low(m.mapName) === low(mapName));
 
     // лимит считаем только для новых карт — обновлять свои можно свободно
@@ -92,7 +127,7 @@ function register(app, getUser) {
     maps.push({
       mapName, mapType, mapData,
       author: u.name, date: Date.now(), created: Date.now(),
-      rating: 0, votes: {}
+      rating: 0, votes: {}, boostLikes: 0, boostDislikes: 0, inGame: false
     });
     save();
     const left = DAILY_LIMIT - todayCount(u.name);
@@ -124,8 +159,13 @@ function register(app, getUser) {
       ? (b.rating - a.rating) || (b.date - a.date)
       : b.date - a.date);
 
-    const slice = out.slice((page - 1) * per, page * per)
-      .map(m => ({ mapName: m.mapName, rating: m.rating, author: m.author, date: m.date, mapType: m.mapType }));
+    const slice = out.slice((page - 1) * per, page * per).map(m => {
+      const t = tally(m);
+      return {
+        mapName: m.mapName, rating: t.rating, likes: t.likes, dislikes: t.dislikes,
+        author: m.author, date: m.date, mapType: m.mapType, inGame: !!m.inGame
+      };
+    });
 
     res.json({ page: String(page), count: out.length, maps: slice });
   }
@@ -143,10 +183,11 @@ function register(app, getUser) {
   app.get('/getRandomMap', (req, res) => {
     const t = req.query.mapType;
     // sandbox — карты всех режимов и всех авторов
-    // остальные режимы — только карты владельца
+    // остальные режимы — карты владельца плюс те, что владелец добавил
+    // в игру кнопкой «Добавить в игру» в Maps Browser
     const pool = (!t || t === 'sandbox')
       ? maps.slice()
-      : maps.filter(m => m.mapType === t && low(m.author) === low(OWNER));
+      : maps.filter(m => m.mapType === t && (isOwnerName(m.author) || m.inGame === true));
     if (!pool.length) return res.json(null);
     let m = pool[Math.floor(Math.random() * pool.length)];
     // не повторяем ту же карту подряд, если есть выбор
@@ -168,9 +209,9 @@ function register(app, getUser) {
     const v = parseInt(req.body.vote) > 0 ? 1 : -1;
     m.votes = m.votes || {};
     m.votes[low(u.name)] = v;
-    m.rating = Object.values(m.votes).reduce((a, b) => a + b, 0);
+    const t = retally(m);
     save();
-    res.json({ status: 'success', rating: m.rating });
+    res.json({ status: 'success', rating: t.rating, likes: t.likes, dislikes: t.dislikes });
   });
 
   // ---------- удаление ----------
@@ -196,8 +237,37 @@ function register(app, getUser) {
   // ---------- карты игрока (вкладка Maps в профиле) ----------
   app.get('/userMaps', (req, res) => {
     const mine = maps.filter(m => low(m.author) === low(req.query.name));
-    res.json({ count: mine.length, maps: mine.map(m => ({ mapName: m.mapName, mapType: m.mapType, rating: m.rating, date: m.date })) });
+    res.json({ count: mine.length, maps: mine.map(m => {
+      const t = tally(m);
+      return { mapName: m.mapName, mapType: m.mapType, rating: t.rating,
+               likes: t.likes, dislikes: t.dislikes, date: m.date, inGame: !!m.inGame };
+    }) });
   });
 }
 
-module.exports = { register, MODES, OWNER };
+// ---------- доступ для инструментов владельца ----------
+function find(author, mapName) {
+  return maps.find(x => low(x.author) === low(author) && low(x.mapName) === low(mapName));
+}
+function setBoost(author, mapName, likes, dislikes) {
+  const m = find(author, mapName);
+  if (!m) return null;
+  if (likes !== null && likes !== undefined) m.boostLikes = Math.max(0, parseInt(likes) || 0);
+  if (dislikes !== null && dislikes !== undefined) m.boostDislikes = Math.max(0, parseInt(dislikes) || 0);
+  const t = retally(m);
+  save();
+  return t;
+}
+function setInGame(author, mapName, on) {
+  const m = find(author, mapName);
+  if (!m) return null;
+  m.inGame = !!on;
+  save();
+  return { inGame: m.inGame, mapName: m.mapName, author: m.author, mapType: m.mapType };
+}
+function inGameList() {
+  return maps.filter(m => m.inGame)
+             .map(m => ({ mapName: m.mapName, author: m.author, mapType: m.mapType }));
+}
+
+module.exports = { register, MODES, OWNER, COIN_LIMIT, find, setBoost, setInGame, inGameList, tally };

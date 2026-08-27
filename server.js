@@ -13,13 +13,27 @@ const io = socketIo(server, {
   transports: ['websocket', 'polling']
 });
 
+let accountsRef = null;   // заполняется ниже, нужен для проверки прав на owner.js
+
 // служебные файлы наружу не отдаём
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/package.json','/package-lock.json'];
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v13.md'];
 app.use((req, res, next) => {
   const p = req.path.toLowerCase();
   if (PRIVATE.indexOf(p) !== -1 || p.indexOf('/data') === 0 || p.indexOf('/node_modules') === 0)
     return res.status(404).send('Not found');
   next();
+});
+
+// owner.js отдаём ТОЛЬКО владельцу. Обычный игрок получает пустой файл,
+// поэтому у него нет ни кнопок, ни разметки, ни адресов служебных запросов.
+app.get('/owner.js', (req, res) => {
+  res.set('Content-Type', 'application/javascript; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  let allowed = false;
+  try { allowed = accountsRef && accountsRef.isOwner(accountsRef.currentUser(req)); }
+  catch (e) { allowed = false; }
+  if (!allowed) return res.send('/* */');
+  res.sendFile(path.join(__dirname, 'owner.js'));
 });
 
 app.use(express.static(__dirname));
@@ -30,8 +44,11 @@ app.use(express.json());
 
 // система аккаунтов, друзей и профилей
 const accounts = require('./accounts.js');
+accountsRef = accounts;
 accounts.register(app);
 require('./maps.js').register(app, accounts.currentUser);
+require('./skins.js').register(app, accounts);
+require('./lang.js').register(app, accounts);
 require('./extras.js').register(app, accounts);
 
 // адреса, на которые ссылается шапка сайта
@@ -65,6 +82,12 @@ app.get('/getBestRoom', (req, res) => {
 });
 
 app.get('/editor/index.html', (req, res) => res.redirect('/editor.html'));
+app.get('/skinEditor/index.html', (req, res) => res.redirect('/skinEditor.html'));
+app.get('/skinsBrowser/index.html', (req, res) => res.redirect('/skinEditor.html'));
+app.get('/shop/index.html', (req, res) => res.redirect('/skinEditor.html'));
+app.get('/avatar/index.html', (req, res) => res.redirect('/avatar.html'));
+app.get('/settings/index.html', (req, res) => res.redirect('/avatar.html'));
+app.get('/supporters/index.html', (req, res) => res.redirect('/leaderboard.html'));
 app.get('/users/index.html', (req, res) => res.redirect('/users.html' + (req.originalUrl.split('?')[1] ? '?' + req.originalUrl.split('?')[1] : '')));
 app.get('/mapsBrowser/index.html', (req, res) => res.redirect('/mapsBrowser.html'));
 app.get('/editor/tutorial.html', (req, res) => res.redirect('/editor.html'));

@@ -9,15 +9,23 @@
   var MAP = {
     'editor':        'editor.html',
     'map editor':    'editor.html',
+    'skin editor':   'skinEditor.html',
+    'редактор скинов':'skinEditor.html',
     'maps browser':  'mapsBrowser.html',
     'browser':       'mapsBrowser.html',
-    'skins browser': 'mapsBrowser.html',
+    'skins browser': 'skinEditor.html',
     'avatar':        'avatar.html',
-    'shop':          'avatar.html',
+    'shop':          'skinEditor.html',
+    'магазин':       'skinEditor.html',
+    'supporters':    'leaderboard.html',
+    'editor tutorial':'editor.html',
     'leaderboard':   'leaderboard.html',
     'leaderboards':  'leaderboard.html',
     'logs':          'logs.html'
   };
+
+  // Menu не ведёт на страницу — им управляет сам вендорный код
+  var MENU_LABELS = ['menu', 'меню', 'menü', 'menú', '菜单'];
 
   function label(el) {
     return (el.textContent || '').trim().toLowerCase();
@@ -25,6 +33,7 @@
 
   // навесить правильный переход на элемент меню
   function wire(el) {
+    if (MENU_LABELS.indexOf(label(el)) !== -1) return;   // Menu не трогаем
     var dest = MAP[label(el)];
     if (!dest) return;
     if (el.tagName === 'A') el.setAttribute('href', dest);
@@ -71,6 +80,12 @@
 
     // 2) добавить Leaderboard в верхнюю панель
     addLeaderboardButton(header);
+    // 3) Menu должен быть виден всем, даже на узком экране
+    var items = header.querySelectorAll('.header-link-item');
+    for (var m = 0; m < items.length; m++) {
+      var btn = items[m].querySelector('.header-link-item-button');
+      if (btn && MENU_LABELS.indexOf(label(btn)) !== -1) items[m].style.display = 'inherit';
+    }
     return true;
   }
 

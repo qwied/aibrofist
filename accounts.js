@@ -6,8 +6,14 @@ const crypto = require('crypto');
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'users.json');
 
-const OWNER = process.env.OWNER_NAME || 'Аккаунт';
-const isOwner = u => !!u && String(u.name).toLowerCase() === OWNER.toLowerCase();
+const OWNER = process.env.OWNER_NAME || 'AIBrofist';
+// ссылка в задаче вела на профиль System — считаем оба ника владельцем,
+// чтобы права не потерялись при переименовании аккаунта
+const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'AIBrofist,System')
+  .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+if (OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.toLowerCase());
+
+const isOwner = u => !!u && OWNER_ALIASES.indexOf(String(u.name).toLowerCase()) !== -1;
 
 let db = { users: {}, sessions: {} };
 
@@ -115,6 +121,7 @@ function register(app) {
       name, salt, hash: hash(password, salt),
       joined: Date.now(), lastSeen: Date.now(), ip: ipKey(req),
       coins: 0, about: '', avatar: '0',
+      items: [], skin: {}, lang: '',
       friends: [], incoming: [], outgoing: []
     };
     newSession(res, name);
@@ -296,24 +303,50 @@ function register(app) {
     res.json({ page: p.label, count: list.length, guest, relation: p.slice });
   });
 
-  // ---------- заглушки ----------
+  // ---------- кто я (для клиентских инструментов владельца) ----------
+  app.get('/whoAmI', (req, res) => {
+    const u = currentUser(req);
+    const owner = isOwner(u);
+    const out = { guest: !u, name: u ? u.name : '', owner: owner, coins: u ? (u.coins || 0) : 0 };
+    if (owner) out.ownerName = OWNER;   // посторонним ник владельца не раскрываем
+    res.json(out);
+  });
+
+  // ---------- заглушки вендорных страниц ----------
   app.get('/getSkins', (req, res) => res.json({ skins: [], page: '1/1', count: 0 }));
   app.get('/getSkinsForList', (req, res) => res.json({ skins: [], page: '1/1', count: 0 }));
   app.get('/getStoreCosmetics', (req, res) => {
-    // страница магазина скинов: пока один бесплатный базовый скин
-    const page = parseInt(req.query.page) || 1;
-    res.json({ page: page, cosmetics: page === 1 ? [{ name: '0', price: 0 }] : [] });
+    // старый магазин вендора: отдаём наш каталог в его формате
+    const skins = require('./skins.js');
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const per = 12;
+    const all = skins.CATALOG.filter(i => i.price > 0);
+    res.json({ page: page, cosmetics: all.slice((page - 1) * per, page * per)
+      .map(i => ({ name: i.name, id: i.id, price: i.price, slot: i.slot })) });
   });
   app.get('/getMyAssets', (req, res) => {
+    const skins = require('./skins.js');
     const u = currentUser(req);
-    const page = parseInt(req.query.page) || 1;
-    // базовый скин есть у всех
-    res.json({ page: page, skins: page === 1 ? [{ assetName: '0' }] : [] });
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const per = 12;
+    const mine = skins.ownedList(u);
+    res.json({ page: page, skins: mine.slice((page - 1) * per, page * per)
+      .map(id => ({ assetName: id, name: (skins.BY_ID[id] || {}).name || id })) });
   });
   app.post('/buyStoreItem', (req, res) => {
+    // вендорная кнопка покупки — переиспользуем нашу логику
     const u = currentUser(req);
-    if (!u) return res.json({ code: 0 });          // 0 = войдите
-    res.json({ code: 3 });                          // 3 = уже владеете (базовый бесплатный)
+    if (!u) return res.json({ code: 0 });
+    const skins = require('./skins.js');
+    const item = skins.BY_ID[String(req.body.id || '')];
+    if (!item) return res.json({ code: 1 });
+    u.items = Array.isArray(u.items) ? u.items : [];
+    if (item.price === 0 || u.items.indexOf(item.id) !== -1) return res.json({ code: 3 });
+    if ((u.coins || 0) < item.price) return res.json({ code: 2 });
+    u.coins = (u.coins || 0) - item.price;
+    u.items.push(item.id);
+    save();
+    res.json({ code: 4, coins: u.coins });
   });
   app.get('/getAllSupporters', (req, res) => res.json([]));
   app.get('/getGamingServersInfo', (req, res) => res.json([]));
@@ -321,4 +354,4 @@ function register(app) {
   app.get('/captcha/getCaptcha', (req, res) => res.json({}));
 }
 
-module.exports = { register, currentUser, isOwner, OWNER, getDb: () => db, save, newSession, hash, key, checkName };
+module.exports = { register, currentUser, isOwner, OWNER, OWNER_ALIASES, getDb: () => db, save, newSession, hash, key, checkName };

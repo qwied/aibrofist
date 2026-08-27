@@ -43,7 +43,7 @@
 
 <div class="avWrap">
 	<div class="avLeft">
-		<div class="avFig"><div class="avHead"></div><div class="avBody" id="avBody"></div></div>
+		<div class="avFig" id="avFig" style="width:180px;height:240px"></div>
 		<input class="avName" id="avName" readonly>
 		<div class="avRow">
 			<label for="avColor">Цвет чата:</label>
@@ -54,13 +54,15 @@
 	</div>
 	<div class="avRight">
 		<div class="avTabs">
-			<div class="avTab on" data-tab="buy">Магазин</div>
-			<div class="avTab" data-tab="owned">Мои</div>
+			<div class="avTab on" data-tab="buy" data-i18n="shopTab">Магазин</div>
+			<div class="avTab" data-tab="owned" data-i18n="myTab">Мои</div>
 		</div>
-		<div id="avList"><div class="avHint">Загрузка…</div></div>
+		<div id="avList"><div class="avHint" data-i18n="loading">Загрузка…</div></div>
+		<button class="avSave" style="margin-top:16px" id="avGoSkin" data-i18n="skinEditor">Редактор скинов</button>
 	</div>
 </div>
 
+<script src="skinRender.js"></script>
 <script src="topnav.js" defer></script>
 <script src="account.js" defer></script>
 <script>
@@ -92,31 +94,45 @@
 		}).catch(function () { msg.style.color = 'red'; msg.textContent = 'Ошибка сети'; });
 	};
 
-	function card(name, price, owned) {
-		return '<div class="avCard">'
-			+ '<div class="avCardFig"><div class="h"></div><div class="b"></div></div>'
+	var CAT = { items: [], byId: {}, owned: {}, skin: {} };
+
+	function drawFig() {
+		var el = document.getElementById('avFig');
+		if (el && window.BFSkin) el.innerHTML = BFSkin.svg(CAT.skin, CAT.byId, { width: 180, height: 240 });
+	}
+
+	getJSON('/skin/catalog').then(function (d) {
+		CAT.items = d.items || [];
+		CAT.skin = d.skin || {};
+		(d.items || []).forEach(function (i) { CAT.byId[i.id] = i; });
+		(d.owned || []).forEach(function (i) { CAT.owned[i] = true; });
+		drawFig();
+		loadList();
+	}).catch(drawFig);
+
+	document.getElementById('avGoSkin').onclick = function () { location.href = 'skinEditor.html'; };
+
+	function card(item) {
+		var owned = !!CAT.owned[item.id];
+		var art = (item.slot === 'color')
+			? '<div style="width:40px;height:40px;border-radius:50%;margin:6px auto;background:' +
+			  (item.v || '#191919') + '"></div>'
+			: (window.BFSkin ? BFSkin.preview(item, CAT.byId, CAT.skin, 62) : '');
+		return '<div class="avCard">' + art
+			+ '<div style="font-size:11px;color:#4b5563;padding:0 3px;min-height:26px">' + item.name + '</div>'
 			+ (owned ? '<div class="avPrice" style="color:#2e9b2e">Есть</div>'
-			         : '<div class="avPrice">' + (price ? price + ' 🪙' : 'Бесплатно') + '</div>')
+			         : '<div class="avPrice">' + (item.price ? item.price + ' 🪙' : 'Бесплатно') + '</div>')
 			+ '</div>';
 	}
 
 	function loadList() {
-		listEl.innerHTML = '<div class="avHint">Загрузка…</div>';
-		if (tab === 'buy') {
-			getJSON('/getStoreCosmetics?page=1').then(function (d) {
-				var items = (d && d.cosmetics) || [];
-				listEl.innerHTML = items.length
-					? '<div class="avGrid">' + items.map(function (c) { return card(c.name, c.price, false); }).join('') + '</div>'
-					: '<div class="avHint">Магазин пока пуст</div>';
-			}).catch(function () { listEl.innerHTML = '<div class="avHint">Не удалось загрузить</div>'; });
-		} else {
-			getJSON('/getMyAssets?page=1').then(function (d) {
-				var skins = (d && d.skins) || [];
-				listEl.innerHTML = skins.length
-					? '<div class="avGrid">' + skins.map(function (s) { return card(s.assetName, 0, true); }).join('') + '</div>'
-					: '<div class="avHint">У вас пока нет скинов</div>';
-			}).catch(function () { listEl.innerHTML = '<div class="avHint">Не удалось загрузить</div>'; });
-		}
+		if (!CAT.items.length) { listEl.innerHTML = '<div class="avHint">Загрузка…</div>'; return; }
+		var list = (tab === 'buy')
+			? CAT.items.filter(function (i) { return i.price > 0 && !CAT.owned[i.id]; })
+			: CAT.items.filter(function (i) { return CAT.owned[i.id]; });
+		listEl.innerHTML = list.length
+			? '<div class="avGrid">' + list.slice(0, 24).map(card).join('') + '</div>'
+			: '<div class="avHint">Пусто</div>';
 	}
 
 	var tabs = document.querySelectorAll('.avTab');
@@ -132,5 +148,7 @@
 	loadList();
 })();
 </script>
+	<script src="i18n.js"></script>
+	<script src="owner.js" defer></script>
 </body>
 </html>

@@ -118,6 +118,69 @@ function register(app, acc) {
     res.json({ status: 'success', message: '«' + old + '» теперь «' + to + '»' });
   });
 
+  // ---------- монеты в любой профиль (только владелец) ----------
+  app.post('/owner/giveCoins', (req, res) => {
+    if (!ownerOnly(req, res)) return;
+    const db = getDb();
+    const name = String(req.body.name || '').trim();
+    const target = db.users[key(name)];
+    if (!target) return res.json({ status: 'error', message: 'Игрок «' + name + '» не найден' });
+
+    const raw = String(req.body.coins || '').trim();
+    const n = parseInt(raw, 10);
+    if (!isFinite(n) || isNaN(n))
+      return res.json({ status: 'error', message: 'Введите число' });
+
+    const mode = String(req.body.mode || 'add');   // add | set
+    if (mode === 'set') target.coins = Math.max(0, n);
+    else target.coins = Math.max(0, (target.coins || 0) + n);
+
+    saveUsers();
+    res.json({
+      status: 'success',
+      coins: target.coins,
+      message: '«' + target.name + '» — теперь ' + target.coins + ' 🪙'
+    });
+  });
+
+  // ---------- накрутка лайков и дизлайков (только владелец) ----------
+  const mapsApi = require('./maps.js');
+
+  app.post('/owner/setVotes', (req, res) => {
+    if (!ownerOnly(req, res)) return;
+    const author = String(req.body.author || '').trim();
+    const mapName = String(req.body.mapName || '').trim();
+    const likes = req.body.likes === undefined || req.body.likes === '' ? null : req.body.likes;
+    const dislikes = req.body.dislikes === undefined || req.body.dislikes === '' ? null : req.body.dislikes;
+
+    const t = mapsApi.setBoost(author, mapName, likes, dislikes);
+    if (!t) return res.json({ status: 'error', message: 'Карта не найдена' });
+    res.json({ status: 'success', likes: t.likes, dislikes: t.dislikes, rating: t.rating });
+  });
+
+  // ---------- добавить карту в игровые режимы (только владелец) ----------
+  app.post('/owner/mapInGame', (req, res) => {
+    if (!ownerOnly(req, res)) return;
+    const author = String(req.body.author || '').trim();
+    const mapName = String(req.body.mapName || '').trim();
+    const on = String(req.body.on || 'true') === 'true';
+
+    const r = mapsApi.setInGame(author, mapName, on);
+    if (!r) return res.json({ status: 'error', message: 'Карта не найдена' });
+    res.json({
+      status: 'success', inGame: r.inGame,
+      message: r.inGame
+        ? '«' + r.mapName + '» теперь в игре (' + r.mapType + ')'
+        : '«' + r.mapName + '» убрана из игры'
+    });
+  });
+
+  app.get('/owner/inGame', (req, res) => {
+    const u = currentUser(req);
+    if (!isOwner(u)) return res.json({ status: 'error', maps: [] });
+    res.json({ status: 'success', maps: mapsApi.inGameList() });
+  });
+
   // ---------- связанные аккаунты владельца ----------
   app.get('/owner/accounts', (req, res) => {
     const u = currentUser(req);

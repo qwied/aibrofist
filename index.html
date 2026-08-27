@@ -399,6 +399,10 @@ body{
     .brand-logo{display:none !important;}
 }
 
+/* Menu доступен всем и на любом экране */
+#menuButton{display:block !important;}
+#menuButton:hover{color:#2196F3;}
+
 </style>
 	<script src="device.js"></script>
 	<link rel="stylesheet" type="text/css" href="mobile.css">
@@ -431,11 +435,11 @@ body{
 				<div class="header-more-links-subcontainer">
 				<a href="#" class="header-more-link-button">Leaderboards</a>
 					<a href="#" class="header-more-link-button">Map Editor</a>
-					<a href="#" class="header-more-link-button">Skin Editor</a>
+					<a href="skinEditor.html" class="header-more-link-button">Skin Editor</a>
 					<a href="#" class="header-more-link-button">Maps Browser</a>
-					<a href="#" class="header-more-link-button">Skins Browser</a>
+					<a href="skinEditor.html" class="header-more-link-button">Skins Browser</a>
 					<a href="#" class="header-more-link-button">Avatar</a>
-					<a href="#" class="header-more-link-button">Shop</a>
+					<a href="skinEditor.html" class="header-more-link-button">Shop</a>
 					<a href="#" class="header-more-link-button">Supporters</a>
 					<a href="#" class="header-more-link-button">Editor Tutorial</a>
 					<a href="#" class="header-more-link-button">Privacy Policy</a>
@@ -451,18 +455,18 @@ body{
 					<div class="header-link-item-button">Editor</div>
 					<div class="header-link-item-sub-menu">
 						<a href="#">Map Editor</a>
-						<a href="#">Skin Editor</a>
+						<a href="skinEditor.html">Skin Editor</a>
 					</div>
 				</div>
 				<div class="header-link-item">
 					<div class="header-link-item-button">Browser</div>
 					<div class="header-link-item-sub-menu">
 						<a href="#">Maps Browser</a>
-						<a href="#">Skins Browser</a>
+						<a href="skinEditor.html">Skins Browser</a>
 					</div>
 				</div>
 				<a href="#" class="header-link-item header-link-a">Avatar</a>
-				<a href="#" class="header-link-item header-link-a">Shop</a>
+				<a href="skinEditor.html" class="header-link-item header-link-a">Shop</a>
 				<a href="#" class="header-more-link-button">Logs</a>
 				<div class="header-link-item">
 					<div class="header-link-item-button" id="menuButton">Menu</div>
@@ -541,10 +545,8 @@ body{
 		var moreLinksOverlay = document.getElementById('moreLinksOverlay');
 		var moreLinksContainer = document.getElementById('moreLinksContainer');
 		var moreLinksClose = document.getElementById('moreLinksClose');
-		menuButton.addEventListener('click', function () {
-			toggle(moreLinksOverlay, true);
-			toggle(moreLinksContainer, true);
-		});
+		// открытием Menu управляет nav.js — здесь обработчик не вешаем,
+		// иначе клик срабатывал дважды и меню сразу закрывалось
 		function closeMoreLinks() {
 			toggle(moreLinksOverlay, false);
 			toggle(moreLinksContainer, false);
@@ -571,5 +573,7 @@ body{
 <script src="nav.js" defer></script>
 	<script src="account.js" defer></script>
 	<script src="topnav.js" defer></script>
+	<script src="i18n.js"></script>
+	<script src="owner.js" defer></script>
 </body>
 </html>

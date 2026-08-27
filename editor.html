@@ -222,7 +222,7 @@ body.mob #msg h1{font-size:38px}
 <div id="hud" class="panel">
   <div id="exitBtn">✕ Выйти</div>
   <div class="stat"><i>⏱</i><span id="sTime">0.0</span></div>
-  <div class="stat"><i>🪙</i><span id="sCoin">0</span></div>
+  <div class="stat" title="монет в карте (максимум 3)"><i>🪙</i><span id="sCoin">0</span></div>
   <div class="stat"><i>💀</i><span id="sDeath">0</span></div>
 </div>
 <div id="msg"><h1 id="msgT"></h1><p id="msgS"></p></div>
@@ -540,6 +540,12 @@ var LINKED = ["gate","platform","rotator","cover","button","lever","door"];
 /* ══════════════════════════════════════════════════
    STATE
    ══════════════════════════════════════════════════ */
+var COIN_LIMIT = 3;   // больше трёх монет в карту не положить — защита от накрутки
+function countCoins(){ return objects.filter(function(o){ return o.type === "coin"; }).length; }
+function coinWarn(){
+  showMsg("Максимум " + COIN_LIMIT + " монеты", "Больше монет в карту положить нельзя.");
+  setTimeout(hideMsg, 1800);
+}
 var mode = "hideAndSeek", tool = "select", objects = [], sel = null, uid = 1;
 var playing = false, anim = 0, grid = true, GRID = 10;
 var gravityScale = 10;
@@ -1007,6 +1013,7 @@ function down(x,y){
     else sel = null;
     inspect(); return;
   }
+  if(tool === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
   commit();
   if(tool === "spawn"){
     var ex = findSpawn(); if(ex) objects = objects.filter(function(o){ return o !== ex; });
@@ -1139,6 +1146,7 @@ pad("pJump",  function(v){ keys.u = v; if(v) buf = BUFFER; });
 
 function duplicate(){
   if(!sel) return;
+  if(sel.type === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
   commit();
   var c = JSON.parse(JSON.stringify(sel));
   c.id = uid++; c.x += 20; c.y += 20;
@@ -1401,7 +1409,9 @@ saveBtn.onclick = () => {
 };
 document.body.appendChild(saveBtn);
 </script>
+<script src="i18n.js"></script>
 <script src="account.js" defer></script>
+<script src="owner.js" defer></script>
 
 <script>
 /* Публикация карты в Maps Browser */
@@ -1419,6 +1429,12 @@ document.body.appendChild(saveBtn);
     try {
       var m = window.getEditorMap();
       data = m.data; window.__mode = m.mode;
+      var parsed = JSON.parse(data);
+      var coins = (parsed.objects || []).filter(function(o){ return o.type === 'coin'; }).length;
+      if (coins > 3) {
+        alert('В карте ' + coins + ' монет. Разрешено не больше 3 — уберите лишние.');
+        return;
+      }
     } catch(e){ alert('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0431\u0440\u0430\u0442\u044c \u043a\u0430\u0440\u0442\u0443'); return; }
 
     var body = 'mapName=' + encodeURIComponent(name)
