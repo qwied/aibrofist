@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<title>AIBrofist — Logs</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" type="text/css" href="style.css">
+	<link rel="stylesheet" type="text/css" href="Gplayer3.css">
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+	<script src="gamemode.script.ejs.js"></script>
+	<script src="device.js"></script>
+	<link rel="stylesheet" type="text/css" href="mobile.css">
+	<style>
+		.logsWrap{max-width:1024px;margin:0 auto;padding:18px 14px 60px}
+		.logsWrap h1{font-size:26px;margin:12px 0 4px}
+		.logsWrap .sub{color:#8b93a1;font-size:13px;margin-bottom:18px}
+		.logItem{border-bottom:1px solid #e6ebf0;padding:15px 0}
+		.logItem h3{margin:0 0 5px;font-size:17px;color:#191919}
+		.logItem .date{color:#8b93a1;font-size:12px;margin-bottom:7px}
+		.logItem p{margin:0;line-height:1.55;white-space:pre-wrap;word-break:break-word;font-size:14.5px}
+		.logDel{float:right;border:1px solid #e74c3c;color:#e74c3c;background:#fff;border-radius:5px;
+			padding:3px 10px;cursor:pointer;font-size:12px}
+		.empty{color:#8b93a1;text-align:center;padding:50px 10px}
+		#editor{display:none;border:1px solid #dfe3ea;border-radius:8px;padding:14px;margin-bottom:22px;background:#fafbfc}
+		#editor input,#editor textarea{width:100%;box-sizing:border-box;padding:10px;margin-bottom:9px;
+			border:1px solid #cfd6de;border-radius:5px;font:14px sans-serif}
+		#editor textarea{min-height:110px;resize:vertical}
+		#editor button{border:1px solid #2196F3;background:#2196F3;color:#fff;border-radius:5px;
+			padding:9px 20px;cursor:pointer;font-size:14px}
+	</style>
+</head>
+<body onload="init && init()">
+<div class="container"></div>
+
+<div class="logsWrap">
+	<h1>Новости</h1>
+	<div class="sub">Обновления и объявления AIBrofist</div>
+
+	<div id="editor">
+		<input id="lTitle" maxlength="120" placeholder="Заголовок">
+		<textarea id="lText" maxlength="4000" placeholder="Текст новости"></textarea>
+		<button id="lAdd">Опубликовать</button>
+	</div>
+
+	<div id="list"><div class="empty">Загрузка…</div></div>
+</div>
+
+<script src="account.js" defer></script>
+<script>
+(function () {
+	var list = document.getElementById('list');
+	var isOwner = false;
+
+	function esc(s) { return String(s).replace(/[&<>"]/g, function (c) {
+		return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+	function when(ms) {
+		var d = new Date(ms);
+		return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+			+ ', ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+	}
+
+	function render(items) {
+		if (!items.length) {
+			list.innerHTML = '<div class="empty">Пока нет ни одной новости</div>';
+			return;
+		}
+		list.innerHTML = items.map(function (l) {
+			return '<div class="logItem">'
+				+ (isOwner ? '<button class="logDel" data-id="' + l.id + '">Удалить</button>' : '')
+				+ '<h3>' + esc(l.title) + '</h3>'
+				+ '<div class="date">' + when(l.date) + '</div>'
+				+ '<p>' + esc(l.text) + '</p></div>';
+		}).join('');
+	}
+
+	function load() {
+		fetch('/getLogs', { credentials: 'same-origin' })
+			.then(function (r) { return r.json(); })
+			.then(function (d) {
+				isOwner = !!d.owner;
+				document.getElementById('editor').style.display = isOwner ? 'block' : 'none';
+				render(d.logs || []);
+			})
+			.catch(function () { list.innerHTML = '<div class="empty">Не удалось загрузить</div>'; });
+	}
+
+	function post(url, body) {
+		return fetch(url, {
+			method: 'POST', credentials: 'same-origin',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
+		}).then(function (r) { return r.json(); });
+	}
+
+	document.getElementById('lAdd').onclick = function () {
+		var t = document.getElementById('lTitle').value.trim();
+		var x = document.getElementById('lText').value.trim();
+		if (!t && !x) return;
+		post('/addLog', 'title=' + encodeURIComponent(t) + '&text=' + encodeURIComponent(x))
+			.then(function (r) {
+				if (r.status === 'success') {
+					document.getElementById('lTitle').value = '';
+					document.getElementById('lText').value = '';
+					load();
+				} else alert(r.message || 'Ошибка');
+			});
+	};
+
+	list.addEventListener('click', function (e) {
+		var b = e.target.closest('.logDel');
+		if (!b) return;
+		if (!confirm('Удалить новость?')) return;
+		post('/deleteLog', 'id=' + encodeURIComponent(b.dataset.id)).then(load);
+	});
+
+	load();
+	setInterval(load, 60000);
+})();
+</script>
+</body>
+</html>

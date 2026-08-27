@@ -1,0 +1,198 @@
+/* ======= Мобильная адаптация AIBrofist =======
+   Подключается последним, поэтому перекрывает базовые стили.
+   Компьютерный вид не меняется — все правила внутри @media. */
+
+/* --- общее для сенсорных экранов --- */
+html.is-touch * { -webkit-tap-highlight-color: rgba(33,150,243,.2); }
+html.is-touch .card:hover,
+html.is-touch .play-button:hover,
+html.is-touch .refresh-button:hover { background: inherit; }
+
+@media (max-width: 900px) {
+  html, body { overflow-x: hidden; }
+
+  /* ---------- шапка ---------- */
+  .header {
+    height: auto;
+    flex-wrap: nowrap;
+    padding: 4px 6px;
+    box-sizing: border-box;
+  }
+  .brand-logo { font-size: 21px; margin-top: 6px; }
+  .brand-icon { width: 32px; }
+
+  .header-link-container {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .header-link-container::-webkit-scrollbar { display: none; }
+  .header-link-a,
+  .header-link-item-button { padding: 12px 9px; font-size: 14px; white-space: nowrap; }
+  .header-link-item { margin: 0 1px; }
+
+  .profile-icon { width: 36px; }
+  .auth-buttons { padding: 12px 8px; font-size: 14px; white-space: nowrap; }
+  .profile-menu { margin-left: -110px; margin-top: 42px; }
+  .menu-item { padding: 9px 26px; font-size: 15px; }
+}
+
+/* ---------- главное меню с карточками режимов ---------- */
+@media (max-width: 760px) {
+  .cards .cardContainer { width: 50% !important; }
+  .card { margin: 7%; }
+  .card div { font-size: 14px; }
+}
+@media (max-width: 430px) {
+  .cards .cardContainer { width: 100% !important; }
+  .card { margin: 5% 12%; }
+}
+
+/* ---------- страница режима: превью, PLAY, описание, скриншот ---------- */
+@media (max-width: 760px) {
+  .playContainer { margin-top: 6px; }
+  .playContainer img { max-width: 150px; width: 45%; }
+  .playContainer .title { font-size: 19px; padding: 6px; }
+  .playContainer .playButton {
+    max-width: none;
+    width: 92%;
+    margin: 10px auto;
+    float: none;
+    padding: 15px 0;
+    font-size: 18px;
+    border-radius: 6px;
+  }
+
+  /* блок описания и слайдшоу перестраиваем в колонку */
+  .slideShowAndAboutContainer {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+  .slideShowContainer { width: 100% !important; float: none !important; margin: 0 0 10px; }
+  .slideShowContainer img { width: 100%; height: auto; }
+  .contentContainer .aboutContent {
+    width: 100% !important;
+    float: none !important;
+    padding: 12px 14px !important;
+    box-sizing: border-box;
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .prev, .next { padding: 20px 12px; font-size: 22px; opacity: .35; }
+  .contentContainer .roomsContent { height: auto; }
+}
+
+/* ---------- профиль игрока ---------- */
+@media (max-width: 760px) {
+  .search-users-container { position: static !important; margin-bottom: 8px; }
+  .full-profile-container {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center;
+    margin-top: 12px !important;
+  }
+  .profile-picture { width: 96px !important; clip: auto !important; }
+  .profile-picture-wrapper { overflow: hidden; }
+  .profile-data-wrapper { align-items: center; }
+  .profile-header, .profile-name, .profile-join-date, .profile-credits {
+    float: none !important;
+    margin-left: 0 !important;
+    text-align: center;
+    width: auto;
+  }
+  .profile-name { font-size: 21px; padding-left: 0 !important; }
+  .add-friend-button, .report-button {
+    float: none !important;
+    position: static !important;
+    display: inline-block !important;
+    margin: 8px 4px 0;
+    padding: 9px 18px !important;
+    font-size: 14px !important;
+  }
+  .status-container { height: auto; min-height: 44px; }
+
+  .user-content-header { display: flex; overflow-x: auto; align-items: center; }
+  .user-content-header::-webkit-scrollbar { display: none; }
+  .header-tab { padding: 9px 10px !important; white-space: nowrap; font-size: 13px; }
+  .pagination-controls { flex: 0 0 auto; margin-left: auto; }
+  .user-content-list, .content-body { height: auto !important; max-height: 60vh; }
+
+  .user-item { display: flex; align-items: center; flex-wrap: wrap; padding: 7px 4px; }
+  .user-name { margin-top: 0 !important; max-width: 45vw; }
+  .user-status-text { margin-top: 0 !important; font-size: 12px; max-width: 100%; }
+  .user-action-remove, .user-action-ignore {
+    margin: 0 3px !important; padding: 7px 12px !important; font-size: 13px;
+  }
+}
+
+/* ---------- Maps Browser ---------- */
+@media (max-width: 760px) {
+  .maps-container { margin-top: 8px; }
+  .filter-table { flex-direction: column; padding: 6px 10px; }
+  .filter-select, .filter-input, .refresh-button {
+    width: 100% !important;
+    margin: 4px 0 !important;
+    padding: 10px 4px !important;
+    box-sizing: border-box;
+    font-size: 15px;
+  }
+  .maps-table { height: auto !important; max-height: 62vh; }
+  .maps-table-header-style { padding: 7px 0; font-size: 13px; }
+  .maps-row { margin: 8px 0; font-size: 13px; }
+  .map-name-row { width: 34% !important; }
+  .map-author-row { width: 26% !important; }
+  .map-rating-row { width: 12% !important; }
+  .map-date-row { display: none !important; }
+  .play-button { width: 74px !important; padding: 9px 0 !important; }
+  .pagination-box { width: auto; display: flex; align-items: center; gap: 4px; }
+}
+@media (max-width: 420px) {
+  .map-rating-row { display: none !important; }
+  .map-name-row { width: 44% !important; }
+  .map-author-row { width: 30% !important; }
+}
+
+/* ---------- окно входа и регистрации ---------- */
+@media (max-width: 760px) {
+  .bf-box {
+    width: calc(100vw - 32px) !important;
+    max-width: 360px;
+    padding: 26px 20px 20px !important;
+  }
+  .bf-i, .bf-b { font-size: 16px; padding: 13px 0; }
+}
+
+/* ---------- подвал ---------- */
+@media (max-width: 760px) {
+  .footer { height: auto; padding: 6px 0; }
+  .footer .row1 { flex-wrap: wrap; height: auto; padding: 4px 0; }
+  .footer .row1 .section { padding: 0 8px; }
+  .footer .item { font-size: 12px; }
+}
+
+/* ---------- новости и таблица лидеров ---------- */
+@media (max-width: 760px) {
+  .logsWrap, .lbWrap { padding: 12px 10px 70px; }
+  .logsWrap h1, .lbWrap h1 { font-size: 21px; }
+  .logItem h3 { font-size: 16px; }
+  .logItem p { font-size: 14px; }
+  .logDel { padding: 6px 12px; font-size: 13px; }
+  #editor input, #editor textarea { font-size: 16px; }   /* меньше 16px — iOS зумит страницу */
+  #editor button { width: 100%; padding: 13px; font-size: 15px; }
+  .lbRow { padding: 12px 8px; gap: 9px; }
+  .lbName { font-size: 15px; }
+  .lbCoins { font-size: 14px; }
+}
+
+/* ---------- окно входа и настроек ---------- */
+@media (max-width: 760px) {
+  .bf-box { max-height: 88vh; overflow-y: auto; }
+  .bf-i { font-size: 16px; }
+}

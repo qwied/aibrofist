@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<title>AIBrofist — Avatar</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" type="text/css" href="style.css">
+	<link rel="stylesheet" type="text/css" href="Gplayer3.css">
+	<link rel="stylesheet" type="text/css" href="GPlayer4.css">
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+	<script src="gamemode.script.ejs.js"></script>
+	<script src="device.js"></script>
+	<link rel="stylesheet" type="text/css" href="mobile.css">
+</head>
+<body>
+<div class="container"></div>
+
+<script src="avatar.client.ejs.js"></script>
+<script src="nav.js" defer></script>
+<script src="account.js" defer></script>
+<script>
+(function () {
+	// avatar.client.ejs.js вешает панель через initAvatarPanel (только модуль cr, без чужой каптчи-шапки)
+	function start() {
+		if (typeof window.initAvatarPanel === 'function') {
+			try { window.initAvatarPanel(); } catch (e) { console.error(e); }
+		}
+	}
+	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+	else start();
+})();
+</script>
+</body>
+</html>
