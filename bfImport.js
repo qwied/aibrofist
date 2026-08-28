@@ -12,10 +12,19 @@
   // иначе прыжки и проходы не совпадут по ширине персонажа.
   var SCALE = 22 / 30;
 
-  var TYPE = { 1: 'rect', 2: 'circle', 3: 'triangle', 4: 'text' };
+  // Расшифровано по реальным картам:
+  //   1 прямоугольник, 2 круг, 3 текст (есть fontSize и text), 5 треугольник.
+  //   4 в присланных картах не встречался — считаем прямоугольником.
+  var TYPE = { 1: 'rect', 2: 'circle', 3: 'text', 4: 'rect', 5: 'triangle' };
+
+  // Части механизмов: оригинал рисует рычаг из палочек и шариков,
+  // наш редактор рисует его сам — эти фигуры пропускаем.
+  var MECH_PARTS = ['leftstick', 'leftball', 'rightstick', 'rightball'];
 
   // как называются объекты в оригинале -> что это у нас
   var BY_ID = [
+    [/^leaver|^lever|^switch/,           'lever'],
+    [/^button|^plate|^pedal/,            'button'],
     [/^spawn|start|player/,              'spawn'],
     [/seeker|hunter|catcher|^it$/,       'seeker'],
     [/finish|goal|end/,                  'finishline'],
@@ -27,8 +36,6 @@
     [/rotator|spinner|rotate|blade|saw/, 'rotator'],
     [/^gate/,                            'gate'],
     [/^door/,                            'door'],
-    [/button|plate|pedal/,               'button'],
-    [/lever|switch/,                     'lever'],
     [/cover|hide|bush/,                  'cover']
   ];
 
@@ -90,14 +97,9 @@
     var coinLimit = opt.coinLimit || 3;
     var allowed = opt.allowed || function () { return true; };
 
-    // углы: Box2D пишет радианы, некоторые версии — градусы.
-    // Определяем по максимуму: больше 6.5 бывает только у градусов.
-    var maxAng = 0;
-    scene.forEach(function (b) {
-      maxAng = Math.max(maxAng, Math.abs(+b.angle || 0));
-      (b.shapes || []).forEach(function (sh) { maxAng = Math.max(maxAng, Math.abs(+sh.angle || 0)); });
-    });
-    var toDeg = maxAng > 6.5 ? 1 : (180 / Math.PI);
+    // Углы в оригинале — градусы. Проверено на карте с рычагами:
+    // тело повёрнуто на 30, а его фигуры на -30 и 120.
+    var toDeg = 1;
 
     var out = [], id = 1, coins = 0;
     var stats = { total: 0, skipped: 0, spawn: 0, coinsCut: 0, wrongMode: 0, overLimit: 0, ghosts: 0 };
@@ -114,10 +116,17 @@
         stats.total++;
 
         var alpha = sh.alpha === undefined ? 1 : +sh.alpha;
+        var rawId = String(sh.id || '').toLowerCase();
         var kind = mapId(sh.id) || bodyKind;
 
-        // невидимая служебная фигура: у точки старта это габаритная рамка
-        if (alpha === 0 && kind !== 'spawn') { stats.skipped++; return; }
+        // палочки и шарики рычага — наш редактор рисует механизм сам
+        if (MECH_PARTS.indexOf(rawId) !== -1) { stats.skipped++; return; }
+
+        // невидимые служебные фигуры пропускаем, но у точки старта это
+        // габаритная рамка, а у кнопки — её рабочая зона
+        if (alpha === 0 && kind !== 'spawn' && kind !== 'button' && kind !== 'lever') {
+          stats.skipped++; return;
+        }
 
         var shType = TYPE[sh.type] || 'rect';
         var w = Math.abs(+sh.width || 0) * SCALE;
@@ -174,7 +183,20 @@
           deadly: deadly
         };
         if (ghost) o.ghost = true;
-        if (type === 'text') { o.text = String(sh.text || ''); o.deadly = false; }
+
+        // «leaver:g1» — часть после двоеточия это цель механизма
+        if ((type === 'lever' || type === 'button') && rawId.indexOf(':') !== -1) {
+          var link = String(sh.id).slice(String(sh.id).indexOf(':') + 1).trim();
+          if (link) o.targets = link;
+          o.ghost = false;
+        }
+        if (type === 'gate' || type === 'door') o.ghost = false;
+        if (type === 'text') {
+          o.text = String(sh.text || '');
+          o.deadly = false; o.ghost = false;
+          var fs = parseFloat(sh.fontSize);
+          if (fs > 0) o.size = Math.round(fs * SCALE);
+        }
         if (type === 'spawn') { o.fill = ''; o.rot = 0; o.deadly = false; }
         out.push(o);
       });
@@ -194,11 +216,27 @@
     return { objects: out, stats: stats, coins: coins, degrees: toDeg === 1 };
   }
 
+  /** Какому режиму карта подходит по своим объектам. */
+  function suggestMode(scene) {
+    var has = {};
+    scene.forEach(function (b) {
+      (b.shapes || []).forEach(function (sh) {
+        var k = mapId(sh.id) || mapId(b.id);
+        if (k) has[k] = true;
+      });
+    });
+    if (has.lever || has.button || has.door) return 'twoPlayer';
+    if (has.finishline || has.checkpoint) return 'race';
+    if (has.seeker || has.cover) return 'hideAndSeek';
+    return '';
+  }
+
   function importText(text, opt) {
     return convert(parseScene(text), opt);
   }
 
-  var api = { parseScene: parseScene, convert: convert, importText: importText, SCALE: SCALE };
+  var api = { parseScene: parseScene, convert: convert, importText: importText,
+              suggestMode: suggestMode, SCALE: SCALE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.BFImport = api;
 })(typeof window !== 'undefined' ? window : globalThis);

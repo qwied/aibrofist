@@ -394,3 +394,78 @@ html[data-page="editor"].is-mobile .ow-fab { bottom: 130px !important; }
 @media (max-width: 420px) {
   .sbGrid { grid-template-columns: repeat(2, 1fr) !important; }
 }
+
+/* =====================================================================
+   v19 — визуальные баги
+   ===================================================================== */
+
+/* Выпадающее меню «Editor» / «Browser».
+   Ссылки внутри объявлены как float:left, а у контейнера не было ни высоты,
+   ни overflow — он схлопывался в полоску, и меню «открывалось», но его
+   не было видно. overflow:hidden создаёт блочный контекст и держит высоту. */
+.header-link-item-sub-menu{
+  overflow: hidden;
+  z-index: 90 !important;
+  min-width: 168px;
+  background: #fff !important;
+  border: 1px solid #e5e7eb;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 10px 24px rgba(15,23,42,.18);
+  padding: 4px 0;
+}
+.header-link-item-sub-menu a{
+  float: none !important;
+  display: block !important;
+  width: auto !important;
+  padding: 12px 16px !important;
+  text-align: left !important;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.header-link-item-sub-menu a:hover{ background: #eef2f8 !important; }
+
+/* меню профиля — те же проблемы с тенью и слоем */
+.profile-menu{
+  z-index: 90 !important;
+  background: #fff !important;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(15,23,42,.18);
+  overflow: hidden;
+  padding: 4px 0;
+}
+.menu-item{ white-space: nowrap; }
+
+@media (max-width: 900px){
+  /* на телефоне подменю прижимаем к краю экрана, а не к кнопке:
+     иначе оно уезжает за правую границу и обрезается */
+  .header-link-item-sub-menu{
+    position: fixed !important;
+    top: 54px !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-height: 70vh;
+    overflow-y: auto !important;
+  }
+  .header-link-item-sub-menu a{ text-align: center !important; }
+}
+
+/* Кнопки шапки не должны сливаться с фоном на светлых страницах */
+.header-link-item-button, .header-link-a{
+  border-radius: 8px;
+}
+.header-link-item-button:active, .header-link-a:active{ background: #e2e8f0; }
+
+/* Полоса шапки всегда поверх содержимого страницы */
+.header{ position: relative; z-index: 60; }
+
+/* редактор: панели не должны наезжать друг на друга */
+@media (max-width: 900px){
+  #bfPublish{ top: 56px !important; right: 8px !important; }
+  #modes{ max-width: calc(100vw - 16px) !important; }
+  /* строка режимов и строка инструментов не перекрывают кнопку публикации */
+  #scene{ padding-right: 4px !important; }
+}
+/* панель владельца не садится на кнопку публикации */
+html[data-page="editor"] .ow-fab{ z-index: 18 !important; }

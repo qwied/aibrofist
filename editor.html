@@ -161,17 +161,20 @@ body.play.mob #pad{display:flex}
 #dlg h3{margin:0 0 7px;font-size:15px}
 #dlg p{margin:0 0 16px;font-size:13px;color:#5b6472;line-height:1.6}
 #dlg .acts{display:flex;gap:8px;justify-content:flex-end}
+#dIn{width:100%;box-sizing:border-box;padding:11px 12px;margin:0 0 14px;border:1px solid var(--line);
+  border-radius:9px;font-size:16px;font-family:inherit;color:var(--ink);background:#fafbfd;outline:none}
+#dIn:focus{border-color:var(--accent);background:#fff}
 #dlg button{padding:8px 15px;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:12.5px;
   font-family:inherit;font-weight:600;cursor:pointer}
 #dlg .ok{background:var(--accent);color:#fff;border-color:var(--accent)}
 #file{display:none}
 
 /* mobile */
-body.mob #modes{top:8px;left:8px;padding:3px}
+body.mob #modes{top:8px;bottom:auto;left:8px;right:8px;padding:3px}
 body.mob .modeBtn{padding:8px 9px;font-size:11px}
-body.mob #scene{top:8px;padding:3px}
+body.mob #scene{top:8px;bottom:auto;padding:3px}
 body.mob .sBtn{width:38px;height:34px}
-body.mob #tools{left:0;right:0;bottom:0;top:auto;transform:none;width:100%;flex-direction:row;
+body.mob #tools{left:0;right:0;bottom:0;top:auto;transform:none;width:100%;max-height:none;flex-direction:row;
   border-radius:16px 16px 0 0;max-height:none;height:58px;overflow-x:auto;overflow-y:hidden;padding:6px 8px;gap:4px}
 body.mob .tool{width:42px;height:42px}
 body.mob .tool canvas{width:26px;height:26px}
@@ -248,6 +251,7 @@ body.mob #msg h1{font-size:38px}
 <div id="dlg">
   <div class="bd"></div>
   <div class="card"><h3 id="dT"></h3><p id="dM"></p>
+    <input id="dIn" type="text" style="display:none">
     <div class="acts"><button id="dNo">Отмена</button><button class="ok" id="dOk">OK</button></div></div>
 </div>
 
@@ -1515,13 +1519,28 @@ function inspect(){
    DIALOG
    ══════════════════════════════════════════════════ */
 var dlg = document.getElementById("dlg"), dCb = null;
-function dialog(t,m,cb){
+function dialog(t,m,cb,ask){
   document.getElementById("dT").textContent = t;
   document.getElementById("dM").textContent = m;
+  var inp = document.getElementById("dIn");
+  if(ask !== undefined && ask !== null){
+    inp.style.display = "block"; inp.value = String(ask);
+    setTimeout(function(){ inp.focus(); inp.select(); }, 40);
+  } else {
+    inp.style.display = "none"; inp.value = "";
+  }
   dCb = cb; document.getElementById("dNo").style.display = cb ? "inline-block" : "none";
   dlg.style.display = "block";
 }
-document.getElementById("dOk").addEventListener("click", function(){ dlg.style.display = "none"; if(dCb) dCb(); });
+document.getElementById("dOk").addEventListener("click", function(){
+  var v = document.getElementById("dIn").value;
+  dlg.style.display = "none";
+  if(dCb) dCb(v);
+});
+document.getElementById("dIn").addEventListener("keydown", function(e){
+  if(e.key === "Enter"){ e.preventDefault(); document.getElementById("dOk").click(); }
+  if(e.key === "Escape"){ dlg.style.display = "none"; dCb = null; }
+});
 document.getElementById("dNo").addEventListener("click", function(){ dlg.style.display = "none"; });
 dlg.querySelector(".bd").addEventListener("click", function(){ dlg.style.display = "none"; });
 
@@ -1577,9 +1596,27 @@ document.getElementById("bOpen").addEventListener("click", function(){ document.
    Распаковка и перевод в наши объекты: lzma.js + bfImport.js.        */
 function importOriginal(raw){
   if(!window.BFImport){ dialog("Импорт недоступен","Не загружен bfImport.js.",null); return false; }
+  var scene, want;
+  try{
+    scene = BFImport.parseScene(raw);
+    want = BFImport.suggestMode(scene);
+  }catch(err0){
+    dialog("Не получилось прочитать карту", String(err0.message || err0), null);
+    return false;
+  }
+
+  var switched = "";
+  if(want && want !== mode && allowedIn("rect", want)){
+    switched = mode + " → " + want;
+    mode = want;
+    document.querySelectorAll(".modeBtn").forEach(function(b){ b.classList.toggle("on", b.dataset.mode === mode); });
+    syncTools();
+    if(!toolOK(tool)) setTool("select");
+  }
+
   var r;
   try{
-    r = BFImport.importText(raw, {
+    r = BFImport.convert(scene, {
       mode: mode,
       objLimit: OBJ_LIMIT,
       coinLimit: COIN_LIMIT,
@@ -1601,6 +1638,7 @@ function importOriginal(raw){
 
   var st = r.stats, notes = [];
   notes.push("Перенесено объектов: " + objects.length + " из " + st.total + " фигур.");
+  if(switched) notes.push("Режим переключён: " + switched + " — в карте есть его объекты.");
   if(st.ghosts)    notes.push("Без столкновений (декорации): " + st.ghosts + ".");
   if(st.wrongMode) notes.push("Не подходят режиму «" + mode + "»: " + st.wrongMode + ".");
   if(st.coinsCut)  notes.push("Монет убрано сверх лимита " + COIN_LIMIT + ": " + st.coinsCut + ".");
@@ -1688,6 +1726,11 @@ document.getElementById("zLabel").addEventListener("click", resetView);
 window.GAME = {
   figure: figure,
   mySkin: null,
+  allowedIn: allowedIn,
+  dialog: dialog,
+  OBJ_LIMIT: OBJ_LIMIT,
+  COIN_LIMIT: COIN_LIMIT,
+  MODE_OF: MODE_OF,
   play: play, stop: stop, respawn: respawn,
   myColor: null, onDraw: null,
   get playing(){ return playing; },
@@ -1738,14 +1781,6 @@ socket.on('connect', () => {
   socket.emit('join', { playerName, gameMode: 'editor', room: roomCode });
 });
 
-const saveBtn = document.createElement('button');
-saveBtn.textContent = '💾 Sandbox';
-saveBtn.style.cssText = 'position:fixed;bottom:20px;right:20px;padding:10px 20px;background:#27ae60;color:white;border:none;border-radius:5px;cursor:pointer;z-index:1000;';
-saveBtn.onclick = () => {
-  socket.emit('saveMap', { mapData: { creator: playerName, room: roomCode, time: new Date().toLocaleTimeString('ru-RU') } });
-  alert('✅ Карта сохранена!');
-};
-document.body.appendChild(saveBtn);
 </script>
 <script src="i18n.js"></script>
 <script src="account.js" defer></script>
@@ -1754,12 +1789,34 @@ document.body.appendChild(saveBtn);
 <script>
 /* Публикация карты в Maps Browser */
 (function(){
+  // свой диалог вместо системного: на телефоне пользователь может нажать
+  // «Блокировать диалоговые окна», и тогда alert/prompt перестают работать совсем
+  function say(title, text, onOk){
+    var G = window.GAME;
+    if (G && G.dialog) G.dialog(title, text, onOk || null);
+    else if (onOk) { if (confirm(title + '\n\n' + text)) onOk(); }
+    else alert(title + '\n\n' + text);
+  }
+  function ask(title, text, def, onOk){
+    var G = window.GAME;
+    if (G && G.dialog) G.dialog(title, text, function(v){ onOk(String(v == null ? '' : v)); }, def || '');
+    else { var v = prompt(text, def || ''); if (v !== null) onOk(v); }
+  }
+
   var btn = document.createElement('button');
   btn.textContent = '\u{1F4E4} \u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c \u0432 Maps Browser';
-  btn.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:11px 22px;'
-    + 'background:#2196F3;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:bold;'
-    + 'font-size:14px;z-index:1000;box-shadow:0 4px 12px rgba(33,150,243,.35);font-family:sans-serif';
-  if (window.matchMedia('(max-width: 820px), (pointer: coarse)').matches) btn.style.bottom = '128px';
+  btn.id = 'bfPublish';
+  btn.style.cssText = 'position:fixed;top:14px;right:14px;padding:10px 16px;'
+    + 'background:#2196F3;color:#fff;border:none;border-radius:9px;cursor:pointer;font-weight:700;'
+    + 'font-size:13.5px;z-index:19;box-shadow:0 4px 12px rgba(33,150,243,.35);font-family:inherit;'
+    + 'max-width:46vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+  if (window.matchMedia('(max-width: 820px), (pointer: coarse)').matches) {
+    btn.textContent = '📤 Опубликовать';
+    btn.style.top = '56px';
+    btn.style.right = '8px';
+    btn.style.padding = '9px 13px';
+    btn.style.fontSize = '13px';
+  }
   document.body.appendChild(btn);
 
   function send(name, overwrite){
@@ -1769,23 +1826,31 @@ document.body.appendChild(saveBtn);
       data = m.data; window.__mode = m.mode;
       var parsed = JSON.parse(data);
       var objs = parsed.objects || [];
-      if (objs.length > 2000) {
-        alert('В карте ' + objs.length + ' объектов. Разрешено не больше 2000.');
+      var G = window.GAME || {};
+      var LIM = G.OBJ_LIMIT || 2000, CL = G.COIN_LIMIT || 3;
+      var ok = G.allowedIn || function(){ return true; };
+
+      if (objs.length > LIM) {
+        say('Слишком много объектов', 'В карте ' + objs.length + '. Разрешено не больше ' + LIM + '.');
         return;
       }
       var coins = objs.filter(function(o){ return o.type === 'coin'; }).length;
-      if (coins > 3) {
-        alert('В карте ' + coins + ' монет. Разрешено не больше 3 — уберите лишние.');
+      if (coins > CL) {
+        say('Слишком много монет', 'В карте ' + coins + '. Разрешено не больше ' + CL + ' — уберите лишние.');
         return;
       }
-      var bad = objs.filter(function(o){ return !allowedIn(o.type, m.mode); })
+      var bad = objs.filter(function(o){ return !ok(o.type, m.mode); })
                     .map(function(o){ return o.type; });
       if (bad.length) {
-        alert('Эти объекты не работают в режиме «' + m.mode + '»: ' +
-              bad.filter(function(v,i,a){ return a.indexOf(v) === i; }).join(', '));
+        say('Объекты не для этого режима', 'В режиме «' + m.mode + '» не работают: ' +
+            bad.filter(function(v,i,a){ return a.indexOf(v) === i; }).join(', '));
         return;
       }
-    } catch(e){ alert('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0431\u0440\u0430\u0442\u044c \u043a\u0430\u0440\u0442\u0443'); return; }
+    } catch(e){
+      console.error('Публикация карты:', e);
+      say('Не удалось собрать карту', String(e && e.message ? e.message : e));
+      return;
+    }
 
     var body = 'mapName=' + encodeURIComponent(name)
              + '&mapType=' + encodeURIComponent(window.__mode || 'sandbox')
@@ -1797,23 +1862,23 @@ document.body.appendChild(saveBtn);
       .then(function(r){ return r.json(); })
       .then(function(r){
         if (r.status === 'success') {
-          if (confirm(r.message + '\n\n\u041e\u0442\u043a\u0440\u044b\u0442\u044c Maps Browser?'))
-            location.href = '/mapsBrowser.html';
+          say('Карта опубликована', r.message + ' Открыть Maps Browser?',
+              function(){ location.href = '/mapsBrowser.html'; });
         } else if (r.status === 'exists') {
-          if (confirm(r.message)) send(name, true);
+          say('Карта уже есть', r.message, function(){ send(name, true); });
         } else {
-          alert(r.message || '\u041e\u0448\u0438\u0431\u043a\u0430');
+          say('Не получилось', r.message || 'Ошибка');
         }
       })
-      .catch(function(){ alert('\u0421\u0435\u0440\u0432\u0435\u0440 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d. \u0417\u0430\u043f\u0443\u0441\u0442\u0438 npm start'); });
+      .catch(function(){ say('Сервер недоступен', 'Не удалось связаться с сервером.'); });
   }
 
   btn.onclick = function(){
-    var name = prompt('\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043a\u0430\u0440\u0442\u044b (2-30 \u0441\u0438\u043c\u0432\u043e\u043b\u043e\u0432):', '');
-    if (name === null) return;
-    name = name.trim();
-    if (name.length < 2) { alert('\u0421\u043b\u0438\u0448\u043a\u043e\u043c \u043a\u043e\u0440\u043e\u0442\u043a\u043e\u0435 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435'); return; }
-    send(name, false);
+    ask('Публикация карты', 'Название карты (2–30 символов):', '', function(name){
+      name = String(name || '').trim();
+      if (name.length < 2) { say('Слишком короткое название', 'Нужно хотя бы 2 символа.'); return; }
+      send(name, false);
+    });
   };
 })();
 </script>

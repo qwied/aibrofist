@@ -161,17 +161,20 @@ body.play.mob #pad{display:flex}
 #dlg h3{margin:0 0 7px;font-size:15px}
 #dlg p{margin:0 0 16px;font-size:13px;color:#5b6472;line-height:1.6}
 #dlg .acts{display:flex;gap:8px;justify-content:flex-end}
+#dIn{width:100%;box-sizing:border-box;padding:11px 12px;margin:0 0 14px;border:1px solid var(--line);
+  border-radius:9px;font-size:16px;font-family:inherit;color:var(--ink);background:#fafbfd;outline:none}
+#dIn:focus{border-color:var(--accent);background:#fff}
 #dlg button{padding:8px 15px;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:12.5px;
   font-family:inherit;font-weight:600;cursor:pointer}
 #dlg .ok{background:var(--accent);color:#fff;border-color:var(--accent)}
 #file{display:none}
 
 /* mobile */
-body.mob #modes{top:8px;left:8px;padding:3px}
+body.mob #modes{top:8px;bottom:auto;left:8px;right:8px;padding:3px}
 body.mob .modeBtn{padding:8px 9px;font-size:11px}
-body.mob #scene{top:8px;padding:3px}
+body.mob #scene{top:8px;bottom:auto;padding:3px}
 body.mob .sBtn{width:38px;height:34px}
-body.mob #tools{left:0;right:0;bottom:0;top:auto;transform:none;width:100%;flex-direction:row;
+body.mob #tools{left:0;right:0;bottom:0;top:auto;transform:none;width:100%;max-height:none;flex-direction:row;
   border-radius:16px 16px 0 0;max-height:none;height:58px;overflow-x:auto;overflow-y:hidden;padding:6px 8px;gap:4px}
 body.mob .tool{width:42px;height:42px}
 body.mob .tool canvas{width:26px;height:26px}
@@ -248,6 +251,7 @@ body{background:#eef2f8;overflow:hidden}
 <div id="dlg">
   <div class="bd"></div>
   <div class="card"><h3 id="dT"></h3><p id="dM"></p>
+    <input id="dIn" type="text" style="display:none">
     <div class="acts"><button id="dNo">Отмена</button><button class="ok" id="dOk">OK</button></div></div>
 </div>
 
@@ -1486,13 +1490,28 @@ function inspect(){
    DIALOG
    ══════════════════════════════════════════════════ */
 var dlg = document.getElementById("dlg"), dCb = null;
-function dialog(t,m,cb){
+function dialog(t,m,cb,ask){
   document.getElementById("dT").textContent = t;
   document.getElementById("dM").textContent = m;
+  var inp = document.getElementById("dIn");
+  if(ask !== undefined && ask !== null){
+    inp.style.display = "block"; inp.value = String(ask);
+    setTimeout(function(){ inp.focus(); inp.select(); }, 40);
+  } else {
+    inp.style.display = "none"; inp.value = "";
+  }
   dCb = cb; document.getElementById("dNo").style.display = cb ? "inline-block" : "none";
   dlg.style.display = "block";
 }
-document.getElementById("dOk").addEventListener("click", function(){ dlg.style.display = "none"; if(dCb) dCb(); });
+document.getElementById("dOk").addEventListener("click", function(){
+  var v = document.getElementById("dIn").value;
+  dlg.style.display = "none";
+  if(dCb) dCb(v);
+});
+document.getElementById("dIn").addEventListener("keydown", function(e){
+  if(e.key === "Enter"){ e.preventDefault(); document.getElementById("dOk").click(); }
+  if(e.key === "Escape"){ dlg.style.display = "none"; dCb = null; }
+});
 document.getElementById("dNo").addEventListener("click", function(){ dlg.style.display = "none"; });
 dlg.querySelector(".bd").addEventListener("click", function(){ dlg.style.display = "none"; });
 

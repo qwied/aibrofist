@@ -16,7 +16,7 @@ const io = socketIo(server, {
 let accountsRef = null;   // заполняется ниже, нужен для проверки прав на owner.js
 
 // служебные файлы наружу не отдаём
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v18.md'];
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v19.md'];
 app.use((req, res, next) => {
   const p = req.path.toLowerCase();
   if (PRIVATE.indexOf(p) !== -1 || p.indexOf('/data') === 0 || p.indexOf('/node_modules') === 0)
