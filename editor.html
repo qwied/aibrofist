@@ -33,8 +33,11 @@ canvas{display:block;position:absolute;inset:0;touch-action:none}
   #tools::-webkit-scrollbar{display:none}
   #tools > *{flex:0 0 auto}
 
-  #insp{right:0;left:0;top:auto;bottom:0;transform:none;width:auto;
-    max-height:55vh;border-radius:14px 14px 0 0;z-index:20}
+  /* панель свойств раньше растягивалась почти на весь экран и закрывала
+     карту белым — теперь это невысокий лист над панелью инструментов */
+  #insp{right:8px;left:8px;top:auto;bottom:64px;transform:none;width:auto;
+    max-height:34vh;border-radius:12px;z-index:20}
+  #props,#widgets{max-height:26vh}
   #widgets{font-size:13.5px;padding:12px 14px}
 
   #zIn,#zOut,#zLabel{padding:10px 12px}
@@ -173,12 +176,17 @@ body.mob #tools{left:0;right:0;bottom:0;top:auto;transform:none;width:100%;flex-
 body.mob .tool{width:42px;height:42px}
 body.mob .tool canvas{width:26px;height:26px}
 body.mob .tool[data-tip]:hover::after{display:none}
-body.mob #insp{left:8px;right:8px;width:auto;top:auto;bottom:66px;transform:none;max-height:42vh}
+body.mob #insp{left:8px;right:8px;width:auto;top:auto;bottom:64px;transform:none;max-height:34vh}
+body.mob #props,body.mob #widgets{max-height:26vh}
+#inspClose{flex:0 0 34px;color:#dc2626;font-size:14px}
+#inspClose:hover{background:#fee2e2}
 body.mob #hint,body.mob #gravBox{display:none}
 body.mob #zoomBox{bottom:68px;right:8px}
 body.mob #msg h1{font-size:38px}
 </style>
 	<script src="device.js"></script>
+	<script src="lzma.js"></script>
+	<script src="bfImport.js"></script>
 	<script src="skinRender.js"></script>
 	<script src="skinCanvas.js"></script>
 	<script src="coin.js"></script>
@@ -194,6 +202,7 @@ body.mob #msg h1{font-size:38px}
   <div id="inspHead">
     <div class="tab on" data-tab="props">Свойства</div>
     <div class="tab" data-tab="widgets">Помощь</div>
+    <div class="tab" id="inspClose" title="Закрыть">✕</div>
   </div>
   <div id="props"></div>
   <div id="widgets" style="display:none">
@@ -243,6 +252,7 @@ body.mob #msg h1{font-size:38px}
 </div>
 
 <input type="file" id="file" accept=".txt,.json">
+<input type="file" id="fileImport" accept=".txt,.json" style="display:none">
 <canvas id="c"></canvas>
 
 <script>
@@ -563,7 +573,11 @@ var SIZES = {
   checkpoint:[30,64], finishline:[42,86], seeker:[22,74], spawn:[22,74]
 };
 var SOLID  = ["rect","circle","triangle","platform","cover","gate","door","bounce"];
-var HAZARD = ["poison","spike","rotator"];
+/* Раньше яд, шипы и ротатор убивали просто потому, что так называются.
+   Теперь смертельность — свойство объекта: галочка «Яд» есть у каждого,
+   и её можно снять хоть с самого яда. Модели остались как были. */
+var HAZARD = [];
+var DEADLY_BY_DEFAULT = ["poison","spike","rotator"];
 var LINKED = ["gate","platform","rotator","cover","button","lever","door"];
 
 /* ══════════════════════════════════════════════════
@@ -614,8 +628,15 @@ function nearby(x, y, w, h){
         seen[o.id] = 1; out.push(o);
       }
     }
-  // платформы и ротаторы двигаются — добавляем их всегда
-  for(i=0;i<movers.length;i++){ o = movers[i]; if(!seen[o.id]){ seen[o.id]=1; out.push(o); } }
+  // платформы и ротаторы меняют клетку каждый кадр, поэтому в сетке им
+  // верить нельзя — берём их напрямую, но только те, что реально рядом
+  for(i=0;i<movers.length;i++){
+    o = movers[i];
+    if(seen[o.id]) continue;
+    var mb = bbox(o);
+    if(mb[2] < x || mb[0] > x+w || mb[3] < y || mb[1] > y+h) continue;
+    seen[o.id] = 1; out.push(o);
+  }
   return out;
 }
 var movers = [];
@@ -634,7 +655,8 @@ var gravityScale = 10;
 var view = {s:1, x:0, y:0};
 
 function mk(type,x,y,w,h){
-  var o = {id:uid++, type:type, x:x, y:y, w:w, h:h, rot:0, fill:COLORS[type]||"", deadly:false};
+  var o = {id:uid++, type:type, x:x, y:y, w:w, h:h, rot:0, fill:COLORS[type]||"",
+           deadly: DEADLY_BY_DEFAULT.indexOf(type) !== -1};
   if(type === "text") o.text = "Text";
   if(type === "platform"){ o.moveX = 130; o.moveY = 0; o.speed = 1.1; }
   if(type === "rotator") o.spin = 2.2;
@@ -794,8 +816,8 @@ function showMsg(t,s){
 function hideMsg(){ var m = document.getElementById("msg"); m.classList.remove("show"); m.style.display = "none"; }
 
 var opened = function(o){ return (o.type === "gate" || o.type === "door") && !!o._act; };
-var solid  = function(o){ return SOLID.indexOf(o.type) !== -1 && !opened(o); };
-var hazard = function(o){ return (HAZARD.indexOf(o.type) !== -1 || o.deadly === true) && !opened(o); };
+var solid  = function(o){ return SOLID.indexOf(o.type) !== -1 && !opened(o) && o.ghost !== true; };
+var hazard = function(o){ return o.deadly === true && !opened(o); };
 function hit(ax,ay,aw,ah,bx,by,bw,bh){ return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by; }
 
 /* ══════════════════════════════════════════════════
@@ -1052,10 +1074,11 @@ function paint(o, isSel){
   ctx.rotate(o.type === "rotator" && playing ? (o._spin||0) : (o.rot||0)*Math.PI/180);
   ctx.translate(-o.w/2, -o.h/2);
   if(open) ctx.globalAlpha = .2;
+  if(o.ghost) ctx.globalAlpha *= .45;      // проходимые видно, но они не мешают
   ctx.shadowColor = "rgba(15,23,42,.18)"; ctx.shadowBlur = 7; ctx.shadowOffsetY = 2;
   (PAINT[o.type] || PAINT.rect)(o);
   ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  if(!playing && o.deadly && HAZARD.indexOf(o.type) === -1){
+  if(!playing && o.deadly && DEADLY_BY_DEFAULT.indexOf(o.type) === -1){
     ctx.globalAlpha = 1; ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 2;
     ctx.setLineDash([5,4]); ctx.strokeRect(-1,-1,o.w+2,o.h+2); ctx.setLineDash([]);
   }
@@ -1127,7 +1150,8 @@ var SVG = {
   copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
   trash:'<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
   grid:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>',
-  json:'<path d="M12 3v13"/><path d="M7 11l5 5 5-5"/><path d="M4 17v3h16v-3"/>'
+  json:'<path d="M12 3v13"/><path d="M7 11l5 5 5-5"/><path d="M4 17v3h16v-3"/>',
+  imp:'<path d="M12 20V7"/><path d="M7 12l5-5 5 5"/><path d="M4 4h16"/>'
 };
 function sBtn(id,icon,tip,cls){
   var d = document.createElement("div");
@@ -1136,7 +1160,7 @@ function sBtn(id,icon,tip,cls){
   return d;
 }
 var sceneEl = document.getElementById("scene");
-[["bSave",SVG.save,"Сохранить .txt"],["bOpen",SVG.open,"Открыть"],["bJson",SVG.json,"Экспорт JSON"]]
+[["bSave",SVG.save,"Сохранить .txt"],["bOpen",SVG.open,"Открыть"],["bImport",SVG.imp,"Импорт из brofist.io"],["bJson",SVG.json,"Экспорт JSON"]]
   .forEach(function(a){ sceneEl.appendChild(sBtn(a[0],a[1],a[2])); });
 sceneEl.appendChild(Object.assign(document.createElement("div"),{className:"sep"}));
 [["bUndo",SVG.undo,"Отменить (Ctrl+Z)"],["bRedo",SVG.redo,"Вернуть (Ctrl+Y)"],
@@ -1196,6 +1220,10 @@ document.getElementById("modes").addEventListener("click", function(e){
   if(drop.length){
     commit();
     objects = objects.filter(function(o){ return allowedIn(o.type, mode); });
+    // в старых картах галочки не было — восстанавливаем прежнее поведение
+    objects.forEach(function(o){
+      if(o.deadly === undefined && DEADLY_BY_DEFAULT.indexOf(o.type) !== -1) o.deadly = true;
+    });
     sel = null; markDirty(); indexMovers();
     showMsg("Убрано объектов: " + drop.length,
             "В режиме «" + mode + "» они не работают. Ctrl+Z вернёт их обратно.");
@@ -1400,7 +1428,8 @@ function removeSel(){ if(!sel) return; commit(); objects = objects.filter(functi
    ══════════════════════════════════════════════════ */
 var props = document.getElementById("props");
 document.getElementById("inspHead").addEventListener("click", function(e){
-  var t = e.target.closest(".tab"); if(!t) return;
+  if(e.target.id === "inspClose"){ sel = null; inspect(); return; }
+  var t = e.target.closest(".tab"); if(!t || !t.dataset.tab) return;
   document.querySelectorAll(".tab").forEach(function(x){ x.classList.toggle("on", x === t); });
   props.style.display = t.dataset.tab === "props" ? "block" : "none";
   document.getElementById("widgets").style.display = t.dataset.tab === "widgets" ? "block" : "none";
@@ -1453,7 +1482,9 @@ function inspect(){
 
   grp("Игровые свойства");
   if(["spawn","checkpoint","finishline","coin"].indexOf(sel.type) === -1)
-    chk("Смертельный ☠", sel.deadly, function(v){ sel.deadly = v; });
+    chk("Яд ☠ (убивает)", sel.deadly, function(v){ sel.deadly = v; });
+  if(SOLID.indexOf(sel.type) !== -1)
+    chk("Проходимый (декорация)", !!sel.ghost, function(v){ sel.ghost = v; });
   if(sel.type === "bounce") num("Сила прыжка", sel.power||17, function(v){ sel.power = v; });
   if(sel.type === "platform"){
     num("Ход по X", sel.moveX||0, function(v){ sel.moveX = v; });
@@ -1541,12 +1572,70 @@ document.getElementById("bSave").addEventListener("click", async function(){
   a.download = "map_"+mode+".txt"; a.click();
 });
 document.getElementById("bOpen").addEventListener("click", function(){ document.getElementById("file").click(); });
+/* ── Импорт карт из оригинального brofist.io ───────────────────────
+   Файл оттуда — список байтов со знаком, внутри LZMA, внутри JSON сцены.
+   Распаковка и перевод в наши объекты: lzma.js + bfImport.js.        */
+function importOriginal(raw){
+  if(!window.BFImport){ dialog("Импорт недоступен","Не загружен bfImport.js.",null); return false; }
+  var r;
+  try{
+    r = BFImport.importText(raw, {
+      mode: mode,
+      objLimit: OBJ_LIMIT,
+      coinLimit: COIN_LIMIT,
+      allowed: allowedIn
+    });
+  }catch(err){
+    dialog("Не получилось прочитать карту", String(err.message || err), null);
+    return false;
+  }
+  if(!r.objects.length){
+    dialog("Пусто","В файле не нашлось ни одного объекта.",null);
+    return false;
+  }
+
+  commit();
+  objects = r.objects;
+  uid = objects.reduce(function(m2,o){ return Math.max(m2,(o.id||0)+1); },1);
+  sel = null; markDirty(); indexMovers(); inspect(); resetView();
+
+  var st = r.stats, notes = [];
+  notes.push("Перенесено объектов: " + objects.length + " из " + st.total + " фигур.");
+  if(st.ghosts)    notes.push("Без столкновений (декорации): " + st.ghosts + ".");
+  if(st.wrongMode) notes.push("Не подходят режиму «" + mode + "»: " + st.wrongMode + ".");
+  if(st.coinsCut)  notes.push("Монет убрано сверх лимита " + COIN_LIMIT + ": " + st.coinsCut + ".");
+  if(st.overLimit) notes.push("Не влезло в лимит " + OBJ_LIMIT + ": " + st.overLimit + ".");
+  if(!st.spawn)    notes.push("Точки старта в файле не было — поставил сам, проверьте её.");
+  notes.push("Размер приведён к нашему игроку (масштаб 0.73).");
+  dialog("Карта из brofist.io загружена", notes.join(" "), null);
+  return true;
+}
+
+// файл из оригинала: только цифры и запятые, без нашей подписи
+function looksOriginal(raw){
+  var s = String(raw).trim();
+  if(s.indexOf("|") !== -1) return false;
+  return s[0] === "[" || /^-?\d+\s*,\s*-?\d+/.test(s);
+}
+
+document.getElementById("bImport").addEventListener("click", function(){
+  document.getElementById("fileImport").click();
+});
+document.getElementById("fileImport").addEventListener("change", function(e){
+  var f = e.target.files[0]; if(!f) return;
+  var rd = new FileReader();
+  rd.onload = function(){ importOriginal(String(rd.result)); };
+  rd.readAsText(f); e.target.value = "";
+});
+
 document.getElementById("file").addEventListener("change", function(e){
   var f = e.target.files[0]; if(!f) return;
   var rd = new FileReader();
   rd.onload = async function(){
     try{
       var raw = String(rd.result).trim(), p = raw.indexOf("|");
+      // карта из оригинального brofist.io — уводим в импорт
+      if(looksOriginal(raw)){ importOriginal(raw); return; }
       if(p === -1){ dialog("Доступ запрещён","Файл не подписан этим редактором.",null); return; }
       var sig = raw.slice(0,p), nums = raw.slice(p+1).split(",").map(function(s){ return parseInt(s,10); });
       var json = await unzip(new Uint8Array(nums.slice(1)), nums[0]);
@@ -1616,6 +1705,10 @@ window.GAME = {
     if(d.mode) mode = d.mode;
     // объекты чужого режима в карту не пускаем
     objects = objects.filter(function(o){ return allowedIn(o.type, mode); });
+    // в старых картах галочки не было — восстанавливаем прежнее поведение
+    objects.forEach(function(o){
+      if(o.deadly === undefined && DEADLY_BY_DEFAULT.indexOf(o.type) !== -1) o.deadly = true;
+    });
     if(objects.length > OBJ_LIMIT) objects.length = OBJ_LIMIT;
     objects.forEach(function(o){ if(o.id >= uid) uid = o.id + 1; });
     indexMovers(); markDirty();

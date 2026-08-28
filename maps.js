@@ -15,6 +15,7 @@ if (OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.
 const isOwnerName = n => OWNER_ALIASES.indexOf(String(n || '').toLowerCase()) !== -1;
 
 const DAILY_LIMIT = 3;                 // сколько новых карт можно выложить за сутки
+const REWARD      = 10;                // монет за каждую новую опубликованную карту
 const COIN_LIMIT  = 3;                 // максимум монет в одной карте — защита от накрутки
 const OBJ_LIMIT   = 2000;              // максимум объектов в карте, одинаково во всех режимах
 
@@ -97,7 +98,7 @@ load();
 
 const low = s => String(s || '').toLowerCase();
 
-function register(app, getUser) {
+function register(app, getUser, acc) {
   // ---------- публикация карты из редактора ----------
   app.post('/uploadMap', (req, res) => {
     const u = getUser(req);
@@ -175,17 +176,34 @@ function register(app, getUser) {
       rating: 0, votes: {}, boostLikes: 0, boostDislikes: 0, inGameModes: []
     });
     save();
+
+    // за новую карту начисляем монеты; при обновлении старой — нет,
+    // иначе можно было бы перезаливать одну и ту же карту без конца
+    let balance = u.coins || 0;
+    if (acc && typeof acc.save === 'function') {
+      u.coins = balance = balance + REWARD;
+      acc.save();
+    }
+
     const left = DAILY_LIMIT - todayCount(u.name);
     res.json({
       status: 'success',
-      message: 'Карта опубликована в Maps Browser. Осталось сегодня: ' + Math.max(0, left) + ' из ' + DAILY_LIMIT
+      reward: REWARD,
+      coins: balance,
+      left: Math.max(0, left),
+      limit: DAILY_LIMIT,
+      message: 'Карта опубликована. +' + REWARD + ' монет  ·  осталось сегодня: ' +
+               Math.max(0, left) + ' из ' + DAILY_LIMIT
     });
   });
 
   app.get('/getUploadLimit', (req, res) => {
     const u = getUser(req);
-    if (!u) return res.json({ limit: DAILY_LIMIT, left: DAILY_LIMIT, guest: true });
-    res.json({ limit: DAILY_LIMIT, left: Math.max(0, DAILY_LIMIT - todayCount(u.name)), guest: false });
+    if (!u) return res.json({ limit: DAILY_LIMIT, left: DAILY_LIMIT, reward: REWARD, guest: true });
+    res.json({
+      limit: DAILY_LIMIT, reward: REWARD, guest: false,
+      left: Math.max(0, DAILY_LIMIT - todayCount(u.name))
+    });
   });
 
   // ---------- список карт для Maps Browser ----------
@@ -330,4 +348,4 @@ function inGameList() {
                           mapType: m.mapType, modes: m.inGameModes.slice() }));
 }
 
-module.exports = { register, MODES, OWNER, COIN_LIMIT, OBJ_LIMIT, TOOL_MODES, find, setBoost, setInGame, inGameList, tally };
+module.exports = { register, MODES, OWNER, COIN_LIMIT, OBJ_LIMIT, REWARD, TOOL_MODES, find, setBoost, setInGame, inGameList, tally };
