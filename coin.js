@@ -4,16 +4,12 @@
   'use strict';
   var n = 0;
 
+  // та же монета, что лежит в профиле игрока и в самой игре
   function svg(size) {
     size = size || 18;
-    var id = 'cg' + (++n);
-    return '<svg class="bfCoinIcon" width="' + size + '" height="' + size +
-      '" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-0.16em">' +
-      '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#d4a017"/>' +
-      '</linearGradient></defs>' +
-      '<ellipse cx="11" cy="11" rx="11" ry="11" fill="url(#' + id + ')"/>' +
-      '<ellipse cx="8.4" cy="8" rx="3.1" ry="3.3" fill="rgba(255,255,255,.5)"/></svg>';
+    n++;
+    return '<img class="bfCoinIcon" src="/coin.png" width="' + size + '" height="' + size +
+           '" alt="монета" style="vertical-align:-0.18em">';
   }
 
   // «123 🪙» -> «123 <монета>»

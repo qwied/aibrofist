@@ -16,14 +16,43 @@ const isOwnerName = n => OWNER_ALIASES.indexOf(String(n || '').toLowerCase()) !=
 
 const DAILY_LIMIT = 3;                 // сколько новых карт можно выложить за сутки
 const COIN_LIMIT  = 3;                 // максимум монет в одной карте — защита от накрутки
+const OBJ_LIMIT   = 2000;              // максимум объектов в карте, одинаково во всех режимах
 
-// сколько монет лежит в карте (mapData — JSON из редактора)
-function coinsInMap(raw) {
+// у каждого режима свой набор объектов; общие доступны везде
+const TOOL_MODES = {
+  rect:null, circle:null, triangle:null, text:null, poison:null, spike:null,
+  bounce:null, coin:null, platform:null, rotator:null, gate:null, spawn:null,
+  cover:['hideAndSeek'], seeker:['hideAndSeek'],
+  door:['twoPlayer'], button:['twoPlayer'], lever:['twoPlayer'],
+  checkpoint:['race'], finishline:['race']
+};
+const TOOL_RU = {
+  cover:'Укрытие', seeker:'Ищущий', door:'Дверь', button:'Кнопка',
+  lever:'Рычаг', checkpoint:'Чекпоинт', finishline:'Финиш'
+};
+
+// объекты карты (mapData — JSON из редактора)
+function objectsOf(raw) {
   try {
     const m = JSON.parse(raw);
     const list = Array.isArray(m) ? m : (m && Array.isArray(m.objects) ? m.objects : []);
-    return list.filter(o => o && o.type === 'coin').length;
-  } catch (e) { return 0; }
+    return list.filter(o => o && typeof o.type === 'string');
+  } catch (e) { return []; }
+}
+
+// какие объекты не подходят заявленному режиму
+function wrongForMode(list, mode) {
+  const bad = new Set();
+  list.forEach(o => {
+    const allowed = TOOL_MODES[o.type];
+    if (allowed && allowed.indexOf(mode) === -1) bad.add(o.type);
+  });
+  return Array.from(bad);
+}
+
+// сколько монет лежит в карте
+function coinsInMap(raw) {
+  return objectsOf(raw).filter(o => o.type === 'coin').length;
 }
 
 // счётчики оценок: голоса игроков + ручная правка владельца
@@ -86,12 +115,28 @@ function register(app, getUser) {
     if (!mapData)
       return res.json({ status: 'error', message: 'Карта пустая' });
 
-    const coins = coinsInMap(mapData);
+    const list = objectsOf(mapData);
+
+    if (list.length > OBJ_LIMIT)
+      return res.json({
+        status: 'error',
+        message: 'В карте ' + list.length + ' объектов. Разрешено не больше ' + OBJ_LIMIT + '.'
+      });
+
+    const coins = list.filter(o => o.type === 'coin').length;
     if (coins > COIN_LIMIT)
       return res.json({
         status: 'error',
         message: 'В карте ' + coins + ' монет. Разрешено не больше ' + COIN_LIMIT +
                  ' — уберите лишние и попробуйте снова.'
+      });
+
+    const bad = wrongForMode(list, mapType);
+    if (bad.length)
+      return res.json({
+        status: 'error',
+        message: 'Эти объекты не работают в режиме «' + mapType + '»: ' +
+                 bad.map(t => TOOL_RU[t] || t).join(', ') + '. Уберите их из карты.'
       });
 
     const i = maps.findIndex(m => low(m.author) === low(u.name) && low(m.mapName) === low(mapName));
@@ -285,4 +330,4 @@ function inGameList() {
                           mapType: m.mapType, modes: m.inGameModes.slice() }));
 }
 
-module.exports = { register, MODES, OWNER, COIN_LIMIT, find, setBoost, setInGame, inGameList, tally };
+module.exports = { register, MODES, OWNER, COIN_LIMIT, OBJ_LIMIT, TOOL_MODES, find, setBoost, setInGame, inGameList, tally };

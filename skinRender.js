@@ -39,80 +39,142 @@
 
   /* ---------- голова ---------- */
   function head(id, c) {
-    var d = shade(c, -34), l = shade(c, 46);
+    var d = shade(c, -38), l = shade(c, 44), o = shade(c, -70);
     switch (id) {
-      case 'h_cap':     return [P('M6 42 A50 50 0 0 1 94 42 L94 50 L6 50 Z', c),
-                                P('M92 44 q26 3 26 12 l-26 0 z', d)];
-      case 'h_beanie':  return [P('M6 44 A50 50 0 0 1 94 44 Z', c), R(2,40,96,15,7,l), C(50,-8,12,l)];
-      case 'h_bandana': return [P('M8 38 A50 50 0 0 1 92 38 L92 50 L8 50 Z', c),
-                                P('M90 48 l30 16 l-28 5 z', d)];
-      case 'h_helmet':  return [P('M0 54 A50 50 0 0 1 100 54 L100 60 L0 60 Z', c),
-                                R(44,-16,12,30,5,d), C(50,-20,8,l)];
-      case 'h_cowboy':  return [P('M18 36 A34 34 0 0 1 82 36 Z', c), E(50,40,70,11,d)];
-      case 'h_tophat':  return [R(20,-42,60,76,4,c), E(50,34,62,10,c), R(20,14,60,14,0,l)];
-      case 'h_horns':   return [P('M14 30 q-24 -36 2 -46 q16 18 20 34 z', c),
-                                P('M86 30 q24 -36 -2 -46 q-16 18 -20 34 z', c)];
-      case 'h_halo':    return [E(50,-16,36,11,null,c,9)];
-      case 'h_crown':   return [P('M10 36 L10 -14 L30 4 L50 -22 L70 4 L90 -14 L90 36 Z', c), C(50,14,7,l)];
-      case 'h_ears':    return [P('M12 30 L6 -18 L44 8 Z', c), P('M88 30 L94 -18 L56 8 Z', c),
-                                P('M18 24 L16 -4 L34 10 Z', l), P('M82 24 L84 -4 L66 10 Z', l)];
-      case 'h_antenna': return [P('M50 4 q4 -34 22 -40', null, c, 7), C(74,-38,11,l)];
-      case 'h_hair':    return [P('M4 40 A50 50 0 0 1 96 40 L96 30 q-12 12 -22 2 q-10 14 -22 2 ' +
-                                  'q-12 14 -24 0 q-10 10 -24 -4 z', c)];
+      case 'h_cap':
+        return [P('M4 44 A50 50 0 0 1 96 44 L96 51 L4 51 Z', c),
+                P('M92 45 q30 2 30 13 q-16 4 -30 -1 z', d),
+                P('M14 30 A44 44 0 0 1 50 6', null, l, 5)];
+      case 'h_beanie':
+        return [P('M6 46 A48 48 0 0 1 94 46 Z', c),
+                R(1, 40, 98, 16, 8, l),
+                C(50, -10, 13, l), C(50, -10, 6, c)];
+      case 'h_bandana':
+        return [P('M6 40 A50 50 0 0 1 94 40 L94 52 L6 52 Z', c),
+                P('M90 50 q26 6 34 20 q-18 6 -34 -6 z', d),
+                C(26, 46, 4, l), C(48, 43, 4, l), C(70, 46, 4, l)];
+      case 'h_helmet':
+        return [P('M-2 56 A52 52 0 0 1 102 56 L102 63 L-2 63 Z', c),
+                P('M-2 56 A52 52 0 0 1 50 4 L50 63 L-2 63 Z', d),
+                R(43, -20, 14, 34, 6, o), C(50, -24, 10, l)];
+      case 'h_cowboy':
+        return [E(50, 40, 72, 12, d), E(50, 40, 72, 9, c),
+                P('M16 38 A36 36 0 0 1 84 38 Z', c),
+                P('M16 34 q34 -8 68 0 l0 6 q-34 -6 -68 0 z', o)];
+      case 'h_tophat':
+        return [E(50, 35, 64, 11, d), E(50, 33, 64, 9, c),
+                R(19, -46, 62, 80, 5, c),
+                R(19, 12, 62, 16, 0, o),
+                P('M19 -46 q31 -8 62 0 l0 10 q-31 -7 -62 0 z', l)];
+      case 'h_horns':
+        return [P('M16 32 q-28 -34 -2 -50 q20 16 24 40 z', c),
+                P('M84 32 q28 -34 2 -50 q-20 16 -24 40 z', c),
+                P('M18 26 q-18 -24 -6 -36 q10 12 14 30 z', l),
+                P('M82 26 q18 -24 6 -36 q-10 12 -14 30 z', l)];
+      case 'h_halo':
+        return [E(50, -18, 38, 12, null, o, 11), E(50, -18, 38, 12, null, c, 7)];
+      case 'h_crown':
+        return [P('M8 38 L8 -18 L30 6 L50 -26 L70 6 L92 -18 L92 38 Z', c),
+                R(8, 22, 84, 16, 3, d),
+                C(50, 12, 8, l), C(24, 20, 5, l), C(76, 20, 5, l)];
+      case 'h_ears':
+        return [P('M10 32 L2 -22 L46 8 Z', c), P('M90 32 L98 -22 L54 8 Z', c),
+                P('M17 25 L13 -7 L36 11 Z', l), P('M83 25 L87 -7 L64 11 Z', l)];
+      case 'h_antenna':
+        return [P('M50 2 q6 -36 24 -44', null, o, 9),
+                P('M50 2 q6 -36 24 -44', null, c, 5),
+                C(74, -42, 12, o), C(74, -42, 9, l)];
+      case 'h_hair':
+        return [P('M2 42 A50 50 0 0 1 98 42 L98 28 q-13 14 -24 2 q-11 15 -24 2 ' +
+                  'q-13 15 -25 0 q-11 11 -25 -3 z', c),
+                P('M12 24 A42 42 0 0 1 44 2', null, l, 5)];
       default: return [];
     }
   }
 
   /* ---------- лицо ---------- */
   function face(id, c) {
-    var d = shade(c, -40), l = shade(c, 50);
+    var d = shade(c, -42), l = shade(c, 52);
     switch (id) {
-      case 'f_glasses':  return [C(30,52,17,null), // заглушка заменяется ниже
-                                 E(30,52,17,17,null,c,6), E(70,52,17,17,null,c,6), L(47,52,53,52,c,6)].slice(1);
-      case 'f_shades':   return [R(9,41,82,24,9,c), R(47,49,6,8,0,l)];
-      case 'f_visor':    return [P('M2 40 q48 -14 96 0 l0 24 q-48 16 -96 0 z', c),
-                                 P('M10 45 q40 -9 80 0', null, l, 4)];
-      case 'f_mask':     return [P('M8 56 A50 50 0 0 0 92 56 L92 66 A50 50 0 0 1 8 66 Z', c),
-                                 P('M8 62 A50 50 0 0 0 92 62', null, d, 3)];
-      case 'f_eyepatch': return [L(4,30,96,62,c,7), R(16,36,34,28,8,c)];
-      case 'f_scarf':    return [R(4,96,92,30,13,c), P('M66 118 l22 54 l-24 6 z', d)];
-      case 'f_snorkel':  return [R(12,40,76,28,10,null,c), E(50,54,38,14,null,c,7),
-                                 P('M88 46 q22 -6 20 -34', null, c, 7)].slice(1);
+      case 'f_glasses':
+        return [E(29, 52, 18, 16, '#ffffff', null, 0),
+                E(71, 52, 18, 16, '#ffffff', null, 0),
+                E(29, 52, 18, 16, null, c, 6), E(71, 52, 18, 16, null, c, 6),
+                L(47, 52, 53, 52, c, 6), L(11, 50, 2, 46, c, 5), L(89, 50, 98, 46, c, 5)];
+      case 'f_shades':
+        return [R(6, 40, 88, 26, 11, c),
+                P('M12 44 q14 -3 22 2 l-4 8 q-10 -4 -18 -2 z', l),
+                R(46, 48, 8, 9, 2, d)];
+      case 'f_visor':
+        return [P('M0 40 q50 -16 100 0 l0 26 q-50 18 -100 0 z', c),
+                P('M8 46 q42 -10 84 0', null, l, 5),
+                P('M0 40 q50 -16 100 0 l0 26 q-50 18 -100 0 z', null, d, 3)];
+      case 'f_mask':
+        return [P('M7 54 A50 50 0 0 0 93 54 L93 67 A50 50 0 0 1 7 67 Z', c),
+                P('M7 60 A50 50 0 0 0 93 60', null, d, 3),
+                L(7, 56, -6, 48, d, 4), L(93, 56, 106, 48, d, 4)];
+      case 'f_eyepatch':
+        return [L(2, 28, 98, 60, c, 8),
+                R(14, 34, 38, 32, 10, c), R(14, 34, 38, 32, 10, null, d, 3)];
+      case 'f_scarf':
+        return [R(2, 94, 96, 34, 15, c),
+                P('M2 108 q48 14 96 0', null, d, 4),
+                P('M64 120 q26 30 22 62 l-24 4 q6 -34 -6 -60 z', d)];
+      case 'f_snorkel':
+        return [E(50, 54, 40, 17, null, c, 8),
+                E(50, 54, 40, 17, '#dbeafe'),
+                E(50, 54, 40, 17, null, c, 8),
+                P('M88 44 q26 -8 24 -40', null, c, 8)];
       default: return [];
     }
   }
 
   /* ---------- рисунок на теле (обрезается по капсуле) ---------- */
   function body(id, c) {
-    var d = shade(c, -34), l = shade(c, 46), out;
+    var d = shade(c, -38), l = shade(c, 46), out;
     switch (id) {
       case 'b_tie':
-        out = [P('M38 ' + T + ' L50 ' + (T+26) + ' L62 ' + T + ' Z', l),
-               P('M50 ' + (T+26) + ' l-12 42 l12 18 l12 -18 z', c)]; break;
+        out = [P('M34 ' + T + ' L50 ' + (T+30) + ' L66 ' + T + ' Z', l),
+               P('M50 ' + (T+28) + ' l-13 20 l6 44 l7 10 l7 -10 l6 -44 z', c),
+               R(41, T+26, 18, 12, 3, d)]; break;
       case 'b_belt':
-        out = [R(0, T+96, 100, 26, 0, c), R(38, T+96, 24, 26, 0, l)]; break;
+        out = [R(0, T+94, 100, 28, 0, c),
+               R(0, T+94, 100, 5, 0, d),
+               R(36, T+92, 28, 32, 5, l), R(44, T+102, 12, 12, 2, d)]; break;
       case 'b_stripes':
-        out = [0,1,2,3,4].map(function (i) { return R(0, T+14+i*40, 100, 18, 0, c); }); break;
+        out = [];
+        for (var i = 0; i < 5; i++) out.push(R(0, T+16+i*40, 100, 20, 0, c));
+        break;
       case 'b_vest':
-        out = [R(0, T, 26, BODY_H, 0, c), R(74, T, 26, BODY_H, 0, c)]; break;
+        out = [R(0, T, 28, BODY_H, 0, c), R(72, T, 28, BODY_H, 0, c),
+               R(24, T, 5, BODY_H, 0, d), R(71, T, 5, BODY_H, 0, d),
+               C(14, T+56, 6, l), C(86, T+56, 6, l)]; break;
       case 'b_number':
-        out = [C(50, T+62, 30, c), TX(50, T+76, '1', 42, l)]; break;
+        out = [C(50, T+64, 32, c), C(50, T+64, 32, null, l, 4),
+               TX(50, T+79, '1', 44, l)]; break;
       case 'b_hoodie':
-        out = [P('M0 ' + T + ' q50 44 100 0 l0 -18 l-100 0 z', c),
-               P('M34 ' + (T+28) + ' l-4 46', null, l, 6),
-               P('M66 ' + (T+28) + ' l4 46', null, l, 6),
-               R(26, T+108, 48, 30, 8, d)]; break;
+        out = [P('M-2 ' + T + ' q52 46 104 0 l0 -20 l-104 0 z', c),
+               P('M-2 ' + (T+2) + ' q52 44 104 0', null, d, 4),
+               P('M33 ' + (T+30) + ' q-6 26 -4 48', null, l, 7),
+               P('M67 ' + (T+30) + ' q6 26 4 48', null, l, 7),
+               C(33, T+80, 5, l), C(71, T+80, 5, l),
+               R(24, T+112, 52, 32, 10, d)]; break;
       case 'b_armor':
-        out = [R(0, T, 100, BODY_H*0.62, 0, c), R(0, T+42, 100, 8, 0, d),
-               R(0, T+92, 100, 8, 0, d), C(50, T+24, 13, l)]; break;
+        out = [R(0, T, 100, BODY_H*0.66, 0, c),
+               R(0, T+44, 100, 9, 0, d), R(0, T+96, 100, 9, 0, d),
+               P('M0 ' + (T+BODY_H*0.66) + ' q50 22 100 0 l0 -10 l-100 0 z', d),
+               C(50, T+26, 15, d), C(50, T+26, 9, l)]; break;
       case 'b_suit':
-        out = [P('M0 ' + T + ' L50 ' + (T+60) + ' L100 ' + T + ' L100 ' + (T+150) +
-                 ' L0 ' + (T+150) + ' Z', c),
-               P('M50 ' + (T+60) + ' L26 ' + T + ' L50 ' + T + ' Z', l),
-               P('M50 ' + (T+60) + ' L74 ' + T + ' L50 ' + T + ' Z', l)]; break;
+        out = [R(0, T, 100, 160, 0, c),
+               P('M50 ' + (T+66) + ' L20 ' + T + ' L50 ' + T + ' Z', l),
+               P('M50 ' + (T+66) + ' L80 ' + T + ' L50 ' + T + ' Z', l),
+               P('M50 ' + (T+66) + ' l-11 16 l11 42 l11 -42 z', '#b91c1c'),
+               C(50, T+130, 5, l)]; break;
       case 'b_overall':
-        out = [R(0, T+54, 100, BODY_H-54, 0, c), R(14, T, 16, 60, 0, c), R(70, T, 16, 60, 0, c),
-               C(22, T+58, 7, l), C(78, T+58, 7, l)]; break;
+        out = [R(0, T+56, 100, BODY_H-56, 0, c),
+               R(12, T, 18, 62, 4, c), R(70, T, 18, 62, 4, c),
+               C(21, T+60, 8, l), C(79, T+60, 8, l),
+               R(30, T+82, 40, 34, 6, d)]; break;
       default: return [];
     }
     out.forEach(function (s) { s.clip = true; });
@@ -121,25 +183,37 @@
 
   /* ---------- за спиной ---------- */
   function back(id, c) {
-    var d = shade(c, -34);
+    var d = shade(c, -38), l = shade(c, 44);
     switch (id) {
       case 'k_cape':
-        return [P('M6 ' + (T+4) + ' L94 ' + (T+4) + ' L128 ' + H + ' L50 ' + (H-26) + ' L-28 ' + H + ' Z', c),
-                P('M50 ' + (T+4) + ' L50 ' + (H-26) + ' L-28 ' + H + ' Z', d)];
+        return [P('M4 ' + (T+2) + ' L96 ' + (T+2) + ' L134 ' + (H+6) +
+                  ' Q50 ' + (H-34) + ' -34 ' + (H+6) + ' Z', c),
+                P('M50 ' + (T+2) + ' L50 ' + (H-28) + ' Q6 ' + (H-16) + ' -34 ' + (H+6) + ' Z', d),
+                R(2, T-2, 96, 16, 8, l)];
       case 'k_wings':
-        return [P('M12 ' + (T+20) + ' q-96 -26 -104 74 q52 -28 104 22 z', c, d, 5),
-                P('M88 ' + (T+20) + ' q96 -26 104 74 q-52 -28 -104 22 z', c, d, 5)];
+        return [P('M14 ' + (T+16) + ' q-58 -44 -104 26 q-14 46 12 62 q28 -44 92 -22 z', c, d, 5),
+                P('M86 ' + (T+16) + ' q58 -44 104 26 q14 46 -12 62 q-28 -44 -92 -22 z', c, d, 5),
+                P('M12 ' + (T+50) + ' q-40 -12 -70 14', null, d, 4),
+                P('M88 ' + (T+50) + ' q40 -12 70 14', null, d, 4)];
       case 'k_jetpack':
-        return [R(-24, T+18, 34, 112, 16, c), R(90, T+18, 34, 112, 16, c),
-                P('M-16 ' + (T+132) + ' q9 40 18 0 z', '#f97316'),
-                P('M98 ' + (T+132) + ' q9 40 18 0 z', '#f97316')];
+        return [R(-26, T+14, 36, 118, 17, c), R(90, T+14, 36, 118, 17, c),
+                R(-26, T+14, 36, 22, 11, d), R(90, T+14, 36, 22, 11, d),
+                P('M-18 ' + (T+134) + ' q10 46 20 0 z', '#fbbf24'),
+                P('M98 ' + (T+134) + ' q10 46 20 0 z', '#fbbf24'),
+                P('M-14 ' + (T+134) + ' q6 26 12 0 z', '#f97316'),
+                P('M102 ' + (T+134) + ' q6 26 12 0 z', '#f97316')];
       case 'k_bag':
-        return [R(-18, T+26, 136, 104, 20, c), R(24, T+52, 52, 36, 10, d)];
+        return [R(-20, T+22, 140, 112, 22, c),
+                R(-20, T+22, 140, 22, 11, d),
+                R(20, T+52, 60, 40, 10, d), R(44, T+64, 12, 16, 3, l)];
       case 'k_tail':
-        return [P('M78 ' + (H-40) + ' q76 10 60 -80 q-14 62 -60 52 z', c)];
+        return [P('M74 ' + (H-34) + ' q86 16 66 -88 q-20 70 -66 58 z', c),
+                P('M92 ' + (H-42) + ' q52 6 44 -54', null, l, 5)];
       case 'k_shell':
-        return [E(50, T+BODY_H*0.55, 76, BODY_H*0.42, c),
-                E(50, T+BODY_H*0.55, 52, BODY_H*0.28, null, d, 6)];
+        return [E(50, T+BODY_H*0.55, 80, BODY_H*0.44, c),
+                E(50, T+BODY_H*0.55, 80, BODY_H*0.44, null, d, 6),
+                E(50, T+BODY_H*0.55, 54, BODY_H*0.29, null, d, 5),
+                E(50, T+BODY_H*0.55, 28, BODY_H*0.15, null, d, 5)];
       default: return [];
     }
   }

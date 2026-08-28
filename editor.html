@@ -226,6 +226,7 @@ body.mob #msg h1{font-size:38px}
   <div id="exitBtn">✕ Выйти</div>
   <div class="stat"><i>⏱</i><span id="sTime">0.0</span></div>
   <div class="stat" title="монет в карте (максимум 3)"><i>🪙</i><span id="sCoin">0</span></div>
+      <div class="stat" title="объектов в карте (максимум 2000)"><i>▦</i><span id="sObj">0</span></div>
   <div class="stat"><i>💀</i><span id="sDeath">0</span></div>
 </div>
 <div id="msg"><h1 id="msgT"></h1><p id="msgS"></p></div>
@@ -294,6 +295,9 @@ function rr(x,y,w,h,r){
     ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
   }
 }
+var COIN_IMG = new Image();
+COIN_IMG.src = "coin.png";
+
 /* the player figure — clean silhouette from the reference art */
 var FIG_GAP = 0.049;
 function figure(w,h,col,accent,skin){
@@ -484,14 +488,15 @@ var PAINT = {
     ctx.strokeStyle = C.stone3; ctx.lineWidth = 1.6; ctx.strokeRect(.8,.8,o.w-1.6,o.h-1.6);
   },
   coin: function(o){
-    var sq = Math.abs(Math.cos(anim*0.045));     // spins like a real pickup
+    // та же монета, что в профиле игрока (coin.png), с вращением
+    var sq = Math.abs(Math.cos(anim*0.045));
     var w = Math.max(2, o.w*sq);
     ctx.save(); ctx.translate(o.w/2, 0);
-    ctx.fillStyle = grad(-w/2,0,w/2,o.h,C.gold1,C.gold2);
-    ctx.beginPath(); ctx.ellipse(0,o.h/2,w/2,o.h/2,0,0,6.2832); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,.5)";
-    if(w > o.w*0.4){
-      ctx.beginPath(); ctx.ellipse(0,o.h/2,w*0.28,o.h*0.3,0,0,6.2832); ctx.fill();
+    if(COIN_IMG.complete && COIN_IMG.naturalWidth){
+      ctx.drawImage(COIN_IMG, -w/2, 0, w, o.h);
+    } else {
+      ctx.fillStyle = grad(-w/2,0,w/2,o.h,C.gold1,C.gold2);
+      ctx.beginPath(); ctx.ellipse(0,o.h/2,w/2,o.h/2,0,0,6.2832); ctx.fill();
     }
     ctx.restore();
   }
@@ -507,6 +512,9 @@ function shade(hex, amt){
    TOOL TABLE
    ══════════════════════════════════════════════════ */
 var ALL = "sandbox hideAndSeek twoPlayer race";
+/* У каждого режима свои объекты. Общие есть везде, остальные привязаны
+   к одному режиму и в другом просто не существуют — ни в палитре,
+   ни при загрузке карты, ни при публикации (это проверяет сервер). */
 var TOOLS = [
   {t:"select",     n:"Выделение",   m:ALL},
   {t:"rect",       n:"Блок",        m:ALL},
@@ -520,19 +528,33 @@ var TOOLS = [
   {t:"platform",   n:"Платформа",   m:ALL},
   {t:"rotator",    n:"Ротатор",     m:ALL},
   {t:"gate",       n:"Ворота",      m:ALL},
-  {t:"button",     n:"Кнопка",      m:ALL},
-  {t:"lever",      n:"Рычаг",       m:ALL},
-  {t:"cover",      n:"Укрытие",     m:ALL},
+  {t:"spawn",      n:"Точка старта",m:ALL},
+  // только прятки
+  {t:"cover",      n:"Укрытие",     m:"hideAndSeek"},
+  {t:"seeker",     n:"Ищущий",      m:"hideAndSeek"},
+  // только игра на двоих
   {t:"door",       n:"Дверь",       m:"twoPlayer"},
-  {t:"checkpoint", n:"Чекпоинт",    m:"sandbox twoPlayer race"},
-  {t:"finishline", n:"Финиш",       m:"sandbox twoPlayer race"},
-  {t:"seeker",     n:"Ищущий",      m:"hideAndSeek race"},
-  {t:"spawn",      n:"Точка старта",m:ALL}
+  {t:"button",     n:"Кнопка",      m:"twoPlayer"},
+  {t:"lever",      n:"Рычаг",       m:"twoPlayer"},
+  // только гонка
+  {t:"checkpoint", n:"Чекпоинт",    m:"race"},
+  {t:"finishline", n:"Финиш",       m:"race"}
 ];
+var MODE_OF = {};
+TOOLS.forEach(function(T){ MODE_OF[T.t] = T.m; });
+function allowedIn(type, m){
+  var s = MODE_OF[type];
+  return !s || s.split(" ").indexOf(m) !== -1;
+}
+var OBJ_LIMIT = 2000;   // максимум объектов в карте, одинаково во всех режимах
+/* Строительные объекты по умолчанию чёрные — как сам игрок.
+   Опасные и служебные оставлены цветными: чёрные шипы на чёрном блоке
+   игрок просто не заметит, и карта станет нечестной. */
+var INK = "#111827";
 var COLORS = {
-  rect:"", circle:"", triangle:"", text:"#111827", poison:"", spike:"", bounce:"",
-  coin:"", platform:"", rotator:"", gate:"", button:"", lever:"", cover:"",
-  door:"", checkpoint:"", finishline:"", seeker:"#b91c1c", spawn:"#111827"
+  rect:INK, circle:INK, triangle:INK, text:INK, poison:"", spike:"", bounce:INK,
+  coin:"", platform:INK, rotator:"", gate:INK, button:INK, lever:INK, cover:INK,
+  door:INK, checkpoint:"", finishline:"", seeker:"#b91c1c", spawn:INK
 };
 var SIZES = {
   rect:[90,26], circle:[58,58], triangle:[58,52], text:[70,24], poison:[110,26],
@@ -554,6 +576,59 @@ function coinWarn(){
   setTimeout(hideMsg, 1800);
 }
 var mode = "hideAndSeek", tool = "select", objects = [], sel = null, uid = 1;
+
+/* ══════════════════════════════════════════════════
+   ИНДЕКС ОБЪЕКТОВ
+   На больших картах перебирать все 2000 объектов каждый кадр дорого.
+   Раскладываем их по сетке ячеек и берём только те, что рядом.
+   ══════════════════════════════════════════════════ */
+var CELL = 260, grid = null, gridDirty = true;
+function markDirty(){ gridDirty = true; }
+function buildGrid(){
+  grid = {};
+  for(var i=0;i<objects.length;i++){
+    var o = objects[i], bb = bbox(o);
+    var cx0 = Math.floor(bb[0]/CELL), cx1 = Math.floor(bb[2]/CELL);
+    var cy0 = Math.floor(bb[1]/CELL), cy1 = Math.floor(bb[3]/CELL);
+    for(var cx=cx0; cx<=cx1; cx++)
+      for(var cy=cy0; cy<=cy1; cy++){
+        var k = cx + ":" + cy;
+        (grid[k] || (grid[k] = [])).push(o);
+      }
+  }
+  gridDirty = false;
+}
+function nearby(x, y, w, h){
+  var i, o;
+  if(gridDirty || !grid) buildGrid();
+  var seen = {}, out = [];
+  var cx0 = Math.floor(x/CELL), cx1 = Math.floor((x+w)/CELL);
+  var cy0 = Math.floor(y/CELL), cy1 = Math.floor((y+h)/CELL);
+  for(var cx=cx0; cx<=cx1; cx++)
+    for(var cy=cy0; cy<=cy1; cy++){
+      var list = grid[cx + ":" + cy];
+      if(!list) continue;
+      for(i=0;i<list.length;i++){
+        o = list[i];
+        if(seen[o.id]) continue;
+        seen[o.id] = 1; out.push(o);
+      }
+    }
+  // платформы и ротаторы двигаются — добавляем их всегда
+  for(i=0;i<movers.length;i++){ o = movers[i]; if(!seen[o.id]){ seen[o.id]=1; out.push(o); } }
+  return out;
+}
+var movers = [];
+function indexMovers(){
+  movers = objects.filter(function(o){ return o.type === "platform" || o.type === "rotator"; });
+}
+function overLimit(extra){
+  if(objects.length + (extra||1) <= OBJ_LIMIT) return false;
+  showMsg("Предел " + OBJ_LIMIT + " объектов",
+          "В карте уже " + objects.length + ". Удалите лишнее, чтобы добавить новое.");
+  setTimeout(hideMsg, 2200);
+  return true;
+}
 var playing = false, anim = 0, grid = true, GRID = 10;
 var gravityScale = 10;
 var view = {s:1, x:0, y:0};
@@ -655,8 +730,10 @@ function drawParts(){
 /* ══════════════════════════════════════════════════
    PHYSICS  — gravity driven by the slider, exactly like the original editor
    ══════════════════════════════════════════════════ */
-var JUMP_H = 122, MOVE_A = 0.9, MAX_VX = 5.2, FRIC = 0.78, AIR = 0.94,
-    COYOTE = 6, BUFFER = 7, WALL_SLIDE = 2.6, WALL_VX = 6.2;
+/* FRIC = 0 — на земле игрок останавливается сразу, без скольжения.
+   В воздухе инерция остаётся, иначе управление в прыжке ломается. */
+var JUMP_H = 122, MOVE_A = 0.9, MAX_VX = 5.2, FRIC = 0, AIR = 0.94,
+    COYOTE = 6, BUFFER = 7, WALL_SLIDE = 2.6, WALL_VX = 6.2, STEP_UP = 16;
 function G(){ return gravityScale * 0.062; }          // slider 10 → 0.62 px/frame²
 function jumpV(){ return -Math.sqrt(2 * Math.max(0.02, G()) * JUMP_H); }  // constant hop height
 /* Heavier gravity shortens airtime, so speed scales with it — otherwise a map
@@ -677,6 +754,7 @@ function play(){
   var sp = findSpawn();
   if(!sp){ dialog("Нет точки старта","Поставь инструмент «Точка старта», потом жми ▶.",null); return; }
   playing = true; done = false; deaths = 0; coins = 0; timeMs = 0; parts.length = 0;
+  indexMovers(); markDirty();
   pl.w = sp.w; pl.h = sp.h;
   spawnPt = {x:sp.x, y:sp.y};
   coinsTotal = objects.filter(function(o){ return o.type === "coin"; }).length;
@@ -704,6 +782,8 @@ function die(){
 function stat(){
   document.getElementById("sDeath").textContent = deaths;
   document.getElementById("sCoin").textContent = coins + "/" + coinsTotal;
+  var so = document.getElementById("sObj");
+  if(so) so.textContent = objects.length + "/" + OBJ_LIMIT;
 }
 function showMsg(t,s){
   document.getElementById("msgT").textContent = t;
@@ -717,6 +797,102 @@ var opened = function(o){ return (o.type === "gate" || o.type === "door") && !!o
 var solid  = function(o){ return SOLID.indexOf(o.type) !== -1 && !opened(o); };
 var hazard = function(o){ return (HAZARD.indexOf(o.type) !== -1 || o.deadly === true) && !opened(o); };
 function hit(ax,ay,aw,ah,bx,by,bw,bh){ return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by; }
+
+/* ══════════════════════════════════════════════════
+   ХИТБОКСЫ
+   Раньше столкновения считались по прямоугольнику вокруг объекта,
+   поэтому круг ловил игрока за углы, треугольник был стеной, а ротатор
+   вращался только на картинке. Теперь у каждого объекта настоящий
+   многоугольник, который поворачивается вместе с ним.
+   ══════════════════════════════════════════════════ */
+var CIRCLE_SIDES = 16;
+
+function rawPoly(o){
+  var pts, i, a;
+  if(o.type === "triangle"){
+    pts = [[o.w/2,0],[o.w,o.h],[0,o.h]];
+  } else if(o.type === "circle"){
+    pts = [];
+    for(i=0;i<CIRCLE_SIDES;i++){
+      a = i/CIRCLE_SIDES*6.2831853;
+      pts.push([o.w/2 + Math.cos(a)*o.w/2, o.h/2 + Math.sin(a)*o.h/2]);
+    }
+  } else {
+    pts = [[0,0],[o.w,0],[o.w,o.h],[0,o.h]];
+  }
+  return pts;
+}
+
+// многоугольник в мировых координатах; пересчитывается только при изменениях
+function polyOf(o){
+  var ang = (o.type === "rotator" && playing) ? (o._spin || 0) : (o.rot||0)*Math.PI/180;
+  var key = o.x + "," + o.y + "," + o.w + "," + o.h + "," + ang.toFixed(4) + "," + o.type;
+  if(o._pk === key) return o._poly;
+
+  var base = rawPoly(o), cx = o.w/2, cy = o.h/2, out = [], i, p, dx, dy;
+  var s = Math.sin(ang), c = Math.cos(ang);
+  for(i=0;i<base.length;i++){
+    p = base[i];
+    if(ang){
+      dx = p[0]-cx; dy = p[1]-cy;
+      out.push([o.x + cx + dx*c - dy*s, o.y + cy + dx*s + dy*c]);
+    } else {
+      out.push([o.x + p[0], o.y + p[1]]);
+    }
+  }
+  o._pk = key; o._poly = out;
+  // габариты для быстрой отбраковки
+  var x0=1/0,y0=1/0,x1=-1/0,y1=-1/0;
+  for(i=0;i<out.length;i++){
+    if(out[i][0]<x0)x0=out[i][0]; if(out[i][0]>x1)x1=out[i][0];
+    if(out[i][1]<y0)y0=out[i][1]; if(out[i][1]>y1)y1=out[i][1];
+  }
+  o._bb = [x0,y0,x1,y1];
+  return out;
+}
+function bbox(o){ polyOf(o); return o._bb; }
+
+// ширина фигуры в горизонтальной полосе [y0,y1] — нужна для движения по X
+function spanX(pts, y0, y1){
+  var lo=1/0, hi=-1/0, n=pts.length, i, a, b, t, x;
+  for(i=0;i<n;i++){
+    a = pts[i]; b = pts[(i+1)%n];
+    if(a[1] >= y0 && a[1] <= y1){ if(a[0]<lo)lo=a[0]; if(a[0]>hi)hi=a[0]; }
+    if((a[1]-y0)*(b[1]-y0) < 0){ t=(y0-a[1])/(b[1]-a[1]); x=a[0]+(b[0]-a[0])*t; if(x<lo)lo=x; if(x>hi)hi=x; }
+    if((a[1]-y1)*(b[1]-y1) < 0){ t=(y1-a[1])/(b[1]-a[1]); x=a[0]+(b[0]-a[0])*t; if(x<lo)lo=x; if(x>hi)hi=x; }
+  }
+  return lo<=hi ? [lo,hi] : null;
+}
+
+// высота фигуры в вертикальной полосе [x0,x1] — нужна для движения по Y
+function spanY(pts, x0, x1){
+  var lo=1/0, hi=-1/0, n=pts.length, i, a, b, t, y;
+  for(i=0;i<n;i++){
+    a = pts[i]; b = pts[(i+1)%n];
+    if(a[0] >= x0 && a[0] <= x1){ if(a[1]<lo)lo=a[1]; if(a[1]>hi)hi=a[1]; }
+    if((a[0]-x0)*(b[0]-x0) < 0){ t=(x0-a[0])/(b[0]-a[0]); y=a[1]+(b[1]-a[1])*t; if(y<lo)lo=y; if(y>hi)hi=y; }
+    if((a[0]-x1)*(b[0]-x1) < 0){ t=(x1-a[0])/(b[0]-a[0]); y=a[1]+(b[1]-a[1])*t; if(y<lo)lo=y; if(y>hi)hi=y; }
+  }
+  return lo<=hi ? [lo,hi] : null;
+}
+
+// настоящее пересечение игрока с фигурой (для шипов, монет, кнопок)
+function overlaps(o, x, y, w, h){
+  var bb = bbox(o);
+  if(x >= bb[2] || x+w <= bb[0] || y >= bb[3] || y+h <= bb[1]) return false;
+  var sp = spanX(polyOf(o), y + 2, y + h - 2);
+  return !!sp && x < sp[1] && x+w > sp[0];
+}
+
+// точка внутри фигуры — для выделения в редакторе
+function inside(o, x, y){
+  var pts = polyOf(o), n = pts.length, i, j, r = false;
+  for(i=0, j=n-1; i<n; j=i++){
+    if(((pts[i][1] > y) !== (pts[j][1] > y)) &&
+       (x < (pts[j][0]-pts[i][0])*(y-pts[i][1])/(pts[j][1]-pts[i][1]) + pts[i][0])) r = !r;
+  }
+  return r;
+}
 
 function step(){
   anim++;
@@ -757,22 +933,46 @@ function step(){
   if(pl.wall !== 0 && pl.vy > WALL_SLIDE) pl.vy = WALL_SLIDE;
   if(pl.vy > maxFall()) pl.vy = maxFall();
 
-  var sol = objects.filter(solid);
+  // рядом с игроком объектов мало — дальние даже не проверяем
+  var near = nearby(pl.x - 260, pl.y - 260, pl.w + 520, pl.h + 520);
+  var sol = [], i;
+  for(i=0;i<near.length;i++) if(solid(near[i])) sol.push(near[i]);
 
   pl.x += pl.vx; pl.wall = 0;
   sol.forEach(function(o){
-    if(!hit(pl.x,pl.y,pl.w,pl.h,o.x,o.y,o.w,o.h)) return;
-    if(pl.vx > 0){ pl.x = o.x-pl.w; pl.wall = 1; }
-    else if(pl.vx < 0){ pl.x = o.x+o.w; pl.wall = -1; }
+    var bb = bbox(o);
+    if(pl.x >= bb[2] || pl.x+pl.w <= bb[0] || pl.y >= bb[3] || pl.y+pl.h <= bb[1]) return;
+    var P = polyOf(o);
+    // полосу чуть поджимаем: иначе стоя точно на блоке игрок цепляет
+    // его боком и его выталкивает вбок
+    var sp = spanX(P, pl.y + 2, pl.y + pl.h - 2);
+    if(!sp || pl.x >= sp[1] || pl.x + pl.w <= sp[0]) return;
+
+    // пологий подъём: на склон и невысокий уступ игрок заходит, а не упирается
+    if(pl.ground){
+      var top = spanY(P, pl.x + 2, pl.x + pl.w - 2);
+      if(top && pl.y + pl.h - top[0] <= STEP_UP && top[0] < pl.y + pl.h){
+        pl.y = top[0] - pl.h;
+        return;
+      }
+    }
+    if(pl.vx > 0){ pl.x = sp[0] - pl.w; pl.wall = 1; }
+    else if(pl.vx < 0){ pl.x = sp[1]; pl.wall = -1; }
+    else { pl.x = (pl.x + pl.w/2 < (sp[0]+sp[1])/2) ? sp[0] - pl.w : sp[1]; }
     pl.vx = 0;
   });
 
   var wasAir = !pl.ground;
   pl.y += pl.vy; pl.ground = false;
   sol.forEach(function(o){
-    if(!hit(pl.x,pl.y,pl.w,pl.h,o.x,o.y,o.w,o.h)) return;
-    if(pl.vy > 0){
-      pl.y = o.y-pl.h; pl.ground = true; coy = COYOTE;
+    var bb = bbox(o);
+    if(pl.x >= bb[2] || pl.x+pl.w <= bb[0] || pl.y >= bb[3] || pl.y+pl.h <= bb[1]) return;
+    var P = polyOf(o);
+    var sp = spanY(P, pl.x + 2, pl.x + pl.w - 2);
+    if(!sp || pl.y >= sp[1] || pl.y + pl.h <= sp[0]) return;
+
+    if(pl.vy >= 0 && pl.y + pl.h - sp[0] <= Math.max(2, pl.vy + 2)){
+      pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE;
       if(o.type === "bounce"){
         pl.vy = -(o.power||17); pl.ground = false; pl.selfJump = false;
         o._squash = 1; puff(pl.x+pl.w/2, pl.y+pl.h, 9);
@@ -781,12 +981,16 @@ function step(){
         pl.vy = 0; pl.selfJump = false;
       }
       if(o.type === "platform"){ pl.x += o._dx||0; pl.y += o._dy||0; }
-    } else if(pl.vy < 0){ pl.y = o.y+o.h; pl.vy = 0; }
+    } else if(pl.vy < 0){
+      pl.y = sp[1]; pl.vy = 0;
+    } else {
+      pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE; pl.vy = 0; pl.selfJump = false;
+    }
   });
   if(pl.ground) pl.wall = 0;
 
-  objects.forEach(function(o){
-    var over = hit(pl.x,pl.y,pl.w,pl.h,o.x,o.y,o.w,o.h);
+  near.forEach(function(o){
+    var over = overlaps(o, pl.x, pl.y, pl.w, pl.h);
     if(!over){
       if(o.type === "button" && o._act){ o._act = false; drive(o); }
       if(o.type === "lever") o._latch = false;
@@ -878,7 +1082,15 @@ function render(){
   var sx = shake > .4 ? (Math.random()-.5)*shake : 0, sy = shake > .4 ? (Math.random()-.5)*shake : 0;
   ctx.setTransform(view.s*DPR,0,0,view.s*DPR, (view.x+sx)*DPR, (view.y+sy)*DPR);
 
-  objects.forEach(function(o){ paint(o, !playing && o === sel); });
+  // рисуем только то, что попадает на экран
+  var vx0 = -view.x/view.s - 80, vy0 = -view.y/view.s - 80;
+  var vx1 = vx0 + VW()/view.s + 160, vy1 = vy0 + VH()/view.s + 160;
+  var drawn = 0;
+  for(var ri=0; ri<objects.length; ri++){
+    var ro = objects[ri], rb = bbox(ro);
+    if(rb[2] < vx0 || rb[0] > vx1 || rb[3] < vy0 || rb[1] > vy1) continue;
+    paint(ro, !playing && ro === sel); drawn++;
+  }
   if(playing && !pl.dead){
     ctx.save(); ctx.translate(pl.x, pl.y);
     ctx.shadowColor = "rgba(15,23,42,.25)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
@@ -979,8 +1191,19 @@ syncTools();
 document.getElementById("modes").addEventListener("click", function(e){
   var b = e.target.closest(".modeBtn"); if(!b || playing) return;
   document.querySelectorAll(".modeBtn").forEach(function(x){ x.classList.remove("on"); });
-  b.classList.add("on"); mode = b.dataset.mode; syncTools();
+  b.classList.add("on"); mode = b.dataset.mode;
+  var drop = objects.filter(function(o){ return !allowedIn(o.type, mode); });
+  if(drop.length){
+    commit();
+    objects = objects.filter(function(o){ return allowedIn(o.type, mode); });
+    sel = null; markDirty(); indexMovers();
+    showMsg("Убрано объектов: " + drop.length,
+            "В режиме «" + mode + "» они не работают. Ctrl+Z вернёт их обратно.");
+    setTimeout(hideMsg, 2600);
+  }
+  syncTools();
   if(!toolOK(tool)) setTool("select");
+  inspect();
 });
 toolsEl.addEventListener("click", function(e){
   var t = e.target.closest(".tool"); if(t) setTool(t.dataset.tool);
@@ -992,9 +1215,15 @@ function setTool(n){
   if(n !== "select"){ sel = null; inspect(); }
 }
 function at(x,y){
+  // выделяем по настоящей форме, а не по рамке — иначе повёрнутые
+  // и круглые объекты ловятся мимо картинки
   for(var i = objects.length-1; i >= 0; i--){
     var o = objects[i];
-    if(x >= o.x && x <= o.x+o.w && y >= o.y && y <= o.y+o.h) return o;
+    if(o.type === "text"){
+      if(x >= o.x && x <= o.x+o.w && y >= o.y && y <= o.y+o.h) return o;
+      continue;
+    }
+    if(inside(o, x, y)) return o;
   }
   return null;
 }
@@ -1022,6 +1251,8 @@ function down(x,y){
     inspect(); return;
   }
   if(tool === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
+  if(!allowedIn(tool, mode)){ setTool("select"); return; }
+  if(overLimit(1)) return;
   commit();
   if(tool === "spawn"){
     var ex = findSpawn(); if(ex) objects = objects.filter(function(o){ return o !== ex; });
@@ -1155,6 +1386,7 @@ pad("pJump",  function(v){ keys.u = v; if(v) buf = BUFFER; });
 function duplicate(){
   if(!sel) return;
   if(sel.type === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
+  if(overLimit(1)) return;
   commit();
   var c = JSON.parse(JSON.stringify(sel));
   c.id = uid++; c.x += 20; c.y += 20;
@@ -1381,8 +1613,12 @@ window.GAME = {
     var d = (typeof json === "string") ? JSON.parse(json) : json;
     if(playing) stop();
     objects = (d.objects || []).map(function(o){ return Object.assign({}, o); });
-    objects.forEach(function(o){ if(o.id >= uid) uid = o.id + 1; });
     if(d.mode) mode = d.mode;
+    // объекты чужого режима в карту не пускаем
+    objects = objects.filter(function(o){ return allowedIn(o.type, mode); });
+    if(objects.length > OBJ_LIMIT) objects.length = OBJ_LIMIT;
+    objects.forEach(function(o){ if(o.id >= uid) uid = o.id + 1; });
+    indexMovers(); markDirty();
     if(d.gravity != null) gravityScale = d.gravity;
     sel = null;
     resetView();
@@ -1439,9 +1675,21 @@ document.body.appendChild(saveBtn);
       var m = window.getEditorMap();
       data = m.data; window.__mode = m.mode;
       var parsed = JSON.parse(data);
-      var coins = (parsed.objects || []).filter(function(o){ return o.type === 'coin'; }).length;
+      var objs = parsed.objects || [];
+      if (objs.length > 2000) {
+        alert('В карте ' + objs.length + ' объектов. Разрешено не больше 2000.');
+        return;
+      }
+      var coins = objs.filter(function(o){ return o.type === 'coin'; }).length;
       if (coins > 3) {
         alert('В карте ' + coins + ' монет. Разрешено не больше 3 — уберите лишние.');
+        return;
+      }
+      var bad = objs.filter(function(o){ return !allowedIn(o.type, m.mode); })
+                    .map(function(o){ return o.type; });
+      if (bad.length) {
+        alert('Эти объекты не работают в режиме «' + m.mode + '»: ' +
+              bad.filter(function(v,i,a){ return a.indexOf(v) === i; }).join(', '));
         return;
       }
     } catch(e){ alert('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0431\u0440\u0430\u0442\u044c \u043a\u0430\u0440\u0442\u0443'); return; }
