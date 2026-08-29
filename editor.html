@@ -358,7 +358,7 @@ var PAINT = {
     ctx.textBaseline = "top";
     ctx.fillText(o.text || "Text", 0, 0);
   },
-  spawn: function(o){ figure(o.w,o.h, o.fill || C.ink, true, (window.GAME && GAME.mySkin) || null); },
+  spawn: function(o){ figure(o.w,o.h, o.fill || C.ink, true, (window.GAME && window.GAME.mySkin) || null); },
   seeker: function(o){
     figure(o.w,o.h, o.fill || "#b91c1c", true);
     ctx.fillStyle = "#fff";                      // seeker gets eyes so he reads as the hunter
@@ -531,6 +531,7 @@ var ALL = "sandbox hideAndSeek twoPlayer race";
    ни при загрузке карты, ни при публикации (это проверяет сервер). */
 var TOOLS = [
   {t:"select",     n:"Выделение",   m:ALL},
+  {t:"hand",       n:"Рука (двигать карту)", m:ALL},
   {t:"rect",       n:"Блок",        m:ALL},
   {t:"circle",     n:"Круг",        m:ALL},
   {t:"triangle",   n:"Треугольник", m:ALL},
@@ -1121,11 +1122,11 @@ function render(){
   if(playing && !pl.dead){
     ctx.save(); ctx.translate(pl.x, pl.y);
     ctx.shadowColor = "rgba(15,23,42,.25)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
-    figure(pl.w, pl.h, (window.GAME && GAME.myColor) || "#111827", true,
-           (window.GAME && GAME.mySkin) || null);
+    figure(pl.w, pl.h, (window.GAME && window.GAME.myColor) || "#111827", true,
+           (window.GAME && window.GAME.mySkin) || null);
     ctx.restore();
   }
-  if(window.GAME && GAME.onDraw) GAME.onDraw(ctx);
+  if(window.GAME && window.GAME.onDraw) window.GAME.onDraw(ctx);
   drawParts();
   if(!playing) anim++;
   requestAnimationFrame(render);
@@ -1197,6 +1198,20 @@ function drawIcon(cvs, type){
     g.fillStyle = "#111827"; g.beginPath();
     g.moveTo(6,3); g.lineTo(33,25); g.lineTo(21,26); g.lineTo(27,38); g.lineTo(21,40); g.lineTo(15,28); g.lineTo(6,35);
     g.closePath(); g.fill();
+  } else if(type === "hand"){
+    // ладонь: четыре пальца и большой
+    g.fillStyle = "#111827";
+    [[13,10],[19,7],[25,8],[31,12]].forEach(function(f,i){
+      g.beginPath(); g.roundRect ? g.roundRect(f[0], f[1], 5, 20 - i*1.5, 2.5)
+                                 : g.rect(f[0], f[1], 5, 20 - i*1.5);
+      g.fill();
+    });
+    g.beginPath();
+    g.moveTo(11,20); g.quadraticCurveTo(4,24, 9,30);
+    g.lineTo(14,34); g.lineTo(18,28); g.closePath(); g.fill();
+    g.beginPath();
+    g.roundRect ? g.roundRect(11,22,25,16,7) : g.rect(11,22,25,16);
+    g.fill();
   } else {
     var s = SIZES[type] || [40,40], sc = Math.min(40/s[0], 40/s[1]);
     g.translate((40-s[0]*sc)/2, (40-s[1]*sc)/2); g.scale(sc,sc);
@@ -1324,13 +1339,36 @@ function up(){
 }
 
 var pan = null, spaceDown = false;
+
+/* Двигать карту можно:
+     · правой кнопкой мыши (в любой момент)
+     · средней кнопкой или пробелом с левой
+     · инструментом «Рука»
+     · левой кнопкой по пустому месту, когда выбрано «Выделение»
+   На телефоне — просто протащить пальцем по пустому месту либо
+   включить «Руку» и тащить где угодно. */
+function startPan(sx, sy){
+  pan = {sx:sx, sy:sy, vx:view.x, vy:view.y};
+  cv.style.cursor = "grabbing";
+}
+function wantPan(x, y){
+  if(tool === "hand") return true;
+  if(tool !== "select") return false;
+  return !gripAt(x, y) && !at(x, y);      // пусто под курсором — тащим карту
+}
+
 cv.addEventListener("mousedown", function(e){
   if(playing) return;
-  if(e.button === 1 || (e.button === 0 && spaceDown)){
-    pan = {sx:e.offsetX, sy:e.offsetY, vx:view.x, vy:view.y}; cv.style.cursor = "grabbing"; e.preventDefault(); return;
+  if(e.button === 1 || e.button === 2 || (e.button === 0 && spaceDown)){
+    startPan(e.offsetX, e.offsetY); e.preventDefault(); return;
   }
   if(e.button !== 0) return;
-  var p = toWorld(e.offsetX, e.offsetY); down(p.x, p.y);
+  var p = toWorld(e.offsetX, e.offsetY);
+  if(wantPan(p.x, p.y)){
+    if(tool === "select" && sel){ sel = null; inspect(); }
+    startPan(e.offsetX, e.offsetY); e.preventDefault(); return;
+  }
+  down(p.x, p.y);
 });
 cv.addEventListener("mousemove", function(e){
   if(playing) return;
@@ -1338,7 +1376,7 @@ cv.addEventListener("mousemove", function(e){
   var p = toWorld(e.offsetX, e.offsetY); move(p.x, p.y);
 });
 addEventListener("mouseup", function(){
-  if(pan){ pan = null; cv.style.cursor = tool === "select" ? "default" : "crosshair"; return; }
+  if(pan){ pan = null; cv.style.cursor = tool === "hand" ? "grab" : (tool === "select" ? "default" : "crosshair"); return; }
   up();
 });
 cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
@@ -1356,6 +1394,10 @@ cv.addEventListener("touchstart", function(e){
     pinch = {d:tD(e.touches[0],e.touches[1]), x:m.x, y:m.y}; e.preventDefault(); return; }
   if(e.touches.length !== 1) return;
   var c = cPt(e.touches[0].clientX, e.touches[0].clientY), p = toWorld(c.x,c.y);
+  if(wantPan(p.x, p.y)){
+    if(tool === "select" && sel){ sel = null; inspect(); }
+    startPan(c.x, c.y); e.preventDefault(); return;
+  }
   down(p.x,p.y); e.preventDefault();
 }, {passive:false});
 cv.addEventListener("touchmove", function(e){
@@ -1367,12 +1409,22 @@ cv.addEventListener("touchmove", function(e){
     pinch.d = d; pinch.x = m.x; pinch.y = m.y; e.preventDefault(); return;
   }
   if(e.touches.length !== 1 || pinch) return;
-  var c = cPt(e.touches[0].clientX, e.touches[0].clientY), p = toWorld(c.x,c.y);
+  var c = cPt(e.touches[0].clientX, e.touches[0].clientY);
+  if(pan){
+    view.x = pan.vx + (c.x - pan.sx);
+    view.y = pan.vy + (c.y - pan.sy);
+    e.preventDefault(); return;
+  }
+  var p = toWorld(c.x,c.y);
   move(p.x,p.y); e.preventDefault();
 }, {passive:false});
 cv.addEventListener("touchend", function(e){
   if(playing) return;
-  if(e.touches.length === 0){ pinch = null; up(); }
+  if(e.touches.length === 0){
+    pinch = null;
+    if(pan){ pan = null; cv.style.cursor = tool === "hand" ? "grab" : "default"; }
+    else up();
+  }
   e.preventDefault();
 }, {passive:false});
 
@@ -1883,5 +1935,6 @@ socket.on('connect', () => {
 })();
 </script>
 	<script src="topnav.js" defer></script>
+	<script src="skinAvatar.js" defer></script>
 </body>
 </html>

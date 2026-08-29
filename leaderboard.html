@@ -62,9 +62,10 @@
 						var mine = d.me && d.me.name === u.name;
 						return '<div class="lbRow' + (mine ? ' me' : '') + '">'
 							+ '<div class="lbPlace">' + (i + 1) + '</div>'
-							+ '<div class="lbAva"><img src="/avatar/0.png" alt=""></div>'
+							+ '<div class="lbAva"><img src="/avatar/0.png" alt="" data-bf-name="' + esc(u.name) + '"></div>'
 							+ '<div class="lbName" data-n="' + esc(u.name) + '">' + esc(u.name) + '</div>'
-							+ '<div class="lbCoins">' + u.coins + ' 🪙</div></div>';
+							+ '<div class="lbCoins">' + u.coins + ' ' +
+							  (window.BFCoin ? BFCoin.svg(15) : '') + '</div></div>';
 					}).join('');
 				}
 
@@ -94,5 +95,7 @@
 	<script src="i18n.js"></script>
 	<script src="owner.js" defer></script>
 	<script src="coin.js"></script>
+	<script src="skinRender.js"></script>
+	<script src="skinAvatar.js" defer></script>
 </body>
 </html>

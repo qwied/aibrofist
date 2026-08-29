@@ -103,6 +103,19 @@ function register(app, acc) {
     res.json({ skin: skinOf(u), name: u ? u.name : '' });
   });
 
+  // скины сразу нескольких игроков — для списков друзей и таблиц
+  app.get('/skins/many', (req, res) => {
+    const db = getDb();
+    const names = String(req.query.names || '')
+      .split(',').map(n => n.trim()).filter(Boolean).slice(0, 60);
+    const out = {};
+    names.forEach(n => {
+      const u = db.users[key(n)];
+      if (u) out[n] = skinOf(u);
+    });
+    res.json({ skins: out });
+  });
+
   app.post('/skin/equip', (req, res) => {
     const u = currentUser(req);
     if (!u) return res.json({ status: 'error', code: 'guest' });

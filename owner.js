@@ -25,8 +25,13 @@
     }).then(function (r) { return r.json(); });
   }
   function get(url) {
-    return fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); });
+    return fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); });
   }
+  // сеть может отвалиться в любой момент — необработанных отказов быть не должно
+  window.addEventListener('unhandledrejection', function (e) {
+    if (e && e.reason && /Failed to fetch|NetworkError/.test(String(e.reason))) e.preventDefault();
+  });
 
   /* ---------- стили ---------- */
   var css = ''

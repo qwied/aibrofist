@@ -313,8 +313,7 @@ function register(app) {
   });
 
   // ---------- заглушки вендорных страниц ----------
-  app.get('/getSkins', (req, res) => res.json({ skins: [], page: '1/1', count: 0 }));
-  app.get('/getSkinsForList', (req, res) => res.json({ skins: [], page: '1/1', count: 0 }));
+  // /getSkins и /getSkinsForList теперь отдаёт userSkins.js — настоящими скинами
   app.get('/getStoreCosmetics', (req, res) => {
     // старый магазин вендора: отдаём наш каталог в его формате
     const skins = require('./skins.js');

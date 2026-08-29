@@ -1,0 +1,156 @@
+/* AIBROFIST — надетый скин виден везде, где показывают игрока:
+   в шапке, в профиле, в списках друзей, в таблице лидеров, у авторов карт.
+   Картинка-аватар подменяется на ту же фигуру, что рисуется в игре. */
+(function () {
+  'use strict';
+
+  var cache = {};        // ник -> скин
+  var pending = {};      // ник -> [элементы, ждущие скин]
+  var byId = null;       // каталог деталей
+  var meName = null;
+  var timer = null;
+
+  function catalog() {
+    if (byId) return Promise.resolve(byId);
+    return fetch('/skin/catalog', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        byId = {};
+        (d.items || []).forEach(function (i) { byId[i.id] = i; });
+        return byId;
+      });
+  }
+
+  function dataUri(skin, full) {
+    if (!window.BFSkin) return null;
+    // в круглых иконках показываем портрет, на большой картинке — фигуру целиком
+    var svg = full ? BFSkin.svg(skin, byId, { height: 300 })
+                   : BFSkin.svg(skin, byId, { height: 220, bust: true });
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+
+  // большая аватарка в профиле показывает игрока во весь рост
+  function isFull(el) {
+    return !!(el.classList && el.classList.contains('profile-picture'));
+  }
+
+  function paint(el, skin) {
+    var uri = dataUri(skin, isFull(el));
+    if (!uri) return;
+    if (el.tagName === 'IMG') {
+      el.src = uri;
+      el.style.objectFit = 'contain';
+      el.dataset.bfSkin = '1';
+    } else {
+      el.style.backgroundImage = 'url("' + uri + '")';
+      el.style.backgroundSize = 'contain';
+      el.style.backgroundRepeat = 'no-repeat';
+      el.style.backgroundPosition = 'center';
+      el.dataset.bfSkin = '1';
+    }
+  }
+
+  // накапливаем ники и запрашиваем пачкой — по одному запросу на список
+  function want(name, el) {
+    if (!name) return;
+    if (cache[name]) { paint(el, cache[name]); return; }
+    (pending[name] = pending[name] || []).push(el);
+    clearTimeout(timer);
+    timer = setTimeout(flush, 60);
+  }
+
+  function flush() {
+    var names = Object.keys(pending).filter(function (n) { return !cache[n]; });
+    if (!names.length) return;
+    catalog().then(function () {
+      return fetch('/skins/many?names=' + encodeURIComponent(names.join(',')),
+                   { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); });
+    }).then(function (d) {
+      var got = (d && d.skins) || {};
+      names.forEach(function (n) {
+        if (got[n]) cache[n] = got[n];
+        (pending[n] || []).forEach(function (el) {
+          if (cache[n]) paint(el, cache[n]);
+        });
+        delete pending[n];
+      });
+    }).catch(function () { pending = {}; });
+  }
+
+  function txt(el) { return el ? (el.textContent || '').trim() : ''; }
+
+  // кому принадлежит эта картинка
+  function nameFor(el) {
+    // 1) явно проставленный ник
+    if (el.dataset && el.dataset.bfName) return el.dataset.bfName;
+
+    // 2) строка списка друзей / таблицы: ник рядом
+    var row = el.closest && el.closest('.user-item, .maps-row, .lbRow, .bfCard, .sbCard');
+    if (row) {
+      var n = row.querySelector('.user-name, .map-author-row, .lbName, .sbAuthor a, a[href*="users.html?name="]');
+      if (n) {
+        var href = n.getAttribute && n.getAttribute('href');
+        if (href && href.indexOf('name=') !== -1)
+          return decodeURIComponent(href.split('name=')[1].split('&')[0]);
+        if (txt(n)) return txt(n);
+      }
+    }
+
+    // 3) большая аватарка в профиле — ник берём из адреса страницы
+    if (el.classList && el.classList.contains('profile-picture')) {
+      var m = location.search.match(/[?&]name=([^&]*)/);
+      if (m) return decodeURIComponent(m[1]);
+    }
+
+    // 4) иконка в шапке — текущий игрок
+    if (el.classList && (el.classList.contains('profile-image') ||
+                         el.classList.contains('bfAvatar'))) return meName;
+
+    return '';
+  }
+
+  function scan(root) {
+    root = root || document;
+    if (!root.querySelectorAll) return;
+    var list = root.querySelectorAll(
+      'img.profile-image, img.profile-picture, .user-avatar img, ' +
+      'img[src*="/avatar/"], .bfAvatar'
+    );
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i];
+      if (el.dataset.bfSkin) continue;
+      var n = nameFor(el);
+      if (n) want(n, el);
+    }
+  }
+
+  function boot() {
+    fetch('/whoAmI', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        meName = (d && !d.guest) ? d.name : null;
+        scan(document);
+      })
+      .catch(function () { scan(document); });
+
+    // списки друзей и карт дорисовываются позже
+    try {
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++)
+          for (var j = 0; j < muts[i].addedNodes.length; j++) {
+            var n = muts[i].addedNodes[j];
+            if (n.nodeType === 1) scan(n);
+          }
+      }).observe(document.documentElement, { childList: true, subtree: true });
+    } catch (e) {}
+
+    // на всякий случай — редкий добор
+    setInterval(function () { scan(document); }, 2500);
+  }
+
+  window.BFAvatar = { scan: scan, paint: paint, uri: dataUri };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();

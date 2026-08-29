@@ -54,6 +54,19 @@ function pub(s, me) {
   };
 }
 
+// отрисовка скина на сервере — нужна, чтобы отдавать картинку по ссылке
+let RENDER = null;
+function renderer() {
+  if (RENDER) return RENDER;
+  try {
+    const host = {};
+    const code = fs.readFileSync(path.join(__dirname, 'skinRender.js'), 'utf8');
+    new Function('window', code)(host);
+    RENDER = host.BFSkin;
+  } catch (e) { RENDER = null; }
+  return RENDER;
+}
+
 function register(app, acc, skinsApi) {
   const { currentUser, isOwner, save: saveUsers, getDb, key } = acc;
   const ownerOnly = (req, res) => {
@@ -282,6 +295,74 @@ function register(app, acc, skinsApi) {
     const t = retally(s);
     save();
     res.json({ status: 'success', likes: t.likes, dislikes: t.dislikes, rating: t.rating });
+  });
+
+  // ---------- вендорные страницы ждут именно этот формат ----------
+  const vendorList = (req, res) => {
+    const me = currentUser(req);
+    const author = low(req.query.author || '');
+    const nameQ = low(req.query.skinName || '');
+    const sortBy = String(req.query.sortBy || 'date');
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const per = 12;
+
+    let out = list.slice();
+    if (author) out = out.filter(s => low(s.author).indexOf(author) !== -1);
+    if (nameQ) out = out.filter(s => low(s.skinName).indexOf(nameQ) !== -1);
+    out.sort((a, b) => sortBy === 'rating'
+      ? (tally(b).rating - tally(a).rating) || (b.date - a.date)
+      : b.date - a.date);
+
+    const pages = Math.max(1, Math.ceil(out.length / per));
+    const p = Math.min(page, pages);
+    res.json({
+      page: p + '/' + pages,
+      count: out.length,
+      skins: out.slice((p - 1) * per, p * per).map(s => ({
+        skinName: s.skinName, author: s.author,
+        rating: tally(s).rating, skinId: s.id, date: s.date
+      }))
+    });
+  };
+  app.get('/getSkins', vendorList);
+  app.get('/getSkinsForList', vendorList);
+
+  // картинка скина по ссылке из профиля
+  app.get('/usersSkins/:id.png', (req, res) => {
+    const s = list.find(x => x.id === String(req.params.id || ''));
+    const R = renderer();
+    if (!s || !R) return res.status(404).send('not found');
+    const byId = {};
+    skinsApi.CATALOG.forEach(i => { byId[i.id] = i; });
+    res.set('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.set('Cache-Control', 'no-cache');
+    res.send(R.svg(s.skin, byId, { height: 420 }));
+  });
+
+  // вендорные кнопки удаления и оценки
+  app.post('/removeSkin', (req, res) => {
+    const u = currentUser(req);
+    if (!u) return res.json({ code: 0 });
+    const i = list.findIndex(x => low(x.skinName) === low(req.body.skinName) &&
+                                  low(x.author) === low(u.name));
+    if (i === -1) return res.json({ code: 1 });
+    list.splice(i, 1); save();
+    res.json({ code: 2 });
+  });
+
+  app.post('/uploadSkinVote', (req, res) => {
+    const u = currentUser(req);
+    if (!u) return res.json({ code: 1 });
+    const s = list.find(x => low(x.skinName) === low(req.body.skinName) &&
+                             low(x.author) === low(req.body.author));
+    if (!s) return res.json({ code: 2, val: 'Скин не найден' });
+    if (low(s.author) === low(u.name)) return res.json({ code: 2, val: 'Свой скин оценивать нельзя' });
+    const v = parseInt(req.body.vote) > 0 ? 1 : -1;
+    s.votes = s.votes || {};
+    if (s.votes[low(u.name)] === v) delete s.votes[low(u.name)];
+    else s.votes[low(u.name)] = v;
+    retally(s); save();
+    res.json({ code: 0 });
   });
 
   // ---------- скины игрока (вкладка Skins в профиле) ----------

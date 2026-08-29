@@ -469,3 +469,18 @@ html[data-page="editor"].is-mobile .ow-fab { bottom: 130px !important; }
 }
 /* панель владельца не садится на кнопку публикации */
 html[data-page="editor"] .ow-fab{ z-index: 18 !important; }
+
+/* редактор на телефоне: холст не должен «уезжать» вместе со страницей,
+   иначе перетаскивание пальцем прокручивает всю вкладку, а не карту */
+html[data-page="editor"], html[data-page="editor"] body {
+  overscroll-behavior: none;
+  touch-action: none;
+  overflow: hidden;
+  height: 100%;
+}
+html[data-page="editor"] #c { touch-action: none; }
+
+/* подсказка про «Руку» помещается на узком экране */
+@media (max-width: 900px) {
+  .tool[data-tool="hand"] { order: -1; }
+}

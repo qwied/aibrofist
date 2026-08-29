@@ -72,12 +72,14 @@
       have[label(a)] = true;
     });
     [['Skin Editor', 'skinEditor.html'], ['Skins Browser', 'skinsBrowser.html'],
-     ['Logs', 'logs.html'], ['Leaderboards', 'leaderboard.html']].forEach(function (pair) {
+     ['Logs', 'logs.html'], ['Leaderboards', 'leaderboard.html'],
+     ['Telegram', 'https://t.me/aibrofist']].forEach(function (pair) {
       if (have[pair[0].toLowerCase()]) return;
       var a = document.createElement('a');
       a.className = 'header-more-link-button';
       a.href = pair[1];
       a.textContent = pair[0];
+      if (pair[1].indexOf('http') === 0) { a.target = '_blank'; a.rel = 'noopener'; }
       box.appendChild(a);
     });
   }
@@ -147,6 +149,12 @@
           e.stopPropagation();
           overlay(true);
         });
+        return;
+      }
+
+      // внешняя ссылка (Telegram) открывается как обычная ссылка
+      if (el.tagName === 'A' && /^https?:/.test(el.getAttribute('href') || '')) {
+        el.addEventListener('click', function () { overlay(false); });
         return;
       }
 

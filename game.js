@@ -240,7 +240,8 @@
         .then(function (r) { return r.json(); })
         .then(function (d) {
           showMap(d ? { mapName: VIEW, author: VAUTH, mapData: d } : null);
-        });
+        })
+        .catch(function () { showMap(null); });
       return;
     }
 
@@ -458,8 +459,15 @@
   function stopTyping() {
     clearTyping(); inp.blur();
   }
+  // крестик/Escape — единственный способ выбросить черновик
 
   inp.addEventListener('input', function () { typing = inp.value; });
+
+  // Касание по полю не должно уходить в игровые обработчики,
+  // иначе они гасят событие и поле теряет фокус.
+  ['touchstart', 'touchend', 'mousedown', 'pointerdown'].forEach(function (t) {
+    inp.addEventListener(t, function (e) { e.stopPropagation(); }, true);
+  });
   inp.addEventListener('keydown', function (e) {
     e.stopPropagation();
     if (e.key === 'Enter') {
@@ -475,13 +483,23 @@
       stopTyping();
     }
   });
-  inp.addEventListener('blur', function () { typing = ''; inp.value = ''; });
+  /* Здесь был баг: по blur поле очищалось целиком. На телефоне фокус
+     теряется от любого касания по экрану и от появления клавиатуры,
+     поэтому набранное сообщение пропадало прямо во время печати.
+     Теперь черновик сохраняется: над головой он просто перестаёт
+     показываться, пока игрок не вернётся в поле. Стереть — Escape. */
+  inp.addEventListener('blur', function () { typing = ''; });
+  inp.addEventListener('focus', function () { typing = inp.value; });
 
   // на телефоне клавиатуры нет — вызываем её кнопкой
   var talk = $('gTalk');
   if (talk) talk.addEventListener('click', function (e) {
     e.preventDefault();
+    e.stopPropagation();
     inp.focus();
+    var v = inp.value;
+    try { inp.setSelectionRange(v.length, v.length); } catch (err) {}
+    typing = v;
   });
 
   // любая печатная клавиша начинает реплику
@@ -509,7 +527,7 @@
             '&vote=' + b.dataset.v
     }).then(function (r) { return r.json(); }).then(function (r) {
       $('gRating').textContent = (r.status === 'success') ? ('рейтинг: ' + r.rating) : (r.message || 'ошибка');
-    });
+    }).catch(function () { $('gRating').textContent = 'сервер недоступен'; });
   });
 
   // сенсорное управление берёт на себя движок:

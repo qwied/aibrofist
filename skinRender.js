@@ -275,10 +275,18 @@
     out.push(p.face.map(shape).join(''));
     out.push(p.head.map(shape).join(''));
 
-    var PAD = 62;
-    var vb = (-PAD) + ' ' + (-PAD) + ' ' + (W + PAD*2) + ' ' + (H + PAD*2);
+    var vb, vw, vh;
+    if (opt.bust) {
+      // портрет для круглых аватарок: голова, головной убор и плечи,
+      // квадратная рамка — иначе фигура в круге выглядит крошечной
+      vb = '-52 -58 204 204'; vw = 204; vh = 204;
+    } else {
+      var PAD = 62;
+      vb = (-PAD) + ' ' + (-PAD) + ' ' + (W + PAD*2) + ' ' + (H + PAD*2);
+      vw = W + PAD*2; vh = H + PAD*2;
+    }
     var h = opt.height || 260;
-    var w = opt.width || Math.round(h * (W + PAD*2) / (H + PAD*2));
+    var w = opt.width || Math.round(h * vw / vh);
     return '<svg viewBox="' + vb + '" width="' + w + '" height="' + h +
            '" xmlns="http://www.w3.org/2000/svg">' + out.join('') + '</svg>';
   }
