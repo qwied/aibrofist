@@ -22,6 +22,7 @@
   }
 
   function dataUri(skin, full) {
+    if (skin && skin.img) return skin.img;   // скин-картинка от владельца
     if (!window.BFSkin) return null;
     // в круглых иконках показываем портрет, на большой картинке — фигуру целиком
     var svg = full ? BFSkin.svg(skin, byId, { height: 300 })

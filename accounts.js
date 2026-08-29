@@ -6,10 +6,10 @@ const crypto = require('crypto');
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'users.json');
 
-const OWNER = process.env.OWNER_NAME || 'AIBrofist';
+const OWNER = process.env.OWNER_NAME || 'System';
 // ссылка в задаче вела на профиль System — считаем оба ника владельцем,
 // чтобы права не потерялись при переименовании аккаунта
-const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'AIBrofist,System')
+const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'System,AIBrofist')
   .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
 if (OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.toLowerCase());
 
@@ -81,10 +81,15 @@ function currentUser(req) {
   if (!name) return null;
   return db.users[key(name)] || null;
 }
-function newSession(res, name) {
+function newSession(res, name, req) {
   const sid = crypto.randomBytes(24).toString('hex');
   db.sessions[sid] = name;
-  res.setHeader('Set-Cookie', `sid=${sid}; Path=/; Max-Age=31536000; SameSite=Lax`);
+  // На своём домене сайт работает по HTTPS — помечаем куку Secure,
+  // иначе браузер может отдать её по незащищённому соединению.
+  const src = req || res.req || {};
+  const https = String((src.headers || {})['x-forwarded-proto'] || '') === 'https';
+  res.setHeader('Set-Cookie',
+    `sid=${sid}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly` + (https ? '; Secure' : ''));
   save();
 }
 
@@ -124,7 +129,7 @@ function register(app) {
       items: [], skin: {}, lang: '',
       friends: [], incoming: [], outgoing: []
     };
-    newSession(res, name);
+    newSession(res, name, req);
     save();
     res.json({ status: 'success', message: 'Аккаунт создан' });
   });
@@ -137,7 +142,7 @@ function register(app) {
     if (hash(password, u.salt) !== u.hash)
       return res.json({ status: 'error', message: 'Неверный логин или пароль' });
     u.lastSeen = Date.now();
-    newSession(res, u.name);
+    newSession(res, u.name, req);
     save();
     res.json({ status: 'success', message: 'Вход выполнен' });
   };

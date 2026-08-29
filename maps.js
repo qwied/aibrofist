@@ -8,8 +8,8 @@ const MAPS_FILE = path.join(DATA_DIR, 'maps.json');
 const MODES = ['hideAndSeek', 'twoPlayer', 'race'];
 // в игровые режимы попадают только карты владельца сайта
 // (имя можно поменять переменной окружения OWNER_NAME, без правки кода)
-const OWNER = process.env.OWNER_NAME || 'AIBrofist';
-const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'AIBrofist,System')
+const OWNER = process.env.OWNER_NAME || 'System';
+const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'System,AIBrofist')
   .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
 if (OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.toLowerCase());
 const isOwnerName = n => OWNER_ALIASES.indexOf(String(n || '').toLowerCase()) !== -1;

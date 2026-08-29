@@ -484,3 +484,189 @@ html[data-page="editor"] #c { touch-action: none; }
 @media (max-width: 900px) {
   .tool[data-tool="hand"] { order: -1; }
 }
+
+/* =====================================================================
+   v23 — телефон в обоих положениях
+   ===================================================================== */
+
+/* ---------- ГОРИЗОНТАЛЬНОЕ ПОЛОЖЕНИЕ ----------
+   Экран становится низким (часто 320–430 px), и панели, рассчитанные
+   на портрет, съедали всю высоту: карту было не видно, до кнопок
+   приходилось скроллить. Здесь всё ужимается по высоте. */
+@media (orientation: landscape) and (max-height: 500px) {
+
+  /* шапка тоньше */
+  .header { height: 44px !important; }
+  .header-link-item-button, .header-link-a { padding: 8px 10px !important; font-size: 13.5px; }
+  .profile-icon { width: 30px !important; height: 30px !important; }
+  .header-link-item-sub-menu { top: 44px !important; max-height: 60vh; }
+  .profile-menu { top: 46px !important; max-height: 60vh; overflow-y: auto; }
+  .menu-item { padding: 9px 18px !important; min-height: 36px; }
+
+  /* меню разделов — в две колонки, иначе не помещается */
+  .header-more-links-container { max-height: 84vh !important; }
+  .header-more-links-subcontainer {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 10px;
+  }
+  .header-more-link-button { padding: 10px 0 !important; font-size: 14px !important; }
+
+  /* редактор: инструменты слева столбиком, а не полосой внизу */
+  body.mob #tools, #tools {
+    left: 0 !important; right: auto !important; bottom: auto !important;
+    top: 50px !important; height: calc(100vh - 58px) !important;
+    width: 44px !important; max-width: 44px !important;
+    flex-direction: column !important;
+    overflow-y: auto !important; overflow-x: hidden !important;
+  }
+  body.mob #modes, #modes { top: 4px !important; left: 50px !important; right: auto !important; }
+  body.mob #scene, #scene { top: 4px !important; bottom: auto !important; }
+  body.mob #insp, #insp {
+    left: auto !important; right: 6px !important;
+    top: 50px !important; bottom: 6px !important;
+    width: 210px !important; max-height: none !important;
+  }
+  #props, #widgets { max-height: calc(100vh - 118px) !important; }
+  #zoomBox { bottom: 6px !important; right: 222px !important; }
+  #bfPublish { top: 4px !important; right: 6px !important; padding: 7px 11px !important; }
+  html[data-page="editor"] .ow-fab, .ow-fab { bottom: 6px !important; right: 6px !important;
+    width: 40px !important; height: 40px !important; font-size: 17px !important; }
+
+  /* игровые кнопки управления ниже и компактнее */
+  #pad { bottom: 6px !important; }
+
+  /* собственные страницы: шапка и отступы тоньше */
+  :root { --hdr: 46px; }
+  .bfWrap { padding: 10px 12px 60px !important; }
+  .bfTitle { font-size: 18px !important; margin-bottom: 0 !important; }
+  .bfSub { margin-bottom: 8px !important; }
+  .seLayout, .avLayout { grid-template-columns: 220px 1fr !important; }
+  .seStage, .avStage { position: sticky !important; top: 54px !important; padding: 8px 0 4px !important; }
+  .seStage svg, .avStage svg { max-height: 40vh; }
+  .bfGrid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important; }
+  .sbGrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; }
+}
+
+/* ---------- ОБА ПОЛОЖЕНИЯ ---------- */
+@media (max-width: 900px), (max-height: 500px) {
+  /* Кнопки не должны быть меньше пальца: 44 px — минимум,
+     который стабильно попадается без промахов. */
+  .bfBtn, .bfMini, .bfChip, .bfTab,
+  .header-more-link-button, .menu-item,
+  .play-button, .refresh-button, .filter-select, .filter-input,
+  .sbOwnerRow .bfBtn, .lbRow { min-height: 44px; }
+
+  .bfMini, .bfChip { display: flex; align-items: center; justify-content: center; }
+
+  /* ничего не выходит за экран по ширине */
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .bfWrap, .bfPanel, .sbCard, .bfCard { max-width: 100%; }
+
+  /* нижние панели не залезают под системную полосу жестов */
+  #tools, #pad, .ow-fab { padding-bottom: env(safe-area-inset-bottom, 0); }
+  .bfWrap { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)); }
+}
+
+/* панель владельца в Skins Browser на телефоне */
+@media (max-width: 640px) {
+  .sbOwner .sbRow { flex-direction: row; }
+  .sbOwner input { min-height: 40px; }
+  #sbOwnerBar { padding: 10px; }
+}
+
+/* =====================================================================
+   v23 — кнопки на телефоне: книжная и альбомная ориентация
+   ===================================================================== */
+
+/* ---------- общее для сенсорных экранов ---------- */
+@media (pointer: coarse) {
+  /* Apple и Google советуют минимум 44 px на палец.
+     Раньше часть кнопок была 28–34 px — по ним промахивались. */
+  button, .bfBtn, .bfMini, .bfChip, .bfTab, .menu-item,
+  .header-link-item-button, .header-link-a, .header-more-link-button,
+  .play-button, .refresh-button, .pagination-controls,
+  .ow-bar button, .ow-sk button, .ow-tag, .ow-mode {
+    min-height: 44px;
+  }
+  .bfMini, .ow-sk button { padding: 10px 8px; }
+  .ow-tag, .ow-mode { padding: 9px 12px; display: inline-flex; align-items: center; }
+
+  /* кнопки не должны слипаться — между ними нужен зазор под палец */
+  .bfVote { gap: 8px; }
+  .bfPager { gap: 18px; }
+  .bfPager button { width: 48px; height: 48px; }
+
+  /* подсветка нажатия: без hover непонятно, сработало ли */
+  button:active, .bfBtn:active, .bfMini:active, .bfChip:active,
+  .header-link-item-button:active { filter: brightness(.92); }
+
+  /* убираем серую вспышку Android и выделение текста на кнопках */
+  button, .bfBtn, .bfMini, .bfChip, .bfTab, .ow-tag, .ow-mode,
+  .header-link-item-button, .menu-item {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* ---------- книжная ориентация ---------- */
+@media (max-width: 900px) and (orientation: portrait) {
+  .bfWrap { padding-bottom: 96px; }
+
+  /* фильтры в две колонки, кнопка на всю ширину */
+  .sbFilters, .filter-table { grid-template-columns: 1fr 1fr; }
+  .sbFilters .bfBtn { grid-column: 1 / -1; }
+}
+
+/* ---------- альбомная ориентация ---------- */
+@media (max-height: 560px) and (orientation: landscape) {
+  /* Высоты почти нет: ужимаем шапку и отступы, иначе на контент
+     остаётся полоска в два пальца. */
+  :root { --hdr: 44px; }
+  .header { height: 44px !important; }
+  .header-link-item-button, .header-link-a { padding: 7px 10px !important; font-size: 14px; }
+  .profile-icon { width: 30px !important; height: 30px !important; }
+
+  .bfWrap { padding-top: 8px; padding-bottom: 64px; }
+  .bfTitle { font-size: 18px; margin-bottom: 0; }
+  .bfSub { margin-bottom: 8px; font-size: 13px; }
+
+  /* меню и подменю прокручиваются, а не уезжают за экран */
+  .header-link-item-sub-menu,
+  .profile-menu,
+  .header-more-links-container {
+    max-height: calc(100vh - 56px) !important;
+    overflow-y: auto !important;
+  }
+  .header-more-links-container { width: min(560px, calc(100vw - 24px)) !important; }
+  .header-more-link-button { padding: 10px 0 !important; }
+
+  /* в альбомной сетка карточек шире — колонок больше, прокрутки меньше */
+  .sbGrid, .bfGrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; }
+
+  /* редактор: панели по краям, чтобы не съедать высоту */
+  #tools { max-height: calc(100vh - 8px) !important; }
+  #insp { max-height: calc(100vh - 90px) !important; }
+  #props, #widgets { max-height: calc(100vh - 150px) !important; }
+  #bfPublish { top: 8px !important; }
+}
+
+/* ---------- очень узкие экраны ---------- */
+@media (max-width: 360px) {
+  .bfChip { padding: 9px 11px; font-size: 13px; }
+  .bfBtn { font-size: 15px; }
+  .sbGrid, .bfGrid { grid-template-columns: 1fr !important; }
+}
+
+/* ---------- панель владельца ---------- */
+@media (max-width: 640px) {
+  .ow-bar-row { grid-template-columns: 1fr 1fr; }
+  .ow-bar-row input { grid-column: 1 / -1; }
+  .ow-bar button { width: 100%; }
+  .ow-box { width: calc(100vw - 20px) !important; max-height: 86vh; }
+}
+@media (max-height: 560px) and (orientation: landscape) {
+  .ow-box { max-height: calc(100vh - 20px) !important; }
+  .ow-fab { bottom: 12px !important; right: 12px !important; width: 42px !important; height: 42px !important; }
+}

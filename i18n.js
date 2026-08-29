@@ -90,6 +90,15 @@
     ownSkin:      ['Собственный образ','Your own look','Власний образ','Eigener Look','Votre propre look','Tu propio look','O seu visual','Własny wygląd','Kendi görünümün','你自己的造型'],
     bought:       ['Куплено','Purchased','Куплено','Gekauft','Acheté','Comprado','Comprado','Kupione','Satın alındı','已购买'],
 
+    addFromUrl:   ['Из ссылки','From URL','З посилання','Aus URL','Depuis un lien','Desde enlace','A partir de link','Z linku','Bağlantıdan','从链接'],
+    addFromFile:  ['Из файла','From file','З файлу','Aus Datei','Depuis un fichier','Desde archivo','A partir de ficheiro','Z pliku','Dosyadan','从文件'],
+    setImage:     ['Задать картинку','Set image','Задати картинку','Bild setzen','Définir l\'image','Poner imagen','Definir imagem','Ustaw obraz','Görsel ata','设置图片'],
+    changeImage:  ['Сменить картинку','Change image','Змінити картинку','Bild ändern','Changer l\'image','Cambiar imagen','Mudar imagem','Zmień obraz','Görseli değiştir','更换图片'],
+    imageAsk:     ['Ссылка на картинку (пусто — убрать):','Image URL (empty to remove):','Посилання на картинку (порожньо — прибрати):','Bild-URL (leer zum Entfernen):','Lien de l\'image (vide pour retirer) :','Enlace de la imagen (vacío para quitar):','Link da imagem (vazio para remover):','Link do obrazu (puste — usuń):','Görsel bağlantısı (boş — kaldır):','图片链接（留空则移除）：'],
+    needUrl:      ['Вставьте ссылку на картинку','Paste an image URL','Вставте посилання на картинку','Bild-URL einfügen','Collez un lien d\'image','Pega un enlace de imagen','Cole um link de imagem','Wklej link do obrazu','Görsel bağlantısı yapıştır','请粘贴图片链接'],
+    imgTooBig:    ['Картинка слишком тяжёлая даже после сжатия','Image is too heavy even after compression','Картинка завелика навіть після стиснення','Bild ist auch komprimiert zu groß','Image trop lourde même compressée','La imagen pesa demasiado incluso comprimida','Imagem pesada demais mesmo comprimida','Obraz za ciężki nawet po kompresji','Görsel sıkıştırıldıktan sonra da çok büyük','图片压缩后仍然过大'],
+    imgBad:       ['Не удалось прочитать картинку','Could not read the image','Не вдалося прочитати картинку','Bild konnte nicht gelesen werden','Impossible de lire l\'image','No se pudo leer la imagen','Não foi possível ler a imagem','Nie udało się odczytać obrazu','Görsel okunamadı','无法读取图片'],
+
     /* ---------- язык ---------- */
     language:     ['Язык','Language','Мова','Sprache','Langue','Idioma','Idioma','Język','Dil','语言'],
     langAuto:     ['Автоматически (по стране)','Automatic (by country)','Автоматично (за країною)','Automatisch (nach Land)','Automatique (par pays)','Automático (por país)','Automático (por país)','Automatycznie (wg kraju)','Otomatik (ülkeye göre)','自动（按国家）'],

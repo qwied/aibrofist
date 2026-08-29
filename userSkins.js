@@ -6,8 +6,16 @@ const DATA_DIR = path.join(__dirname, 'data');
 const FILE = path.join(DATA_DIR, 'userskins.json');
 
 const DAILY_LIMIT = 5;      // сколько скинов можно выложить за сутки
+const IMG_DIR = path.join(DATA_DIR, 'skinimg');
+const IMG_MAX = 3 * 1024 * 1024;   // 3 МБ на картинку
+const IMG_TYPES = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg',
+  'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg'
+};
 const REWARD = 10;          // монет за каждый опубликованный скин
 
+// Картинку принимаем только как ссылку http(s) или как data:image/*.
+// Всё остальное отбрасываем, чтобы в базу не попало что попало.
 let list = [];
 
 function load() {
@@ -50,6 +58,7 @@ function pub(s, me) {
     id: s.id, skinName: s.skinName, author: s.author, skin: s.skin,
     date: s.date, likes: t.likes, dislikes: t.dislikes, rating: t.rating,
     inAvatar: !!s.inAvatar, price: s.price || 0,
+    img: s.img || '',
     myVote: me ? (s.votes || {})[low(me)] || 0 : 0
   };
 }
@@ -65,6 +74,60 @@ function renderer() {
     RENDER = host.BFSkin;
   } catch (e) { RENDER = null; }
   return RENDER;
+}
+
+// ---------- картинки для скинов владельца ----------
+function saveImage(buf, ext, id) {
+  if (!fs.existsSync(IMG_DIR)) fs.mkdirSync(IMG_DIR, { recursive: true });
+  const name = id + '.' + ext;
+  fs.writeFileSync(path.join(IMG_DIR, name), buf);
+  return '/skinimg/' + name;
+}
+
+// data:image/png;base64,.... -> буфер
+function fromDataUrl(raw) {
+  const m = /^data:([\w/+.-]+);base64,([\s\S]+)$/.exec(String(raw || '').trim());
+  if (!m) return null;
+  const ext = IMG_TYPES[m[1].toLowerCase()];
+  if (!ext) return { bad: 'Такой формат картинки не поддерживается' };
+  let buf;
+  try { buf = Buffer.from(m[2], 'base64'); } catch (e) { return { bad: 'Картинка не читается' }; }
+  if (!buf.length) return { bad: 'Пустая картинка' };
+  if (buf.length > IMG_MAX) return { bad: 'Картинка больше 3 МБ' };
+  return { buf, ext };
+}
+
+// адрес в интернете. Забираем сами, но с ограничениями: только http(s),
+// не локальная сеть, ограничение на размер и тип.
+const PRIVATE_HOST = /^(localhost$|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1)|^172\.(1[6-9]|2\d|3[01])\./i;
+
+async function fromUrl(raw) {
+  let u;
+  try { u = new URL(String(raw).trim()); } catch (e) { return { bad: 'Это не адрес' }; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:')
+    return { bad: 'Нужна ссылка http или https' };
+  if (PRIVATE_HOST.test(u.hostname))
+    return { bad: 'Ссылки на локальную сеть запрещены' };
+
+  let r;
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 12000);
+    r = await fetch(u.href, { redirect: 'follow', signal: ctl.signal });
+    clearTimeout(t);
+  } catch (e) { return { bad: 'Не удалось скачать: ' + (e.message || e) }; }
+
+  if (!r.ok) return { bad: 'Сервер картинки ответил ' + r.status };
+  const ct = String(r.headers.get('content-type') || '').split(';')[0].toLowerCase();
+  const ext = IMG_TYPES[ct];
+  if (!ext) return { bad: 'По ссылке не картинка (' + (ct || 'без типа') + ')' };
+  const len = parseInt(r.headers.get('content-length') || '0', 10);
+  if (len > IMG_MAX) return { bad: 'Картинка больше 3 МБ' };
+
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (!buf.length) return { bad: 'Пустой ответ' };
+  if (buf.length > IMG_MAX) return { bad: 'Картинка больше 3 МБ' };
+  return { buf, ext };
 }
 
 function register(app, acc, skinsApi) {
@@ -140,6 +203,67 @@ function register(app, acc, skinsApi) {
     });
   });
 
+  // ---------- скин из картинки (только владелец) ----------
+  app.post('/owner/publishImageSkin', async (req, res) => {
+    if (!ownerOnly(req, res)) return;
+    const u = currentUser(req);
+
+    const skinName = String(req.body.skinName || '').trim();
+    if (skinName.length < 2 || skinName.length > 30)
+      return res.json({ status: 'error', message: 'Название скина: от 2 до 30 символов' });
+
+    if (list.some(s => low(s.skinName) === low(skinName) && low(s.author) === low(u.name)))
+      return res.json({ status: 'error', message: 'У вас уже есть скин с таким названием' });
+
+    const raw = String(req.body.img || '').trim();
+    if (!raw) return res.json({ status: 'error', message: 'Картинка не передана' });
+
+    const id = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+
+    // Файл с телефона приходит как data:image/..., ссылка из интернета —
+    // как обычный адрес. Во втором случае скачиваем сами: иначе картинка
+    // держалась бы на чужом сервере и пропала бы вместе с ним.
+    let got = /^data:/i.test(raw) ? fromDataUrl(raw) : await fromUrl(raw);
+    if (!got) return res.json({ status: 'error', message: 'Картинка не распознана' });
+    if (got.bad) return res.json({ status: 'error', message: got.bad });
+
+    let img;
+    try { img = saveImage(got.buf, got.ext, id); }
+    catch (e) { return res.json({ status: 'error', message: 'Не удалось сохранить: ' + e.message }); }
+
+    const item = {
+      id: id,
+      skinName, author: u.name,
+      skin: skinsApi.normalize(null),
+      img: img,
+      date: Date.now(), created: Date.now(),
+      votes: {}, boostLikes: 0, boostDislikes: 0, rating: 0,
+      inAvatar: false, price: 0
+    };
+    list.push(item);
+    save();
+    // суточный лимит и награда сюда не применяются: это инструмент владельца,
+    // а не обычная публикация игрока
+    res.json({ status: 'success', id: item.id, message: 'Скин из картинки добавлен: «' + skinName + '»' });
+  });
+
+  // заменить картинку у существующего скина
+  app.post('/owner/skinImage', async (req, res) => {
+    if (!ownerOnly(req, res)) return;
+    const s = list.find(x => x.id === String(req.body.id || ''));
+    if (!s) return res.json({ status: 'error', message: 'Скин не найден' });
+    const raw = String(req.body.img || '').trim();
+    if (!raw) { delete s.img; save(); return res.json({ status: 'success', img: '' }); }
+
+    let got = /^data:/i.test(raw) ? fromDataUrl(raw) : await fromUrl(raw);
+    if (!got) return res.json({ status: 'error', message: 'Картинка не распознана' });
+    if (got.bad) return res.json({ status: 'error', message: got.bad });
+    try { s.img = saveImage(got.buf, got.ext, s.id); }
+    catch (e) { return res.json({ status: 'error', message: 'Не удалось сохранить: ' + e.message }); }
+    save();
+    res.json({ status: 'success', img: s.img || '' });
+  });
+
   app.get('/skins/limit', (req, res) => {
     const u = currentUser(req);
     if (!u) return res.json({ limit: DAILY_LIMIT, left: DAILY_LIMIT, reward: REWARD, guest: true });
@@ -201,6 +325,10 @@ function register(app, acc, skinsApi) {
     if (i === -1) return res.json({ status: 'error', message: 'Скин не найден' });
     if (low(list[i].author) !== low(u.name) && !isOwner(u))
       return res.json({ status: 'error', message: 'Можно удалять только свои скины' });
+    if (list[i].img) {
+      try { fs.unlinkSync(path.join(DATA_DIR, list[i].img.replace('/skinimg/', 'skinimg/'))); }
+      catch (e) {}
+    }
     list.splice(i, 1);
     save();
     res.json({ status: 'success' });
@@ -223,8 +351,10 @@ function register(app, acc, skinsApi) {
 
     u.skin = skinsApi.normalize(s.skin);
     u.wearing = s.id;
+    if (s.img) u.skinImg = s.img; else delete u.skinImg;
     saveUsers();
-    res.json({ status: 'success', skin: u.skin, author: s.author, skinName: s.skinName });
+    res.json({ status: 'success', skin: u.skin, img: s.img || '',
+               author: s.author, skinName: s.skinName });
   });
 
   // ---------- витрина Avatar ----------
@@ -330,6 +460,7 @@ function register(app, acc, skinsApi) {
   // картинка скина по ссылке из профиля
   app.get('/usersSkins/:id.png', (req, res) => {
     const s = list.find(x => x.id === String(req.params.id || ''));
+    if (s && s.img) return res.redirect(s.img);
     const R = renderer();
     if (!s || !R) return res.status(404).send('not found');
     const byId = {};

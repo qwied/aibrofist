@@ -73,6 +73,13 @@
       headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
       .then(function (r) { return r.json(); });
   }
+  // у скина-картинки рисуем саму картинку, а не фигуру
+  function withImg(rec) {
+    var sk = Object.assign({}, rec.skin || {});
+    if (rec.img) sk.img = rec.img;
+    return sk;
+  }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c];
@@ -101,7 +108,7 @@
   }
 
   function card(s) {
-    var art = BFSkin.svg(s.skin, byId, { height: 148 });
+    var art = BFSkin.render(withImg(s), byId, { height: 148 });
     var price = (s.price > 0)
       ? '<div class="avPrice">' + s.price + ' ' + BFCoin.svg(15) + '</div>'
       : '<div class="avPrice free">' + T('free', 'Бесплатно') + '</div>';

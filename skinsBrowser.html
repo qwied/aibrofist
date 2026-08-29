@@ -18,9 +18,7 @@
 .sbAuthor{font-size:13px;color:var(--muted);margin:2px 0 6px}
 .sbAuthor a{color:var(--blue);text-decoration:none}
 .sbRating{font-weight:700;font-size:15px;margin-bottom:7px}
-.sbOwner{border-top:1px dashed var(--line);margin-top:9px;padding-top:9px}
-.sbOwner input{width:100%;font-size:13px;padding:7px 9px;border:1px solid #cfd6de;
-  border-radius:8px;margin-bottom:6px}
+
 .sbTag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:20px;
   background:#eef7ff;color:var(--blue);margin-bottom:6px}
 @media (max-width:640px){
@@ -83,6 +81,13 @@
       headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
       .then(function (r) { return r.json(); });
   }
+  // у скина-картинки рисуем саму картинку, а не фигуру
+  function withImg(rec) {
+    var sk = Object.assign({}, rec.skin || {});
+    if (rec.img) sk.img = rec.img;
+    return sk;
+  }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c];
@@ -90,7 +95,7 @@
   }
 
   function card(s) {
-    var art = window.BFSkin ? BFSkin.svg(s.skin, byId, { height: 150 }) : '';
+    var art = window.BFSkin ? BFSkin.render(withImg(s), byId, { height: 150 }) : '';
     var h = '<div class="sbCard" data-id="' + s.id + '">'
       + '<div class="sbArt">' + art + '</div>'
       + (s.inAvatar ? '<div class="sbTag">Avatar · ' + s.price + ' ' + BFCoin.svg(14) + '</div>' : '')
@@ -104,14 +109,8 @@
       + '</div>'
       + '<button class="bfMini" data-wear="' + s.id + '">' + T('tryOn', 'Примерить') + '</button>';
 
-    if (owner) {
-      h += '<div class="sbOwner">'
-        + '<input type="number" min="0" placeholder="' + T('priceCoins', 'Цена в монетах') + '" '
-        +   'data-price="' + s.id + '" value="' + (s.price || 0) + '">'
-        + '<button class="bfMini' + (s.inAvatar ? ' own' : '') + '" data-avatar="' + s.id + '">'
-        +   (s.inAvatar ? T('removeAvatar', 'Убрать из Avatar') : T('toAvatar', 'В Avatar'))
-        + '</button></div>';
-    }
+    // всё, что доступно только владельцу, дорисовывает owner.js —
+    // этот файл сервер отдаёт исключительно ему
     return h + '</div>';
   }
 
@@ -130,6 +129,8 @@
         $('sbList').innerHTML = d.skins.length
           ? '<div class="sbGrid">' + d.skins.map(card).join('') + '</div>'
           : '<div class="bfHint">' + T('noSkins', 'Скины не найдены') + '</div>';
+        // owner.js дорисует свои кнопки, если он вообще загружен
+        window.dispatchEvent(new CustomEvent('bf-skins-drawn', { detail: { skins: d.skins } }));
       })
       .catch(function () { $('sbList').innerHTML = '<div class="bfHint">' + T('serverDown') + '</div>'; });
   }
@@ -142,7 +143,6 @@
   document.addEventListener('click', function (e) {
     var v = e.target.closest && e.target.closest('[data-vote]');
     var w = e.target.closest && e.target.closest('[data-wear]');
-    var a = e.target.closest && e.target.closest('[data-avatar]');
 
     if (v) {
       post('/skins/vote', { id: v.dataset.sid, vote: v.dataset.vote })
@@ -157,14 +157,6 @@
         })
         .catch(function () { msg(T('serverDown')); });
     }
-    if (a) {
-      var id = a.dataset.avatar;
-      var on = a.classList.contains('own') ? 'false' : 'true';
-      var priceEl = document.querySelector('[data-price="' + id + '"]');
-      post('/owner/skinToAvatar', { id: id, on: on, price: priceEl ? priceEl.value : 0 })
-        .then(function (r) { r.status === 'success' ? (msg(r.message, true), load()) : msg(r.message); })
-        .catch(function () { msg(T('serverDown')); });
-    }
   });
 
   fetch('/skin/catalog', { credentials:'same-origin' })
@@ -173,6 +165,9 @@
     .catch(load);
 
   window.addEventListener('bf-lang', load);
+
+  // мостик для owner.js
+  window.BFSkinsPage = { reload: load, msg: msg, post: post, t: T };
 })();
 </script>
 	<script src="skinAvatar.js" defer></script>

@@ -259,6 +259,16 @@
 
   function svg(skin, byId, opt) {
     opt = opt || {};
+    // скин-картинка: рисуем её вместо векторной фигуры
+    if (skin && skin.img) {
+      var ih = opt.height || 260;
+      var iw = opt.width || Math.round(ih * 0.55);
+      return '<svg viewBox="0 0 100 182" width="' + iw + '" height="' + ih + '" ' +
+             'xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' +
+             '<image href="' + String(skin.img).replace(/"/g, '&quot;') + '" ' +
+             'xlink:href="' + String(skin.img).replace(/"/g, '&quot;') + '" ' +
+             'x="0" y="0" width="100" height="182" preserveAspectRatio="xMidYMid meet"/></svg>';
+    }
     var p = parts(skin, byId, opt.color);
     var id = 'bf' + (++uid);
     var out = [];
@@ -298,8 +308,26 @@
     return svg(s, byId, { height: size || 92 });
   }
 
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* Скин может быть не набором деталей, а готовой картинкой — такие
+     добавляет владелец сайта. Внешняя ссылка внутри data-URI SVG не
+     загрузится (это изолированный контекст), поэтому отдаём обычный <img>. */
+  function render(skin, byId, opt) {
+    opt = opt || {};
+    var img = skin && skin.img;
+    if (!img) return svg(skin, byId, opt);
+    var h = opt.height || 260;
+    return '<img src="' + esc(img) + '" alt="" ' +
+           'style="height:' + h + 'px;width:auto;max-width:100%;object-fit:contain;display:block;' +
+           'margin:0 auto" loading="lazy">';
+  }
+
   window.BFSkin = {
-    svg: svg, preview: preview, parts: parts, shade: shade,
+    svg: svg, render: render, preview: preview, parts: parts, shade: shade,
     W: W, H: H, BODY_TOP: T, BODY_H: BODY_H, BODY_RX: BODY_RX, HEAD_R: HEAD_R
   };
 })();

@@ -15,8 +15,23 @@ const io = socketIo(server, {
 
 let accountsRef = null;   // заполняется ниже, нужен для проверки прав на owner.js
 
+/* Свой домен.
+   Задайте переменную окружения PRIMARY_HOST (например aibrofist.pp.ua), и
+   старый адрес *.up.railway.app будет отправлять на него постоянным
+   редиректом — старые ссылки, закладки и поисковая выдача не потеряются.
+   Если переменная не задана, ничего не меняется. */
+const PRIMARY_HOST = String(process.env.PRIMARY_HOST || '').trim().toLowerCase();
+app.use((req, res, next) => {
+  if (!PRIMARY_HOST) return next();
+  const host = String(req.headers.host || '').toLowerCase().split(':')[0];
+  if (!host || host === PRIMARY_HOST) return next();
+  // localhost при разработке не трогаем
+  if (host === 'localhost' || host === '127.0.0.1') return next();
+  res.redirect(301, 'https://' + PRIMARY_HOST + req.originalUrl);
+});
+
 // служебные файлы наружу не отдаём
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v21.md','/audit-ui.js','/test-ui.js'];
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v23.md','/audit-ui.js','/test-ui.js','/check-domain.js','/domain-pp-ua.md'];
 app.use((req, res, next) => {
   const p = req.path.toLowerCase();
   if (PRIVATE.indexOf(p) !== -1 || p.indexOf('/data') === 0 || p.indexOf('/node_modules') === 0)
@@ -35,6 +50,11 @@ app.get('/owner.js', (req, res) => {
   if (!allowed) return res.send('/* */');
   res.sendFile(path.join(__dirname, 'owner.js'));
 });
+
+// картинки скинов лежат в data/skinimg — отдаём только их, остальная data закрыта
+app.use('/skinimg', express.static(path.join(__dirname, 'data', 'skinimg'), {
+  maxAge: '7d', fallthrough: true
+}));
 
 app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));

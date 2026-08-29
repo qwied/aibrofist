@@ -91,6 +91,7 @@ function register(app, acc) {
       items: CATALOG,
       owned: ownedList(),
       skin: skinOf(u),
+      img: (u && u.skinImg) || '',
       coins: u ? (u.coins || 0) : 0,
       guest: !u,
       free: true
@@ -100,7 +101,7 @@ function register(app, acc) {
   app.get('/skin/of', (req, res) => {
     const db = getDb();
     const u = db.users[key(req.query.name)];
-    res.json({ skin: skinOf(u), name: u ? u.name : '' });
+    res.json({ skin: skinOf(u), img: (u && u.skinImg) || '', name: u ? u.name : '' });
   });
 
   // скины сразу нескольких игроков — для списков друзей и таблиц
@@ -111,7 +112,10 @@ function register(app, acc) {
     const out = {};
     names.forEach(n => {
       const u = db.users[key(n)];
-      if (u) out[n] = skinOf(u);
+      if (!u) return;
+      const sk = skinOf(u);
+      if (u.skinImg) sk.img = u.skinImg;   // скин-картинка от владельца
+      out[n] = sk;
     });
     res.json({ skins: out });
   });
@@ -125,7 +129,7 @@ function register(app, acc) {
 
     u.skin = skinOf(u);
     u.skin[slot] = item.id;
-    u.wearing = '';                 // сняли готовый скин из Avatar
+    u.wearing = ''; delete u.skinImg;   // сняли готовый скин из Avatar
     save();
     res.json({ status: 'success', skin: u.skin });
   });
@@ -136,7 +140,7 @@ function register(app, acc) {
     let want = {};
     try { want = JSON.parse(String(req.body.skin || '{}')); } catch (e) {}
     u.skin = normalize(want);
-    u.wearing = '';
+    u.wearing = ''; delete u.skinImg;
     save();
     res.json({ status: 'success', skin: u.skin });
   });

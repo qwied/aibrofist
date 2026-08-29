@@ -108,13 +108,46 @@
   // сказанные реплики: 2 секунды плавно уплывают вверх и тают
   // ---------- скины ----------
   var mySkinStr = '';                 // компактная запись для передачи по сети
+  var myImg = '';                     // скин-картинка, если она надета
+
+  /* Кеш скинов-картинок по нику. Запрашиваем пачкой и только один раз
+     на игрока: сама картинка может быть на сотни килобайт. */
+  var imgCache = {};                  // ник -> url ('' если картинки нет)
+  var imgWanted = {};
+  var imgTimer = null;
+  function imgOf(name) {
+    if (!name) return '';
+    if (imgCache[name] !== undefined) return imgCache[name];
+    if (!imgWanted[name]) {
+      imgWanted[name] = 1;
+      clearTimeout(imgTimer);
+      imgTimer = setTimeout(askImgs, 120);
+    }
+    return '';
+  }
+  function askImgs() {
+    var names = Object.keys(imgWanted);
+    if (!names.length) return;
+    imgWanted = {};
+    fetch('/skins/many?names=' + encodeURIComponent(names.join(',')), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var got = (d && d.skins) || {};
+        names.forEach(function (n) { imgCache[n] = (got[n] && got[n].img) || ''; });
+      })
+      .catch(function () { names.forEach(function (n) { imgCache[n] = ''; }); });
+  }
   function skinToStr(sk) {
     if (!sk) return '';
+    // скин-картинка передаётся адресом, обычный — четырьмя id
+    if (sk.img) return 'i:' + sk.img;
     return [sk.head, sk.face, sk.body, sk.back].join('|');
   }
   function strToSkin(v) {
     if (!v) return null;
-    var a = String(v).split('|');
+    var str = String(v);
+    if (str.indexOf('i:') === 0) return { img: str.slice(2) };
+    var a = str.split('|');
     if (a.length !== 4) return null;
     return { head: a[0], face: a[1], body: a[2], back: a[3] };
   }
@@ -125,7 +158,10 @@
         window.BF_SKIN_ITEMS = {};
         (d.items || []).forEach(function (i) { window.BF_SKIN_ITEMS[i.id] = i; });
         GAME.mySkin = d.skin || null;
+        if (GAME.mySkin && d.img) GAME.mySkin.img = d.img;
         mySkinStr = skinToStr(GAME.mySkin);
+        myImg = d.img || '';
+        if (GAME.myName) imgCache[GAME.myName] = myImg;
       })
       .catch(function () {});
   }
@@ -331,6 +367,12 @@
       if (d.position.w) { o.w = d.position.w; o.h = d.position.h; }
       o.color = d.position.color || COLOR_NORMAL;
       if (d.position.sk !== undefined) o.skin = strToSkin(d.position.sk);
+      // скин-картинка весит сотни килобайт, гонять её в каждом пакете нельзя —
+      // запрашиваем один раз по нику и держим в кеше
+      if (o.skin) {
+        var pic = imgOf(o.name);
+        if (pic) o.skin.img = pic;
+      }
       o.say = d.position.say || '';
       o.fin = !!d.position.fin;
     });

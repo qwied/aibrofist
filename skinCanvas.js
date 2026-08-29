@@ -125,5 +125,33 @@
     ctx.restore();
   }
 
-  window.BFSkinCanvas = { overlay: overlay, behind: behind, front: front };
+  // скины-картинки: держим загруженные изображения в памяти
+  var imgs = {};
+  function image(url) {
+    if (!url) return null;
+    if (!imgs[url]) {
+      var im = new Image();
+      im.src = url;
+      imgs[url] = im;
+    }
+    var i = imgs[url];
+    return (i.complete && i.naturalWidth) ? i : null;
+  }
+
+  // если у скина есть картинка — она заменяет фигуру целиком
+  function picture(ctx, w, h, skin) {
+    if (!skin || !skin.img) return false;
+    var im = image(skin.img);
+    if (!im) return false;
+    ctx.save();
+    // вписываем по ширине игрока, низом на землю
+    var k = w / im.naturalWidth;
+    var ih = im.naturalHeight * k;
+    ctx.drawImage(im, 0, h - ih, w, ih);
+    ctx.restore();
+    return true;
+  }
+
+  window.BFSkinCanvas = { overlay: overlay, behind: behind, front: front,
+                          picture: picture, image: image };
 })();

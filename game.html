@@ -313,8 +313,26 @@ COIN_IMG.src = "coin.png";
 
 /* the player figure — clean silhouette from the reference art */
 var FIG_GAP = 0.049;
+var SKIN_IMGS = {};
+function skinImage(src){
+  if(!src) return null;
+  var im = SKIN_IMGS[src];
+  if(!im){ im = SKIN_IMGS[src] = new Image(); im.crossOrigin = "anonymous"; im.src = src; }
+  return (im.complete && im.naturalWidth) ? im : null;
+}
+
 function figure(w,h,col,accent,skin){
   var d = w, top = d + h*FIG_GAP, bodyH = Math.max(0, h - top);
+  // скин-картинка от владельца заменяет фигуру целиком
+  if(skin && skin.img){
+    var pic = skinImage(skin.img);
+    if(pic){
+      var k = Math.min(w/pic.naturalWidth, h/pic.naturalHeight);
+      var pw = pic.naturalWidth*k, ph = pic.naturalHeight*k;
+      ctx.drawImage(pic, (w-pw)/2, h-ph, pw, ph);
+      return;
+    }
+  }
   if(skin && window.BFSkinCanvas) BFSkinCanvas.behind(ctx, w, h, skin);
   ctx.fillStyle = col;
   ctx.beginPath(); ctx.arc(w/2, d/2, d/2, 0, 6.2832); ctx.fill();
