@@ -59,7 +59,7 @@
   var T = function (k, f) { return (window.I18N && I18N.t(k) !== k) ? I18N.t(k) : (f || k); };
   var SLOT_LABEL = { head:'slotHead', face:'slotFace', body:'slotBody', back:'slotBack' };
 
-  var st = { slots:[], items:[], byId:{}, skin:{}, slot:'head', guest:true, coins:0 };
+  var st = { slots:[], items:[], byId:{}, skin:{}, img:'', slot:'head', guest:true, coins:0 };
   var $ = function (id) { return document.getElementById(id); };
 
   function msg(text, ok) {
@@ -80,7 +80,9 @@
   }
 
   function drawStage() {
-    $('seStage').innerHTML = BFSkin.svg(st.skin, st.byId, { height: 300 });
+    // если надет скин-картинка, показываем её вместо фигуры
+    var what = st.img ? { img: st.img } : st.skin;
+    $('seStage').innerHTML = BFSkin.svg(what, st.byId, { height: 300 });
   }
 
   function drawSlots() {
@@ -117,6 +119,7 @@
     var it = st.byId[b.dataset.pick];
     if (!it) return;
     st.skin[it.slot] = it.id;      // сразу видно на модели, даже у гостя
+    st.img = '';                   // детали и картинка одновременно не бывают
     drawStage(); drawList();
     if (!st.guest) post('/skin/equip', { slot: it.slot, id: it.id }).catch(function () {});
   });
@@ -129,6 +132,7 @@
   };
 
   $('seRandom').onclick = function () {
+    st.img = '';
     st.slots.forEach(function (s) {
       var pool = st.items.filter(function (i) { return i.slot === s; });
       st.skin[s] = pool[Math.floor(Math.random() * pool.length)].id;
@@ -138,6 +142,7 @@
 
   $('seReset').onclick = function () {
     st.skin = { head:'h_none', face:'f_none', body:'b_none', back:'k_none' };
+    st.img = '';
     drawStage(); drawList();
   };
 
@@ -175,6 +180,7 @@
     .then(function (r) { return r.json(); })
     .then(function (d) {
       st.slots = d.slots; st.items = d.items; st.skin = d.skin;
+      st.img = d.img || '';
       st.guest = d.guest; st.coins = d.coins; st.slot = d.slots[0];
       d.items.forEach(function (i) { st.byId[i.id] = i; });
       drawStage(); drawSlots(); drawList(); limitLine();
@@ -187,6 +193,17 @@
     .catch(function () { $('seNick').value = T('guest'); });
 
   window.addEventListener('bf-lang', function () { drawSlots(); drawList(); });
+
+  /* Мостик для owner.js: панель загрузки картинки живёт там,
+     потому что этот файл сервер отдаёт только владельцу. */
+  window.BFSkinEditor = {
+    setImage: function (url) { st.img = url || ''; drawStage(); },
+    getImage: function () { return st.img; },
+    msg: msg,
+    refreshLimit: limitLine,
+    t: T
+  };
+  window.dispatchEvent(new CustomEvent('bf-skineditor-ready'));
 })();
 </script>
 	<script src="skinAvatar.js" defer></script>

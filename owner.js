@@ -119,7 +119,13 @@
       + '<div class="ow-m" id="owVMsg"></div>'
 
       + '<div class="ow-sub">🎮 ' + T('addToGame', 'Добавить в игру') + '</div>'
-      + '<div class="ow-m" style="text-align:left;color:#6b7280" id="owGList">…</div>';
+      + '<div class="ow-m" style="text-align:left;color:#6b7280" id="owGList">…</div>'
+
+      + '<div class="ow-sub">🖼 ' + T('skinsBrowser', 'Skins Browser') + '</div>'
+      + '<div class="ow-m" style="text-align:left;color:#6b7280">'
+      +   'Накрутка оценок скинов и загрузка скина из картинки — на странице Skins Browser.'
+      + '</div>'
+      + '<div class="ow-b" id="owGoSkins">Открыть Skins Browser</div>';
 
     box.querySelector('.ow-x').onclick = close;
 
@@ -148,6 +154,10 @@
           ? '👍 ' + r.likes + '   👎 ' + r.dislikes + '   → ' + r.rating
           : (r.message || T('errorTxt', 'Ошибка'));
       }).catch(function () { m.style.color = 'red'; m.textContent = T('serverDown', 'Сервер недоступен'); });
+    };
+
+    box.querySelector('#owGoSkins').onclick = function () {
+      location.href = '/skinsBrowser.html';
     };
 
     get('/owner/inGame').then(function (r) {
@@ -401,9 +411,12 @@
     var host = document.getElementById('sbList');
     if (!host) return;
 
-    var st = document.createElement('style');
-    st.textContent = skinsCss;
-    document.head.appendChild(st);
+    if (!document.getElementById('owSkinsCss')) {
+      var st = document.createElement('style');
+      st.id = 'owSkinsCss';
+      st.textContent = skinsCss;
+      document.head.appendChild(st);
+    }
 
     var bar = document.createElement('div');
     bar.className = 'ow-bar';
@@ -553,6 +566,98 @@
     }
   }
 
+  /* ══════════════════════════════════════════════
+     SKIN EDITOR — загрузка картинки прямо в редакторе.
+     Панель приходит только владельцу: сервер отдаёт owner.js
+     остальным пустым файлом, поэтому у игроков её нет вовсе.
+     ══════════════════════════════════════════════ */
+  function buildEditorPanel() {
+    if (document.getElementById('owImgPanel')) return;
+    var stage = document.getElementById('seStage');
+    if (!stage || !window.BFSkinEditor) return;
+
+    if (!document.getElementById('owSkinsCss')) {
+      var st = document.createElement('style');
+      st.id = 'owSkinsCss';
+      st.textContent = skinsCss;
+      document.head.appendChild(st);
+    }
+
+    var box = document.createElement('div');
+    box.className = 'ow-bar';
+    box.id = 'owImgPanel';
+    box.innerHTML =
+        '<h4>' + T('ownerTools', 'Инструменты владельца') + ' — скин из картинки</h4>'
+      + '<input id="owEdName" placeholder="' + T('colName', 'Название скина') + '" style="margin-bottom:8px">'
+      + '<input id="owEdUrl" placeholder="https://… ссылка на картинку" style="margin-bottom:8px">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+      +   '<button id="owEdFile">' + T('addFromFile', 'Выбрать файл') + '</button>'
+      +   '<button id="owEdUrlGo">' + T('addFromUrl', 'Взять по ссылке') + '</button>'
+      + '</div>'
+      + '<button class="go" id="owEdPublish" style="width:100%">'
+      +   T('publishSkin', 'Опубликовать') + '</button>'
+      + '<div id="owEdHint" style="font-size:12.5px;color:#6b7280;margin-top:8px">'
+      +   'Картинка сразу встанет на превью слева. После публикации её увидят все в Skins Browser.'
+      + '</div>'
+      + '<input type="file" id="owEdFileInput" accept="image/*" style="display:none">';
+
+    // панель прямо под превью, чтобы результат был виден сразу
+    stage.parentNode.insertBefore(box, stage.nextSibling);
+
+    var $ = function (id) { return document.getElementById(id); };
+    var E = window.BFSkinEditor;
+
+    $('owEdFile').onclick = function () { $('owEdFileInput').click(); };
+    $('owEdFileInput').onchange = function (e) {
+      var f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      shrink(f, function (src) {
+        E.setImage(src);                       // видно на превью немедленно
+        E.msg('Картинка загружена — теперь дайте название и опубликуйте', true);
+      });
+    };
+
+    $('owEdUrlGo').onclick = function () {
+      var u = $('owEdUrl').value.trim();
+      if (!u) { E.msg('Вставьте ссылку на картинку'); return; }
+      E.setImage(u);
+      E.msg('Картинка подставлена. Скачаю её при публикации', true);
+    };
+
+    $('owEdPublish').onclick = function () {
+      var name = $('owEdName').value.trim();
+      var src = E.getImage();
+      if (!src) { E.msg('Сначала выберите файл или укажите ссылку'); return; }
+      if (name.length < 2) { E.msg('Название: хотя бы 2 символа'); return; }
+
+      var btn = this;
+      btn.disabled = true;
+      var was = btn.textContent;
+      btn.textContent = '…';
+      post('/owner/publishImageSkin', { skinName: name, img: src })
+        .then(function (r) {
+          btn.disabled = false; btn.textContent = was;
+          if (r.status !== 'success') { E.msg(r.message || 'Ошибка'); return; }
+          E.msg(r.message, true);
+          if (r.img) E.setImage(r.img);        // дальше показываем сохранённый файл
+          $('owEdName').value = ''; $('owEdUrl').value = '';
+          E.refreshLimit();
+        })
+        .catch(function () {
+          btn.disabled = false; btn.textContent = was;
+          E.msg(T('serverDown', 'Сервер недоступен'));
+        });
+    };
+  }
+
+  function watchEditor() {
+    if (window.BFSkinEditor) buildEditorPanel();
+    else window.addEventListener('bf-skineditor-ready', buildEditorPanel);
+    // страница могла успеть инициализироваться раньше owner.js
+    setTimeout(buildEditorPanel, 400);
+  }
+
   function watchSkins() {
     window.addEventListener('bf-skins-drawn', function (e) {
       decorateSkins(e.detail && e.detail.skins);
@@ -571,5 +676,6 @@
     if (document.querySelector('.maps-table') ||
         /mapsBrowser/i.test(location.pathname)) watchBrowser();
     if (/skinsBrowser/i.test(location.pathname)) watchSkins();
+    if (/skinEditor/i.test(location.pathname)) watchEditor();
   }).catch(function () {});
 })();

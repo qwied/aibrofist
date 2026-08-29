@@ -244,7 +244,8 @@ function register(app, acc, skinsApi) {
     save();
     // суточный лимит и награда сюда не применяются: это инструмент владельца,
     // а не обычная публикация игрока
-    res.json({ status: 'success', id: item.id, message: 'Скин из картинки добавлен: «' + skinName + '»' });
+    res.json({ status: 'success', id: item.id, img: item.img,
+               message: 'Скин из картинки добавлен: «' + skinName + '»' });
   });
 
   // заменить картинку у существующего скина
