@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 });
 
 // служебные файлы наружу не отдаём
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v24.md','/audit-ui.js','/test-ui.js','/check-domain.js','/domain-pp-ua.md'];
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v25.md','/audit-ui.js','/test-ui.js','/check-domain.js','/domain-pp-ua.md'];
 app.use((req, res, next) => {
   const p = req.path.toLowerCase();
   if (PRIVATE.indexOf(p) !== -1 || p.indexOf('/data') === 0 || p.indexOf('/node_modules') === 0)

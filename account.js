@@ -260,5 +260,11 @@
   if (document.readyState !== 'loading') wire();
   else document.addEventListener('DOMContentLoaded', wire);
 
+  // единая шапка (shell.js) открывает эти окна сама
   window.bfOpenAuth = screenChoice;
+  window.bfOpenSettings = function () {
+    get('/getMyName', function (name) {
+      if (name) settings(name); else screenChoice();
+    });
+  };
 })();

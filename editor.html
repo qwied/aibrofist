@@ -1953,7 +1953,20 @@ socket.on('connect', () => {
   };
 })();
 </script>
-	<script src="topnav.js" defer></script>
 	<script src="skinAvatar.js" defer></script>
+<script>
+/* Маленькая кнопка возврата: полноценная шапка на весь экран редактора
+   не помещается, но уйти со страницы должно быть чем. */
+(function(){
+  var a = document.createElement('a');
+  a.id = 'bfHome'; a.href = '/'; a.title = 'На главную';
+  a.textContent = '\u2190 AIBROFIST';
+  a.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:12;padding:8px 12px;'
+    + 'border-radius:9px;background:#fff;border:1px solid #e2e8f0;color:#111827;'
+    + 'text-decoration:none;font:700 12.5px/1 sans-serif;box-shadow:0 2px 8px rgba(15,23,42,.10)';
+  if (window.matchMedia('(max-width: 900px)').matches) { a.style.bottom = '76px'; a.style.left = '8px'; }
+  document.body.appendChild(a);
+})();
+</script>
 </body>
 </html>

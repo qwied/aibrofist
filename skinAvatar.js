@@ -21,26 +21,26 @@
       });
   }
 
-  function dataUri(skin, full) {
+  /* Везде показываем ФИГУРУ ЦЕЛИКОМ, просто разного размера.
+     Портретная обрезка показывала одну голову — по ней было не понять,
+     что за скин. Вписывание делает object-fit: contain. */
+  function dataUri(skin) {
     if (skin && skin.img) return skin.img;   // скин-картинка от владельца
     if (!window.BFSkin) return null;
-    // в круглых иконках показываем портрет, на большой картинке — фигуру целиком
-    var svg = full ? BFSkin.svg(skin, byId, { height: 300 })
-                   : BFSkin.svg(skin, byId, { height: 220, bust: true });
+    var svg = BFSkin.svg(skin, byId, { height: 300 });
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
-  // большая аватарка в профиле показывает игрока во весь рост
-  function isFull(el) {
-    return !!(el.classList && el.classList.contains('profile-picture'));
-  }
-
   function paint(el, skin) {
-    var uri = dataUri(skin, isFull(el));
+    // у скина-картинки берём её саму, иначе рисуем фигуру
+    var uri = (skin && skin.img) ? skin.img : dataUri(skin);
     if (!uri) return;
     if (el.tagName === 'IMG') {
       el.src = uri;
+      // без этого картинка растягивала круглую рамку в профиле
       el.style.objectFit = 'contain';
+      el.style.width = '100%';
+      el.style.height = '100%';
       el.dataset.bfSkin = '1';
     } else {
       el.style.backgroundImage = 'url("' + uri + '")';
