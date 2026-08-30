@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 });
 
 // служебные файлы наружу не отдаём
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/extras.js','/package.json','/package-lock.json','/readme-v30.md','/audit-ui.js','/test-ui.js','/test-avatar.js','/test-i18n.js','/check-domain.js','/domain-pp-ua.md'];
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/themes.js','/extras.js','/package.json','/package-lock.json','/readme-v32.md','/audit-ui.js','/test-ui.js','/test-avatar.js','/test-i18n.js','/test-theme.js','/check-domain.js','/domain-pp-ua.md'];
 app.use((req, res, next) => {
   const p = req.path.toLowerCase();
   if (PRIVATE.indexOf(p) !== -1 || p.indexOf('/data') === 0 || p.indexOf('/node_modules') === 0)
@@ -71,6 +71,7 @@ const skinsApi = require('./skins.js');
 skinsApi.register(app, accounts);
 require('./userSkins.js').register(app, accounts, skinsApi);
 require('./lang.js').register(app, accounts);
+require('./themes.js').register(app, accounts);
 require('./extras.js').register(app, accounts);
 
 // адреса, на которые ссылается шапка сайта

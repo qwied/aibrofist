@@ -179,52 +179,33 @@
   }
 
   /* ---------- кнопки прямо в Maps Browser ---------- */
-  function rowInfo(row) {
-    var n = row.querySelector('.map-name-row');
-    var a = row.querySelector('.map-author-row');
-    if (!n || !a) return null;
-    return { mapName: (n.textContent || '').trim(), author: (a.textContent || '').trim() };
-  }
-
+  /* Страница переписана на нашу разметку: у каждой строки есть
+     data-map и data-author, поэтому ничего угадывать не нужно. */
   function decorate(row) {
     if (!row || row.__owWired) return;
-    var info = rowInfo(row);
-    if (!info || !info.mapName) return;
-    var host = row.querySelector('.play-button');
-    host = host ? host.parentNode : row.lastElementChild;
-    if (!host) return;
+    var info = { mapName: row.dataset.map, author: row.dataset.author };
+    if (!info.mapName) return;
     row.__owWired = true;
+
+    var host = row.querySelector('.mbExtra');
+    if (!host) {
+      host = document.createElement('div');
+      host.className = 'mbExtra';
+      row.appendChild(host);
+    }
 
     var current = inGame[keyOf(info.author, info.mapName)] || [];
 
-    // по кнопке на каждый режим: клик добавляет, повторный убирает
-    var modes = document.createElement('div');
-    modes.className = 'ow-modes';
-    var label = document.createElement('span');
-    label.style.cssText = 'font-size:11.5px;color:#6b7280;width:100%';
-    label.textContent = T('addToGame', 'Добавить в игру') + ':';
-    modes.appendChild(label);
-
-    MODES.forEach(function (mode) {
-      var b = document.createElement('span');
-      b.className = 'ow-mode' + (current.indexOf(mode) !== -1 ? ' on' : '');
-      b.textContent = MODE_RU[mode];
-      b.onclick = function (e) {
-        e.stopPropagation();
-        var next = !b.classList.contains('on');
-        var prev = b.textContent;
-        b.textContent = '…';
-        post('/owner/mapInGame', {
-          author: info.author, mapName: info.mapName, mode: mode, on: String(next)
-        }).then(function (r) {
-          b.textContent = prev;
-          if (r.status !== 'success') { b.textContent = '⚠'; return; }
-          inGame[keyOf(info.author, info.mapName)] = r.modes;
-          b.classList.toggle('on', r.modes.indexOf(mode) !== -1);
-        }).catch(function () { b.textContent = '⚠'; });
-      };
-      modes.appendChild(b);
-    });
+    var vote = document.createElement('span');
+    vote.className = 'ow-tag vote';
+    vote.textContent = '👍 ' + T('boostVotes', 'Оценка');
+    vote.onclick = function (e) {
+      e.stopPropagation();
+      open();
+      box.querySelector('#owVAuthor').value = info.author;
+      box.querySelector('#owVMap').value = info.mapName;
+      box.querySelector('#owVLikes').focus();
+    };
 
     var del = document.createElement('span');
     del.className = 'ow-tag del';
@@ -253,16 +234,34 @@
         .catch(function () { del.textContent = '⚠'; });
     };
 
-    var vote = document.createElement('span');
-    vote.className = 'ow-tag vote';
-    vote.textContent = '👍 ' + T('boostVotes', 'Оценка');
-    vote.onclick = function (e) {
-      e.stopPropagation();
-      open();
-      box.querySelector('#owVAuthor').value = info.author;
-      box.querySelector('#owVMap').value = info.mapName;
-      box.querySelector('#owVLikes').focus();
-    };
+    // по кнопке на каждый режим: клик добавляет, повторный убирает
+    var modes = document.createElement('div');
+    modes.className = 'ow-modes';
+    var label = document.createElement('span');
+    label.style.cssText = 'font-size:11.5px;color:#6b7280;width:100%';
+    label.textContent = T('addToGame', 'Добавить в игру') + ':';
+    modes.appendChild(label);
+
+    MODES.forEach(function (mode) {
+      var b2 = document.createElement('span');
+      b2.className = 'ow-mode' + (current.indexOf(mode) !== -1 ? ' on' : '');
+      b2.textContent = MODE_RU[mode];
+      b2.onclick = function (e) {
+        e.stopPropagation();
+        var next = !b2.classList.contains('on');
+        var prev = b2.textContent;
+        b2.textContent = '…';
+        post('/owner/mapInGame', {
+          author: info.author, mapName: info.mapName, mode: mode, on: String(next)
+        }).then(function (r) {
+          b2.textContent = prev;
+          if (r.status !== 'success') { b2.textContent = '⚠'; return; }
+          inGame[keyOf(info.author, info.mapName)] = r.modes;
+          b2.classList.toggle('on', r.modes.indexOf(mode) !== -1);
+        }).catch(function () { b2.textContent = '⚠'; });
+      };
+      modes.appendChild(b2);
+    });
 
     host.appendChild(vote);
     host.appendChild(del);
@@ -270,7 +269,7 @@
   }
 
   function scan() {
-    var rows = document.querySelectorAll('.maps-row');
+    var rows = document.querySelectorAll('.mbRow');
     for (var i = 0; i < rows.length; i++) decorate(rows[i]);
   }
 
@@ -282,127 +281,8 @@
       scan();
     }).catch(scan);
 
-    try {
-      var mo = new MutationObserver(function () { scan(); });
-      mo.observe(document.documentElement, { childList: true, subtree: true });
-    } catch (e) {
-      setInterval(scan, 1200);
-    }
+    window.addEventListener('bf-maps-drawn', function () { setTimeout(scan, 0); });
   }
-
-  // ---------- инструменты владельца ----------
-  function ownerPanel(host, linked, io) {
-    var post = io.post, get = io.get;
-    if (!host) return;
-    host.innerHTML =
-        '<div style="border-top:1px solid #e6ebf0;margin:12px 0 8px"></div>'
-      + '<div class="bf-t" style="font-size:14px">Управление</div>'
-      + '<input class="bf-i" id="bfRenFrom" placeholder="Чей ник менять">'
-      + '<input class="bf-i" id="bfRenTo" placeholder="Новый ник" maxlength="20">'
-      + '<div class="bf-b" id="bfRenGo">Сменить ник</div>'
-      + '<div class="bf-e" id="bfRenMsg"></div>'
-      + '<div class="bf-t" style="font-size:14px">Мои аккаунты</div>'
-      + '<div id="bfLinked" style="font-size:13px;margin-bottom:6px"></div>'
-      + '<input class="bf-i" id="bfLinkName" placeholder="Логин аккаунта">'
-      + '<input class="bf-i" id="bfLinkPass" type="password" placeholder="Пароль от него">'
-      + '<div class="bf-b" id="bfLinkGo">Привязать</div>'
-      + '<div class="bf-e" id="bfLinkMsg"></div>'
-      + '<div class="bf-t" style="font-size:14px">монет Выдать монеты</div>'
-      + '<input class="bf-i" id="bfCoinName" placeholder="Ник игрока">'
-      + '<input class="bf-i" id="bfCoinAmt" type="number" placeholder="Сколько монет">'
-      + '<div class="bf-b" id="bfCoinGo">Начислить</div>'
-      + '<div class="bf-e" id="bfCoinMsg"></div>'
-      + '<div class="bf-t" style="font-size:14px">👍 Накрутка оценок карты</div>'
-      + '<input class="bf-i" id="bfVAuthor" placeholder="Автор карты">'
-      + '<input class="bf-i" id="bfVMap" placeholder="Название карты">'
-      + '<input class="bf-i" id="bfVLikes" type="number" placeholder="Лайки">'
-      + '<input class="bf-i" id="bfVDis" type="number" placeholder="Дизлайки">'
-      + '<div class="bf-b" id="bfVGo">Применить</div>'
-      + '<div class="bf-e" id="bfVMsg"></div>'
-      + '<div class="bf-h">Карты добавляются в игровые режимы кнопкой «Добавить в игру» в Maps Browser.</div>';
-
-    host.querySelector('#bfCoinGo').onclick = function () {
-      var m = host.querySelector('#bfCoinMsg');
-      post('/owner/giveCoins', {
-        name: host.querySelector('#bfCoinName').value.trim(),
-        coins: host.querySelector('#bfCoinAmt').value.trim(),
-        mode: 'add'
-      }, function (r) {
-        m.style.color = (r.status === 'success') ? '#2e9b2e' : 'red';
-        m.textContent = r.message || '';
-      });
-    };
-
-    host.querySelector('#bfVGo').onclick = function () {
-      var m = host.querySelector('#bfVMsg');
-      post('/owner/setVotes', {
-        author: host.querySelector('#bfVAuthor').value.trim(),
-        mapName: host.querySelector('#bfVMap').value.trim(),
-        likes: host.querySelector('#bfVLikes').value.trim(),
-        dislikes: host.querySelector('#bfVDis').value.trim()
-      }, function (r) {
-        m.style.color = (r.status === 'success') ? '#2e9b2e' : 'red';
-        m.textContent = (r.status === 'success')
-          ? '👍 ' + r.likes + '  👎 ' + r.dislikes + '  → ' + r.rating
-          : (r.message || 'Ошибка');
-      });
-    };
-
-    function drawLinked(list) {
-      var el = host.querySelector('#bfLinked');
-      if (!list.length) { el.innerHTML = '<span style="color:#9aa3ad">пока ничего не привязано</span>'; return; }
-      el.innerHTML = list.map(function (u) {
-        return '<div style="display:flex;gap:6px;align-items:center;margin:4px 0">'
-             + '<span style="flex:1">' + u.name + ' · ' + u.coins + ' ' +
-             (window.BFCoin ? BFCoin.svg(14) : '') + '</span>'
-             + '<button data-go="' + u.name + '" style="border:1px solid #2196F3;background:#fff;'
-             + 'color:#2196F3;border-radius:4px;padding:3px 9px;cursor:pointer">Войти</button>'
-             + '<button data-rm="' + u.name + '" style="border:1px solid #e74c3c;background:#fff;'
-             + 'color:#e74c3c;border-radius:4px;padding:3px 9px;cursor:pointer">×</button></div>';
-      }).join('');
-    }
-    drawLinked(linked);
-
-    host.querySelector('#bfRenGo').onclick = function () {
-      post('/renameUser', {
-        from: host.querySelector('#bfRenFrom').value.trim(),
-        to: host.querySelector('#bfRenTo').value.trim()
-      }, function (r) {
-        var m = host.querySelector('#bfRenMsg');
-        m.style.color = (r.status === 'success') ? '#2e9b2e' : 'red';
-        m.textContent = r.message || '';
-      });
-    };
-
-    host.querySelector('#bfLinkGo').onclick = function () {
-      post('/owner/link', {
-        name: host.querySelector('#bfLinkName').value.trim(),
-        password: host.querySelector('#bfLinkPass').value
-      }, function (r) {
-        var m = host.querySelector('#bfLinkMsg');
-        m.style.color = (r.status === 'success') ? '#2e9b2e' : 'red';
-        m.textContent = r.message || '';
-        if (r.status === 'success') {
-          host.querySelector('#bfLinkName').value = '';
-          host.querySelector('#bfLinkPass').value = '';
-          get('/owner/accounts', function (x) { if (x && x.linked) drawLinked(x.linked); });
-        }
-      });
-    };
-
-    host.addEventListener('click', function (e) {
-      var go = e.target.closest('[data-go]'), rm = e.target.closest('[data-rm]');
-      if (go) post('/owner/switch', { name: go.dataset.go }, function (r) {
-        if (r.status === 'success') location.reload();
-        else host.querySelector('#bfLinkMsg').textContent = r.message || '';
-      });
-      if (rm) post('/owner/unlink', { name: rm.dataset.rm }, function () {
-        get('/owner/accounts', function (x) { if (x && x.linked) drawLinked(x.linked); });
-      });
-    });
-  }
-
-  window.bfOwnerPanel = ownerPanel;
 
   /* ══════════════════════════════════════════════
      SKINS BROWSER — только для владельца
@@ -728,8 +608,7 @@
     me = r;
     injectCss();
     buildPanel();
-    if (document.querySelector('.maps-table') ||
-        /mapsBrowser/i.test(location.pathname)) watchBrowser();
+    if (/mapsBrowser/i.test(location.pathname)) watchBrowser();
     if (/skinsBrowser/i.test(location.pathname)) watchSkins();
     if (/skinEditor/i.test(location.pathname)) watchEditor();
   }).catch(function () {});

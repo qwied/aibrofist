@@ -233,7 +233,9 @@ function register(app, getUser, acc) {
       };
     });
 
-    res.json({ page: String(page), count: out.length, maps: slice });
+    const pages = Math.max(1, Math.ceil(out.length / per));
+    res.json({ page: String(Math.min(page, pages)) + '/' + pages,
+               pages, count: out.length, maps: slice });
   }
   app.get('/getMaps', list);
   app.get('/getMapsForList', list);

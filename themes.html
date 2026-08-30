@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>AIBrofist — Темы</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="ui.css">
+<script src="device.js"></script>
+<style>
+.thWrap{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
+@media (max-width:900px){ .thWrap{grid-template-columns:1fr} }
+
+/* ---------- замок ---------- */
+.thLock{border:1px solid var(--line);border-radius:16px;padding:26px 22px;text-align:center;
+  background:var(--soft);margin-bottom:20px}
+.thLock h3{margin:0 0 6px;font-size:19px}
+.thLock p{margin:0 0 16px;color:var(--muted);font-size:14.5px;line-height:1.55}
+.thLock .price{font-size:26px;font-weight:800;color:var(--gold);
+  display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px}
+.thLock button{max-width:280px;margin:0 auto}
+
+/* ---------- слоты цветов ---------- */
+.thSlots{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px}
+.thSlot{width:78px;height:78px;border-radius:14px;border:2px solid var(--line);
+  position:relative;cursor:pointer;overflow:hidden;background:#fff;flex:0 0 auto}
+.thSlot input{position:absolute;inset:0;opacity:0;cursor:pointer;border:none;padding:0}
+.thSlot .fill{position:absolute;inset:0}
+.thSlot .num{position:absolute;left:6px;top:5px;font-size:11px;font-weight:700;
+  color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.thSlot .x{position:absolute;right:4px;top:3px;width:20px;height:20px;border-radius:50%;
+  background:rgba(0,0,0,.42);color:#fff;font-size:13px;line-height:20px;text-align:center;z-index:3}
+.thSlot.empty{border-style:dashed;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:26px}
+.thHint{font-size:13px;color:var(--muted);margin-bottom:16px}
+
+/* ---------- палитра ---------- */
+.thPal{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:7px;margin-bottom:6px}
+.thSw{aspect-ratio:1;border-radius:9px;cursor:pointer;border:2px solid transparent}
+.thSw:hover{transform:scale(1.08)}
+.thSw.on{border-color:var(--ink);box-shadow:0 0 0 2px #fff inset}
+
+/* ---------- готовые наборы ---------- */
+.thSets{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+.thSet{border:2px solid var(--line);border-radius:13px;padding:10px;cursor:pointer;background:#fff}
+.thSet.on{border-color:var(--blue)}
+.thSet .bar{height:34px;border-radius:8px;margin-bottom:8px;display:flex;overflow:hidden}
+.thSet .bar span{flex:1}
+.thSet .nm{font-size:13.5px;font-weight:600;text-align:center}
+
+/* ---------- предпросмотр ---------- */
+.thPrev{border:1px solid var(--line);border-radius:16px;overflow:hidden;
+  position:sticky;top:calc(var(--hdr) + 12px)}
+.thPrevHead{display:flex;align-items:center;gap:8px;padding:10px 12px;font-weight:700;font-size:14px}
+.thPrevBody{padding:14px;display:flex;flex-direction:column;gap:10px;background:#fff}
+.thPrevRow{display:flex;gap:8px}
+.thPrevRow button{flex:1;font-size:13.5px;padding:10px 0;border-radius:9px;cursor:pointer}
+.thPrevCard{border:1px solid var(--line);border-radius:11px;padding:10px;font-size:13px}
+.thPrevChips{display:flex;gap:6px;flex-wrap:wrap}
+.thPrevChips span{padding:6px 12px;border-radius:20px;font-size:12.5px;border:1px solid var(--line)}
+@media (max-width:900px){ .thPrev{position:static} }
+</style>
+</head>
+<body>
+
+<div class="bfWrap">
+  <div class="bfTitle" data-i18n="themes">Темы</div>
+  <div class="bfSub" data-i18n="themesSub">Выберите от одного до четырёх цветов — интерфейс перекрасится целиком.</div>
+
+  <div id="thLock"></div>
+
+  <div class="thWrap" id="thMain" style="display:none">
+    <div>
+      <div class="bfTitle" style="font-size:17px;margin-bottom:8px" data-i18n="yourColors">Ваши цвета</div>
+      <div class="thSlots" id="thSlots"></div>
+      <div class="thHint" id="thHint"></div>
+
+      <div class="bfTitle" style="font-size:17px;margin:18px 0 8px" data-i18n="allColors">Все цвета</div>
+      <div class="thPal" id="thPal"></div>
+      <div class="thHint" data-i18n="pickerHint">Нажмите на свой цвет в квадрате выше, чтобы выбрать любой оттенок.</div>
+
+      <div class="bfTitle" style="font-size:17px;margin:18px 0 8px" data-i18n="readySets">Готовые наборы</div>
+      <div class="thSets" id="thSets"></div>
+    </div>
+
+    <div>
+      <div class="thPrev" id="thPrev">
+        <div class="thPrevHead" id="thPrevHead">AIBROFIST</div>
+        <div class="thPrevBody">
+          <div class="thPrevRow">
+            <button id="pvGo">Играть</button>
+            <button id="pvGhost">Обзор</button>
+          </div>
+          <div class="thPrevChips" id="pvChips">
+            <span id="pvChip1">Голова</span><span id="pvChip2">Тело</span><span id="pvChip3">Плащ</span>
+          </div>
+          <div class="thPrevCard" id="pvCard">
+            Карта «Adventure X»<br><span id="pvMuted">Автор: Herp · рейтинг 12</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="bfBtn go" id="thSave" style="margin-top:14px" data-i18n="save">Сохранить</button>
+      <button class="bfBtn ghost" id="thReset" data-i18n="defaultTheme">Вернуть обычное оформление</button>
+      <div class="bfMsg" id="thMsg"></div>
+    </div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="mobile.css">
+<script src="i18n.js"></script>
+<script src="coin.js"></script>
+<script src="theme.js"></script>
+<script src="skinRender.js"></script>
+<script src="skinAvatar.js" defer></script>
+<script src="shell.js"></script>
+<script src="account.js" defer></script>
+<script>
+(function () {
+  'use strict';
+  var T = function (k, f) { return (window.I18N && I18N.t(k) !== k) ? I18N.t(k) : f; };
+  var $ = function (id) { return document.getElementById(id); };
+
+  var MAX = 4;
+  var picked = [];
+
+  /* Полная палитра: 12 оттенков по кругу × 5 уровней яркости,
+     плюс серая шкала. Этого хватает, чтобы собрать почти любой цвет
+     в два касания, а точный оттенок берётся из квадрата слота. */
+  function buildPalette() {
+    var out = [];
+    for (var l = 0; l < 5; l++) {
+      var light = 0.28 + l * 0.13;
+      for (var h = 0; h < 12; h++) {
+        out.push(hsl(h * 30, 0.72, light));
+      }
+    }
+    ['#000000','#1f2937','#4b5563','#9ca3af','#d1d5db','#f3f4f6',
+     '#ffffff','#7c2d12','#78350f','#14532d','#1e3a8a','#4c1d95'].forEach(function (c) {
+      out.push(c);
+    });
+    return out;
+  }
+  function hsl(h, s, l) {
+    var c = (1 - Math.abs(2 * l - 1)) * s;
+    var x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    var m = l - c / 2, r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; }
+    else if (h < 180) { g = c; b = x; } else if (h < 240) { g = x; b = c; }
+    else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+    var f = function (v) { return Math.round((v + m) * 255); };
+    return '#' + ((1 << 24) + (f(r) << 16) + (f(g) << 8) + f(b)).toString(16).slice(1);
+  }
+
+  function msg(text, ok) {
+    var m = $('thMsg');
+    m.textContent = text;
+    m.style.color = ok ? 'var(--green)' : 'var(--red)';
+    clearTimeout(msg._t);
+    msg._t = setTimeout(function () { m.textContent = ''; }, 4000);
+  }
+
+  /* ---------- слоты ---------- */
+  function drawSlots() {
+    var box = $('thSlots');
+    box.innerHTML = '';
+    picked.forEach(function (c, i) {
+      var d = document.createElement('div');
+      d.className = 'thSlot';
+      d.innerHTML = '<div class="fill" style="background:' + c + '"></div>'
+                  + '<div class="num">' + (i + 1) + '</div>'
+                  + '<div class="x" data-drop="' + i + '">✕</div>';
+      var inp = document.createElement('input');
+      inp.type = 'color'; inp.value = c;
+      inp.oninput = function () { picked[i] = inp.value; preview(); drawSlots(); };
+      d.appendChild(inp);
+      box.appendChild(d);
+    });
+    if (picked.length < MAX) {
+      var add = document.createElement('div');
+      add.className = 'thSlot empty';
+      add.textContent = '+';
+      var inp2 = document.createElement('input');
+      inp2.type = 'color'; inp2.value = '#2196F3';
+      inp2.oninput = function () { pick(inp2.value); };
+      add.appendChild(inp2);
+      box.appendChild(add);
+    }
+    $('thHint').textContent = picked.length
+      ? T('slotsHint', 'Выбрано цветов: ') + picked.length + ' / ' + MAX
+      : T('pickFirst', 'Пока ничего не выбрано — нажмите цвет ниже.');
+    markPalette();
+  }
+
+  function pick(c) {
+    c = String(c).toLowerCase();
+    var at = picked.indexOf(c);
+    if (at !== -1) { picked.splice(at, 1); }
+    else if (picked.length < MAX) { picked.push(c); }
+    else { picked[MAX - 1] = c; }
+    preview(); drawSlots();
+  }
+
+  document.addEventListener('click', function (e) {
+    var d = e.target.closest && e.target.closest('[data-drop]');
+    if (d) {
+      e.stopPropagation();
+      picked.splice(parseInt(d.dataset.drop, 10), 1);
+      preview(); drawSlots();
+    }
+  });
+
+  /* ---------- палитра ---------- */
+  function drawPalette() {
+    var box = $('thPal');
+    box.innerHTML = '';
+    buildPalette().forEach(function (c) {
+      var s = document.createElement('div');
+      s.className = 'thSw';
+      s.style.background = c;
+      s.dataset.c = c;
+      s.title = c;
+      s.onclick = function () { pick(c); };
+      box.appendChild(s);
+    });
+  }
+  function markPalette() {
+    var set = {};
+    picked.forEach(function (c) { set[c.toLowerCase()] = 1; });
+    Array.prototype.forEach.call($('thPal').children, function (s) {
+      s.classList.toggle('on', !!set[s.dataset.c.toLowerCase()]);
+    });
+  }
+
+  /* ---------- готовые наборы ---------- */
+  function drawSets(presets) {
+    var box = $('thSets');
+    box.innerHTML = '';
+    presets.forEach(function (p) {
+      var d = document.createElement('div');
+      d.className = 'thSet';
+      d.innerHTML = '<div class="bar">' +
+        p.colors.map(function (c) { return '<span style="background:' + c + '"></span>'; }).join('') +
+        '</div><div class="nm">' + p.name + '</div>';
+      d.onclick = function () {
+        picked = p.colors.slice(0, MAX).map(function (c) { return c.toLowerCase(); });
+        preview(); drawSlots();
+        Array.prototype.forEach.call(box.children, function (x) { x.classList.remove('on'); });
+        d.classList.add('on');
+      };
+      box.appendChild(d);
+    });
+  }
+
+  /* ---------- живой предпросмотр ---------- */
+  function preview() {
+    if (!window.BFTheme) return;
+    BFTheme.apply(picked);                 // сразу видно на всей странице
+    var p = BFTheme.palette(picked);
+    var head = $('thPrevHead'), go = $('pvGo'), ghost = $('pvGhost');
+    if (!p) {
+      head.style.cssText = 'background:#f5f5f5;color:#111827';
+      go.style.cssText = 'background:#2196F3;color:#fff;border:none';
+      ghost.style.cssText = 'background:#fff;color:#2196F3;border:1px solid #2196F3';
+      $('pvMuted').style.color = '#6b7280';
+      ['pvChip1','pvChip2','pvChip3'].forEach(function (id) {
+        $(id).style.cssText = 'background:#fff;border:1px solid #e5e7eb;color:#111827';
+      });
+      return;
+    }
+    var grad = p.raw.length > 1
+      ? 'linear-gradient(135deg,' + p.brand + ',' + p.brand2 + ')' : p.brand;
+    head.style.cssText = 'background:' + p.head + ';color:' + p.dark;
+    go.style.cssText = 'background:' + grad + ';color:' + p.onBrand + ';border:none';
+    ghost.style.cssText = 'background:#fff;color:' + p.brand + ';border:1px solid ' + p.brand;
+    $('pvMuted').style.color = p.muted;
+    $('pvCard').style.borderColor = p.line;
+    [['pvChip1', p.brand], ['pvChip2', p.brand2], ['pvChip3', p.brand3]].forEach(function (a) {
+      var el = $(a[0]);
+      el.style.cssText = 'background:' + a[1] + ';border:1px solid transparent;color:' +
+        BFTheme.helpers.on(a[1]);
+    });
+  }
+
+  /* ---------- замок ---------- */
+  function drawLock(st) {
+    var box = $('thLock');
+    if (st.unlocked) { box.innerHTML = ''; $('thMain').style.display = ''; return; }
+    $('thMain').style.display = 'none';
+    box.innerHTML =
+        '<h3>' + T('themesLocked', 'Темы пока закрыты') + '</h3>'
+      + '<p>' + T('themesWhat',
+          'Выберите свои цвета — перекрасится вся игра: шапка, кнопки, карточки, редактор. '
+          + 'Покупка разовая, менять цвета потом можно сколько угодно.') + '</p>'
+      + '<div class="price">' + st.price + ' ' + (window.BFCoin ? BFCoin.svg(24) : '') + '</div>'
+      + '<button class="bfBtn go" id="thBuy">' + T('unlockThemes', 'Открыть темы') + '</button>'
+      + '<div class="bfMsg" id="thLockMsg" style="margin-top:8px"></div>';
+
+    $('thBuy').onclick = function () {
+      var b = this; b.disabled = true;
+      BFTheme.unlock().then(function (r) {
+        b.disabled = false;
+        if (r.status !== 'success') {
+          $('thLockMsg').style.color = 'var(--red)';
+          $('thLockMsg').textContent = r.message || T('errorTxt', 'Ошибка');
+          return;
+        }
+        if (window.BFShell) BFShell.refreshCoins(r.coins);
+        start();
+      }).catch(function () {
+        b.disabled = false;
+        $('thLockMsg').textContent = T('serverDown', 'Сервер недоступен');
+      });
+    };
+  }
+
+  /* ---------- кнопки ---------- */
+  $('thSave').onclick = function () {
+    BFTheme.save(picked).then(function (r) {
+      if (r.status === 'success') msg(T('saved', 'Сохранено'), true);
+      else msg(r.message || T('errorTxt', 'Ошибка'));
+    }).catch(function () { msg(T('serverDown', 'Сервер недоступен')); });
+  };
+
+  $('thReset').onclick = function () {
+    picked = [];
+    preview(); drawSlots();
+    BFTheme.save([]).then(function () { msg(T('saved', 'Сохранено'), true); })
+      .catch(function () { msg(T('serverDown', 'Сервер недоступен')); });
+  };
+
+  /* ---------- старт ---------- */
+  function start() {
+    BFTheme.load().then(function (st) {
+      MAX = st.max || 4;
+      drawLock(st);
+      if (!st.unlocked) return;
+      picked = (st.colors || []).slice();
+      drawPalette();
+      drawSets(st.presets || []);
+      drawSlots();
+      preview();
+    });
+  }
+  start();
+
+  window.addEventListener('bf-lang', function () { drawSlots(); });
+})();
+</script>
+</body>
+</html>

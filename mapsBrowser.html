@@ -1,29 +1,217 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-	<title>AIBrofist - Maps Browser</title>
-	<meta charset="utf-8">
-	<meta name="description" content="Let's play together :)" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" type="text/css" href="browser.css">
-	<link rel="stylesheet" type="text/css" href="Gplayer3.css">
-	<script src="https://code.jquery.com/jquery-3.6.0.min.js" type="text/javascript"></script>
-	<script src="mapsBrowser.client.ejs.js"></script>
-	<script src="account.js" defer></script>
-	<script src="device.js"></script>
-	<link rel="stylesheet" type="text/css" href="mobile.css">
-	<link rel="stylesheet" href="ui.css">
+<meta charset="utf-8">
+<title>AIBrofist — Maps Browser</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="ui.css">
+<script src="theme.js"></script>
+<script src="device.js"></script>
+<style>
+.mbFilters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:9px;margin-bottom:6px}
+.mbFilters .bfInput,.mbFilters .bfSelect{margin-bottom:0}
+.mbFilters .bfBtn{margin-bottom:0;width:auto;padding:11px 22px}
+
+.mbHead{display:grid;grid-template-columns:2fr 92px 1.2fr 1.1fr 124px;gap:10px;
+  padding:0 14px 8px;font-size:13px;font-weight:700;color:var(--muted)}
+.mbList{display:flex;flex-direction:column;gap:10px}
+.mbRow{display:grid;grid-template-columns:2fr 92px 1.2fr 1.1fr 124px;gap:10px 10px;
+  align-items:center;border:1px solid var(--line);border-radius:13px;padding:12px 14px;background:#fff}
+.mbRow:hover{border-color:var(--blue)}
+.mbName{font-weight:700;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbRate{font-weight:700}
+.mbRate.up{color:var(--green)} .mbRate.down{color:var(--red)}
+.mbAuthor{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbAuthor a{color:var(--blue);text-decoration:none}
+.mbDate{color:var(--muted);font-size:13.5px;white-space:nowrap}
+.mbPlay{width:100%;padding:10px 0;border-radius:9px;border:1px solid var(--blue);
+  background:#fff;color:var(--blue);cursor:pointer;font-weight:600}
+.mbPlay:hover{background:var(--blue);color:#fff}
+.mbExtra{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.mbDel{border:1px solid var(--red);color:var(--red);background:#fff;border-radius:8px;
+  padding:9px 15px;font-size:13px;cursor:pointer}
+.mbDel:hover{background:var(--red);color:#fff}
+
+@media (max-width:760px){
+  .mbFilters{grid-template-columns:1fr 1fr}
+  .mbFilters .bfBtn{grid-column:1/-1;width:100%}
+  .mbHead{display:none}
+  .mbRow{grid-template-columns:1fr auto;gap:2px 10px}
+  .mbName{grid-column:1}
+  .mbRate{grid-column:2;text-align:right}
+  .mbAuthor{grid-column:1;font-size:13.5px}
+  .mbDate{grid-column:2;text-align:right}
+  .mbPlay{grid-column:1/-1;margin-top:8px}
+}
+</style>
 </head>
+<body>
 
-<body onload="init()">
-<div class="container">
+<div class="bfWrap">
+  <div class="bfTitle" data-i18n="mapsBrowser">Maps Browser</div>
+  <div class="bfSub" data-i18n="mapsSub">Карты игроков. Открывайте, играйте и оценивайте.</div>
 
+  <div class="mbFilters">
+    <select class="bfSelect" id="mbMode">
+      <option value="" data-i18n="modeAll">Режим: все</option>
+      <option value="hideAndSeek" data-i18n="hideAndSeek">Прятки</option>
+      <option value="twoPlayer" data-i18n="twoPlayer">Игра на двоих</option>
+      <option value="race" data-i18n="race">Гонка</option>
+      <option value="sandbox" data-i18n="sandbox">Песочница</option>
+    </select>
+    <input class="bfInput" id="mbAuthor" data-i18n-ph="colAuthor" placeholder="Автор">
+    <select class="bfSelect" id="mbSort">
+      <option value="date" data-i18n="sortDate">Сортировать по дате</option>
+      <option value="rating" data-i18n="sortRating">Сортировать по рейтингу</option>
+    </select>
+    <button class="bfBtn go" id="mbGo" data-i18n="refresh">Обновить</button>
+  </div>
+
+  <div class="bfPager">
+    <button id="mbPrev">&lt;</button><span id="mbPage">1/1</span><button id="mbNext">&gt;</button>
+  </div>
+
+  <div class="mbHead">
+    <div data-i18n="colName">Название</div>
+    <div data-i18n="colRating">Рейтинг</div>
+    <div data-i18n="colAuthor">Автор</div>
+    <div data-i18n="colDate">Дата</div>
+    <div></div>
+  </div>
+  <div id="mbList"><div class="bfHint" data-i18n="loading">Загрузка…</div></div>
+  <div class="bfMsg" id="mbMsg"></div>
 </div>
-	<script src="i18n.js"></script>
-	<script src="owner.js" defer></script>
-	<script src="coin.js"></script>
-	<script src="skinRender.js"></script>
-	<script src="skinAvatar.js" defer></script>
-	<script src="shell.js"></script>
+
+<link rel="stylesheet" href="mobile.css">
+<script src="i18n.js"></script>
+<script src="coin.js"></script>
+<script src="skinRender.js"></script>
+<script src="skinAvatar.js" defer></script>
+<script src="shell.js"></script>
+<script src="account.js" defer></script>
+<script src="owner.js" defer></script>
+<script>
+(function () {
+  'use strict';
+  var T = function (k, f) { return (window.I18N && I18N.t(k) !== k) ? I18N.t(k) : f; };
+  var $ = function (id) { return document.getElementById(id); };
+  var page = 1, pages = 1, me = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c];
+    });
+  }
+  function msg(t, ok) {
+    var m = $('mbMsg');
+    m.textContent = t; m.style.color = ok ? 'var(--green)' : 'var(--red)';
+    clearTimeout(msg._t); msg._t = setTimeout(function () { m.textContent = ''; }, 4000);
+  }
+  function post(url, data) {
+    return fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: Object.keys(data).map(function (k) {
+        return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]);
+      }).join('&')
+    }).then(function (r) { return r.json(); });
+  }
+  function when(ms) {
+    var d = new Date(ms);
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined,
+      { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function row(m) {
+    var cls = m.rating > 0 ? ' up' : (m.rating < 0 ? ' down' : '');
+    var mine = me && !me.guest &&
+               String(me.name).toLowerCase() === String(m.author).toLowerCase();
+    return '<div class="mbRow" data-map="' + esc(m.mapName) + '" data-author="' + esc(m.author) + '">'
+      + '<div class="mbName" title="' + esc(m.mapName) + '">' + esc(m.mapName) + '</div>'
+      + '<div class="mbRate' + cls + '">' + (m.rating > 0 ? '+' : '') + m.rating + '</div>'
+      + '<div class="mbAuthor"><a href="users.html?name=' + encodeURIComponent(m.author) + '">'
+      +   esc(m.author) + '</a></div>'
+      + '<div class="mbDate">' + when(m.date) + '</div>'
+      + '<button class="mbPlay" data-play="1">' + T('play', 'Играть') + '</button>'
+      + (mine ? '<div class="mbExtra"><button class="mbDel" data-del="1">'
+                + T('removeTxt', 'Удалить') + '</button></div>' : '')
+      + '</div>';
+  }
+
+  function load() {
+    $('mbList').innerHTML = '<div class="bfHint">' + T('loading', 'Загрузка…') + '</div>';
+    var q = '?page=' + page
+          + '&mapType=' + encodeURIComponent($('mbMode').value)
+          + '&author=' + encodeURIComponent($('mbAuthor').value.trim())
+          + '&sortBy=' + $('mbSort').value;
+    fetch('/getMapsForList' + q, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var lbl = String(d.page || '1/1').split('/');
+        page = parseInt(lbl[0], 10) || 1;
+        pages = parseInt(lbl[1], 10) || d.pages || 1;
+        $('mbPage').textContent = page + '/' + pages;
+        $('mbPrev').disabled = page <= 1;
+        $('mbNext').disabled = page >= pages;
+        $('mbList').innerHTML = (d.maps && d.maps.length)
+          ? '<div class="mbList">' + d.maps.map(row).join('') + '</div>'
+          : '<div class="bfHint">' + T('noMaps', 'Карты не найдены') + '</div>';
+        // панель владельца дорисует свои кнопки, если она загружена
+        window.dispatchEvent(new CustomEvent('bf-maps-drawn', { detail: { maps: d.maps || [] } }));
+      })
+      .catch(function () {
+        $('mbList').innerHTML = '<div class="bfHint">' + T('serverDown', 'Сервер недоступен') + '</div>';
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var r = e.target.closest && e.target.closest('.mbRow');
+    if (!r) return;
+
+    if (e.target.closest('[data-play]')) {
+      location.href = 'game.html?view=' + encodeURIComponent(r.dataset.map)
+                    + '&author=' + encodeURIComponent(r.dataset.author);
+      return;
+    }
+
+    var del = e.target.closest('[data-del]');
+    if (del) {
+      // удаление в два касания — чтобы карта не пропала от случайного тапа
+      if (del.dataset.armed !== '1') {
+        del.dataset.armed = '1';
+        del.textContent = T('confirmDel', 'Точно удалить?');
+        setTimeout(function () {
+          if (del.dataset.armed === '1') {
+            del.dataset.armed = ''; del.textContent = T('removeTxt', 'Удалить');
+          }
+        }, 4000);
+        return;
+      }
+      post('/removeMap', { mapName: r.dataset.map, author: r.dataset.author })
+        .then(function (x) {
+          if (x.status === 'success') { msg(T('deleted', 'Карта удалена'), true); load(); }
+          else msg(x.message || T('errorTxt', 'Ошибка'));
+        })
+        .catch(function () { msg(T('serverDown', 'Сервер недоступен')); });
+    }
+  });
+
+  $('mbGo').onclick = function () { page = 1; load(); };
+  $('mbPrev').onclick = function () { if (page > 1) { page--; load(); } };
+  $('mbNext').onclick = function () { if (page < pages) { page++; load(); } };
+  $('mbMode').onchange = function () { page = 1; load(); };
+  $('mbSort').onchange = function () { page = 1; load(); };
+  $('mbAuthor').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { page = 1; load(); }
+  });
+
+  fetch('/whoAmI', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { me = d; load(); })
+    .catch(load);
+
+  window.addEventListener('bf-lang', load);
+})();
+</script>
 </body>
 </html>

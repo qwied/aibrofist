@@ -99,6 +99,19 @@
     imgTooBig:    ['Картинка слишком тяжёлая даже после сжатия','Image is too heavy even after compression','Картинка завелика навіть після стиснення','Bild ist auch komprimiert zu groß','Image trop lourde même compressée','La imagen pesa demasiado incluso comprimida','Imagem pesada demais mesmo comprimida','Obraz za ciężki nawet po kompresji','Görsel sıkıştırıldıktan sonra da çok büyük','图片压缩后仍然过大'],
     imgBad:       ['Не удалось прочитать картинку','Could not read the image','Не вдалося прочитати картинку','Bild konnte nicht gelesen werden','Impossible de lire l\'image','No se pudo leer la imagen','Não foi possível ler a imagem','Nie udało się odczytać obrazu','Görsel okunamadı','无法读取图片'],
 
+    themes:       ['Темы','Themes','Теми','Themes','Thèmes','Temas','Temas','Motywy','Temalar','主题'],
+    themesSub:    ['Выберите от одного до четырёх цветов — интерфейс перекрасится целиком.','Pick one to four colours — the whole interface takes them on.','Оберіть від одного до чотирьох кольорів — інтерфейс перефарбується цілком.','Wähle ein bis vier Farben — die ganze Oberfläche übernimmt sie.','Choisissez une à quatre couleurs — toute l\'interface les adopte.','Elige de uno a cuatro colores: toda la interfaz los adopta.','Escolha de uma a quatro cores — toda a interface as adota.','Wybierz od jednego do czterech kolorów — cały interfejs je przejmie.','Bir ila dört renk seç — tüm arayüz onları alır.','选择 1–4 种颜色，整个界面随之改变。'],
+    yourColors:   ['Ваши цвета','Your colours','Ваші кольори','Deine Farben','Vos couleurs','Tus colores','As suas cores','Twoje kolory','Renklerin','你的颜色'],
+    allColors:    ['Все цвета','All colours','Усі кольори','Alle Farben','Toutes les couleurs','Todos los colores','Todas as cores','Wszystkie kolory','Tüm renkler','所有颜色'],
+    readySets:    ['Готовые наборы','Ready-made sets','Готові набори','Fertige Sets','Ensembles prêts','Conjuntos listos','Conjuntos prontos','Gotowe zestawy','Hazır setler','预设组合'],
+    pickerHint:   ['Нажмите на свой цвет в квадрате выше, чтобы выбрать любой оттенок.','Tap a colour square above to pick any shade you like.','Натисніть на свій колір у квадраті вище, щоб обрати будь-який відтінок.','Tippe oben auf ein Farbfeld, um jeden Ton zu wählen.','Touchez un carré ci-dessus pour choisir n\'importe quelle teinte.','Toca un cuadro de arriba para elegir cualquier tono.','Toque num quadrado acima para escolher qualquer tom.','Dotknij kwadratu powyżej, aby wybrać dowolny odcień.','Herhangi bir tonu seçmek için yukarıdaki kareye dokun.','点击上方色块可选择任意色调。'],
+    slotsHint:    ['Выбрано цветов: ','Colours picked: ','Обрано кольорів: ','Farben gewählt: ','Couleurs choisies : ','Colores elegidos: ','Cores escolhidas: ','Wybrane kolory: ','Seçilen renkler: ','已选颜色：'],
+    pickFirst:    ['Пока ничего не выбрано — нажмите цвет ниже.','Nothing picked yet — tap a colour below.','Поки нічого не обрано — натисніть колір нижче.','Noch nichts gewählt — tippe unten auf eine Farbe.','Rien de choisi — touchez une couleur ci-dessous.','Nada elegido: toca un color abajo.','Nada escolhido — toque numa cor abaixo.','Nic nie wybrano — dotknij koloru poniżej.','Henüz seçim yok — aşağıdan renk seç.','尚未选择，请点下方颜色。'],
+    themesLocked: ['Темы пока закрыты','Themes are still locked','Теми поки закриті','Themes sind noch gesperrt','Les thèmes sont verrouillés','Los temas están bloqueados','Os temas estão bloqueados','Motywy są zablokowane','Temalar henüz kilitli','主题尚未解锁'],
+    themesWhat:   ['Выберите свои цвета — перекрасится вся игра: шапка, кнопки, карточки, редактор. Покупка разовая, менять цвета потом можно сколько угодно.','Pick your colours and the whole game changes: header, buttons, cards, editor. One-time purchase, change the colours as often as you like afterwards.','Оберіть свої кольори — перефарбується вся гра: шапка, кнопки, картки, редактор. Купівля разова, кольори потім можна міняти скільки завгодно.','Wähle deine Farben und das ganze Spiel ändert sich: Kopfzeile, Knöpfe, Karten, Editor. Einmalkauf, Farben danach beliebig oft änderbar.','Choisissez vos couleurs et tout le jeu change : en-tête, boutons, cartes, éditeur. Achat unique, couleurs modifiables ensuite.','Elige tus colores y todo el juego cambia: cabecera, botones, tarjetas, editor. Compra única, luego cambia los colores cuando quieras.','Escolha as suas cores e todo o jogo muda: cabeçalho, botões, cartões, editor. Compra única, depois mude as cores à vontade.','Wybierz kolory, a zmieni się cała gra: nagłówek, przyciski, karty, edytor. Zakup jednorazowy, kolory zmieniasz potem dowolnie.','Renklerini seç, tüm oyun değişsin: başlık, düğmeler, kartlar, düzenleyici. Tek seferlik alım, sonra istediğin kadar değiştir.','选好颜色，整个游戏随之改变：顶栏、按钮、卡片、编辑器。一次购买，之后随意更换。'],
+    unlockThemes: ['Открыть темы','Unlock themes','Відкрити теми','Themes freischalten','Débloquer les thèmes','Desbloquear temas','Desbloquear temas','Odblokuj motywy','Temaları aç','解锁主题'],
+    defaultTheme: ['Вернуть обычное оформление','Back to the default look','Повернути звичайне оформлення','Zurück zum Standard-Look','Revenir à l\'apparence par défaut','Volver al aspecto por defecto','Voltar ao aspeto padrão','Wróć do domyślnego wyglądu','Varsayılan görünüme dön','恢复默认外观'],
+
     /* ---------- язык ---------- */
     language:     ['Язык','Language','Мова','Sprache','Langue','Idioma','Idioma','Język','Dil','语言'],
     langAuto:     ['Автоматически (по стране)','Automatic (by country)','Автоматично (за країною)','Automatisch (nach Land)','Automatique (par pays)','Automático (por país)','Automático (por país)','Automatycznie (wg kraju)','Otomatik (ülkeye göre)','自动（按国家）'],
@@ -115,6 +128,20 @@
     sortDate:     ['Сортировать по дате','Sort by date','Сортувати за датою','Nach Datum','Trier par date','Ordenar por fecha','Ordenar por data','Sortuj wg daty','Tarihe göre','按日期排序'],
     sortRating:   ['Сортировать по рейтингу','Sort by rating','Сортувати за рейтингом','Nach Bewertung','Trier par note','Ordenar por valoración','Ordenar por avaliação','Sortuj wg oceny','Puana göre','按评分排序'],
     modeAll:      ['Режим: все','Mode: All','Режим: усі','Modus: alle','Mode : tous','Modo: todos','Modo: todos','Tryb: wszystkie','Mod: hepsi','模式：全部'],
+
+    mapsSub:      ['Карты игроков. Открывайте, играйте и оценивайте.','Player maps. Open them, play and rate.','Карти гравців. Відкривайте, грайте та оцінюйте.','Spieler-Karten. Öffnen, spielen und bewerten.','Cartes des joueurs. Ouvrez, jouez et notez.','Mapas de jugadores. Ábrelos, juega y valora.','Mapas de jogadores. Abra, jogue e avalie.','Mapy graczy. Otwieraj, graj i oceniaj.','Oyuncu haritaları. Aç, oyna ve oyla.','玩家地图。打开、游玩并评分。'],
+    removeFriend: ['Удалить из друзей','Remove friend','Видалити з друзів','Freund entfernen','Retirer des amis','Quitar de amigos','Remover dos amigos','Usuń ze znajomych','Arkadaşlıktan çıkar','删除好友'],
+    cancelReq:    ['Отменить заявку','Cancel request','Скасувати заявку','Anfrage zurückziehen','Annuler la demande','Cancelar solicitud','Cancelar pedido','Anuluj zaproszenie','İsteği iptal et','取消请求'],
+    noAbout:      ['Ничего не написано','Nothing written yet','Нічого не написано','Noch nichts geschrieben','Rien d\'écrit','Nada escrito','Nada escrito','Nic nie napisano','Henüz bir şey yazılmadı','还没有内容'],
+    emptyHere:    ['Пусто','Empty','Порожньо','Leer','Vide','Vacío','Vazio','Pusto','Boş','空'],
+    nobodyFound:  ['Никого не нашлось','Nobody found','Нікого не знайдено','Niemand gefunden','Personne trouvée','No se encontró a nadie','Ninguém encontrado','Nikogo nie znaleziono','Kimse bulunamadı','未找到玩家'],
+    noUser:       ['Игрок не указан','No player specified','Гравця не вказано','Kein Spieler angegeben','Aucun joueur indiqué','No se indicó jugador','Nenhum jogador indicado','Nie podano gracza','Oyuncu belirtilmedi','未指定玩家'],
+    nowOnline:    ['сейчас в сети','online now','зараз у мережі','jetzt online','en ligne','en línea','online','teraz online','şu an çevrimiçi','当前在线'],
+    minAgo:       ['мин назад','min ago','хв тому','Min. her','min','min','min','min temu','dk önce','分钟前'],
+    hoursAgo:     ['ч назад','h ago','год тому','Std. her','h','h','h','godz. temu','sa önce','小时前'],
+    daysAgo:      ['дн назад','d ago','дн тому','Tage her','j','d','d','dni temu','gün önce','天前'],
+    deleted:      ['Карта удалена','Map deleted','Карту видалено','Karte gelöscht','Carte supprimée','Mapa eliminado','Mapa apagado','Mapa usunięta','Harita silindi','地图已删除'],
+    confirmDel:   ['Точно удалить?','Delete for sure?','Точно видалити?','Wirklich löschen?','Supprimer vraiment ?','¿Eliminar de verdad?','Apagar mesmo?','Na pewno usunąć?','Gerçekten silinsin mi?','确定删除？'],
 
     /* ---------- инструменты владельца ---------- */
     ownerTools:   ['Инструменты владельца','Owner tools','Інструменти власника','Besitzer-Werkzeuge','Outils du propriétaire','Herramientas del dueño','Ferramentas do dono','Narzędzia właściciela','Sahip araçları','所有者工具'],
@@ -185,6 +212,7 @@
     'Head': 'slotHead', 'Face': 'slotFace', 'Body': 'slotBody', 'Back': 'slotBack',
     'Shop': 'shop', 'My items': 'myTab', 'Preview': 'preview',
     'Publish to Skins Browser': 'publishSkin',
+    'Themes': 'themes', 'Темы': 'themes',
     'Author Name': 'colAuthor', 'Skin Name': 'colName',
     'Search users': 'searchUsers', 'Add friend': 'addFriend', 'Report': 'report',
     'Edit': 'editTxt', 'Remove': 'removeTxt', 'Friends': 'friendsTxt',

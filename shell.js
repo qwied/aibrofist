@@ -24,6 +24,7 @@
     { key: 'race',        href: 'game.html?mode=race', txt: 'Race' },
     { sep: true },
     { key: 'skinsBrowser', href: 'skinsBrowser.html',  txt: 'Skins Browser' },
+    { key: 'themes',       href: 'themes.html',        txt: 'Темы' },
     { key: 'logs',         href: 'logs.html',          txt: 'Logs' },
     { txt: 'Telegram', href: 'https://t.me/aibrofist', ext: true }
   ];
