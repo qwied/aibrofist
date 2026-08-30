@@ -136,10 +136,18 @@
       ? 'linear-gradient(90deg,' + p.raw.join(',') + ')'
       : A;
 
-    // фон страницы — очень светлый оттенок последнего цвета,
-    // чтобы белое полотно тоже участвовало в теме
-    var pageBg = mix('#ffffff', D, 0.05);
-    var cardBg = mix('#ffffff', C, 0.03);
+    /* Фон страницы. Раньше подмешивалось 5% цвета — на глаз это почти
+       белый лист. Теперь заметный оттенок, а при нескольких цветах —
+       мягкий переход между ними по диагонали. Больше 22% не берём:
+       дальше тёмный текст начинает терять контраст. */
+    var tint = function (c, k) { return mix('#ffffff', c, k); };
+    var pageBg = tint(A, 0.17);
+    var pageImg = c > 1
+      ? 'linear-gradient(160deg,' + tint(A, 0.20) + ' 0%,' +
+        (c > 2 ? tint(B, 0.16) + ' 45%,' + tint(C, 0.20) : tint(B, 0.20)) + ' 100%)'
+      : 'linear-gradient(160deg,' + tint(A, 0.22) + ' 0%,' + tint(A, 0.09) + ' 100%)';
+    var cardBg = tint(C, 0.05);
+    var panelBg = tint(C, 0.03);
 
     return [
       ':root{',
@@ -152,8 +160,13 @@
       '}',
 
       /* --- вся страница --- */
-      'body{background:', pageBg, ' !important;color:', p.ink, '}',
+      'html{background:', pageBg, '}',
+      'body{background:', pageBg, ' !important;background-image:', pageImg, ' !important;',
+      'background-attachment:fixed !important;background-repeat:no-repeat !important;',
+      'min-height:100vh;color:', p.ink, '}',
       '.bfWrap{background:transparent}',
+      /* белые полотна внутри страниц тоже подкрашиваем */
+      '.container,.bfPanel{background:transparent}',
 
       /* --- шапка: первый цвет --- */
       '.bfHead{background:', mix('#f5f5f5', A, 0.12), ';border-bottom:3px solid transparent;',
@@ -174,8 +187,10 @@
       'a{color:', B, '}',
 
       /* --- карточки и панели: третий цвет --- */
-      '.bfPanel,.bfCard,.mbRow,.sbCard,.upRow,.upSkin,.thSet{',
-      'background:', cardBg, ';border-color:', mix('#e5e7eb', C, 0.38), '}',
+      '.bfCard,.mbRow,.sbCard,.upRow,.upSkin,.thSet,.mdArt{',
+      'background:', cardBg, ';border-color:', mix('#e5e7eb', C, 0.42), '}',
+      '.bfPanel{background:', panelBg, ';border-color:', mix('#e5e7eb', C, 0.42), '}',
+      '.bfDrop,.ow-box{background:', tint(C, 0.04), '}',
       '.mbRow:hover,.bfCard:hover,.sbCard:hover{border-color:', C, '}',
       '.seStage,.avStage,.sbArt,.avArt,.upSkin .art,.mdArt{background:', mix('#ffffff', C, 0.10), '}',
       '.bfHint{color:', p.muted, '}',

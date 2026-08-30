@@ -56,6 +56,25 @@ let spread = 0;
 });
 console.log(spread ? 'цвета распределены неверно' : 'каждый цвет участвует в оформлении ✓');
 
+// фон страницы должен быть заметно окрашен, но текст на нём — читаем
+console.log('\nфон страницы:');
+let bgBad = 0;
+[['#16a34a','#065f46'], ['#2196F3'], ['#000000'], ['#ffffff'],
+ ['#ef4444','#f59e0b','#22c55e','#3b82f6']].forEach(set => {
+  const p = T.palette(set);
+  const css = T.css(p);
+  const bg = /html\{background:(#[0-9a-f]{6})/.exec(css)[1];
+  const k = H.contrast(p.ink, bg);
+  // насколько фон отличается от чистого белого
+  const away = H.contrast(bg, '#ffffff');
+  const ok = k >= 7 && away >= 1.06;
+  if (!ok) bgBad++;
+  console.log('  ', set.join(',').padEnd(34), bg,
+              '| текст', k.toFixed(2), '| отличие от белого', away.toFixed(3),
+              ok ? '✓' : '✗');
+});
+console.log(bgBad ? 'фон подобран плохо' : 'фон окрашен и текст читается ✓');
+
 // пустой набор возвращает «без темы»
 console.log('\nбез цветов:', T.palette([]) === null ? 'обычное оформление ✓' : '✗');
 
