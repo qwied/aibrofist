@@ -59,6 +59,7 @@
     + '.ow-tag.add{border-color:#2e9b2e;color:#2e9b2e}.ow-tag.add:hover{background:#2e9b2e;color:#fff}'
     + '.ow-tag.on{border-color:#2e9b2e;background:#2e9b2e;color:#fff}'
     + '.ow-tag.vote{border-color:#d97706;color:#d97706}.ow-tag.vote:hover{background:#d97706;color:#fff}'
+    + '.ow-tag.del{border-color:#dc2626;color:#dc2626}.ow-tag.del:hover{background:#dc2626;color:#fff}'
     + '.ow-modes{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;width:100%}'
     + '.ow-mode{border:1px solid #94a3b8;color:#475569;border-radius:5px;padding:3px 7px;'
     + 'font-size:11.5px;cursor:pointer;background:#fff;white-space:nowrap}'
@@ -108,12 +109,14 @@
       + '<div class="ow-b" id="owCGo">' + T('apply', 'Применить') + '</div>'
       + '<div class="ow-m" id="owCMsg"></div>'
 
-      + '<div class="ow-sub">👍 ' + T('boostVotes', 'Накрутка оценок') + '</div>'
+      + '<div class="ow-sub">👍 ' + T('boostVotes', 'Оценка карты') + '</div>'
+      + '<div class="ow-m" style="text-align:left;color:#6b7280;margin-bottom:4px">'
+      +   'Числа задают итог на карточке, а не прибавку.</div>'
       + '<input class="ow-i" id="owVAuthor" placeholder="' + T('colAuthor', 'Автор') + '">'
       + '<input class="ow-i" id="owVMap" placeholder="' + T('colName', 'Название карты') + '">'
       + '<div class="ow-row2">'
-      +   '<input class="ow-i" id="owVLikes" type="number" min="0" placeholder="' + T('likes', 'Лайки') + '">'
-      +   '<input class="ow-i" id="owVDis" type="number" min="0" placeholder="' + T('dislikes', 'Дизлайки') + '">'
+      +   '<input class="ow-i" id="owVLikes" type="number" min="0" placeholder="👍 ' + T('likes', 'Лайки') + '">'
+      +   '<input class="ow-i" id="owVDis" type="number" min="0" placeholder="👎 ' + T('dislikes', 'Дизлайки') + '">'
       + '</div>'
       + '<div class="ow-b" id="owVGo">' + T('apply', 'Применить') + '</div>'
       + '<div class="ow-m" id="owVMsg"></div>'
@@ -223,9 +226,36 @@
       modes.appendChild(b);
     });
 
+    var del = document.createElement('span');
+    del.className = 'ow-tag del';
+    del.textContent = '🗑 ' + T('removeTxt', 'Удалить');
+    del.onclick = function (e) {
+      e.stopPropagation();
+      if (del.dataset.armed !== '1') {
+        del.dataset.armed = '1';
+        del.textContent = T('confirmDel', 'Точно удалить?');
+        setTimeout(function () {
+          if (del.dataset.armed === '1') {
+            del.dataset.armed = '';
+            del.textContent = '🗑 ' + T('removeTxt', 'Удалить');
+          }
+        }, 4000);
+        return;
+      }
+      del.textContent = '…';
+      post('/owner/removeMap', { author: info.author, mapName: info.mapName })
+        .then(function (r) {
+          if (r.status !== 'success') { del.textContent = '⚠ ' + (r.message || ''); return; }
+          row.style.opacity = '.35';
+          row.style.pointerEvents = 'none';
+          del.textContent = '✔ ' + T('deleted', 'Удалена');
+        })
+        .catch(function () { del.textContent = '⚠'; });
+    };
+
     var vote = document.createElement('span');
     vote.className = 'ow-tag vote';
-    vote.textContent = '👍 ' + T('boostVotes', 'Оценки');
+    vote.textContent = '👍 ' + T('boostVotes', 'Оценка');
     vote.onclick = function (e) {
       e.stopPropagation();
       open();
@@ -235,6 +265,7 @@
     };
 
     host.appendChild(vote);
+    host.appendChild(del);
     host.appendChild(modes);
   }
 
@@ -388,6 +419,9 @@
     + '.ow-bar button{font-size:15px;padding:11px 16px;border-radius:10px;border:1px solid #2196F3;'
     + 'background:#fff;color:#2196F3;cursor:pointer;white-space:nowrap}'
     + '.ow-bar button.go{background:#2196F3;color:#fff}'
+    + '.ow-bar button.picked{background:#2196F3;color:#fff;border-color:#2196F3}'
+    + '.ow-bar .ow-note{font-size:12.5px;color:#6b7280;margin-top:8px}'
+    + '.ow-bar .ow-note.ok{color:#2e9b2e}'
     + '.ow-bar button:active{transform:translateY(1px)}'
     + '.ow-sk{border-top:1px dashed #e5e7eb;margin-top:9px;padding-top:9px;display:flex;'
     + 'flex-direction:column;gap:6px}'
@@ -596,8 +630,8 @@
       + '</div>'
       + '<button class="go" id="owEdPublish" style="width:100%">'
       +   T('publishSkin', 'Опубликовать') + '</button>'
-      + '<div id="owEdHint" style="font-size:12.5px;color:#6b7280;margin-top:8px">'
-      +   'Картинка сразу встанет на превью слева. После публикации её увидят все в Skins Browser.'
+      + '<div id="owEdHint" class="ow-note">'
+      +   'Выберите файл или вставьте ссылку — картинка сразу встанет на превью.'
       + '</div>'
       + '<input type="file" id="owEdFileInput" accept="image/*" style="display:none">';
 
@@ -607,22 +641,41 @@
     var $ = function (id) { return document.getElementById(id); };
     var E = window.BFSkinEditor;
 
-    $('owEdFile').onclick = function () { $('owEdFileInput').click(); };
+    // подсветка выбранного источника: раньше по кнопкам было не понять,
+    // нажались они или нет
+    function pick(which) {
+      $('owEdFile').classList.toggle('picked', which === 'file');
+      $('owEdUrlGo').classList.toggle('picked', which === 'url');
+    }
+    function note(text, ok) {
+      var n = $('owEdHint');
+      n.textContent = text;
+      n.className = 'ow-note' + (ok ? ' ok' : '');
+    }
+
+    $('owEdFile').onclick = function () {
+      pick('file');
+      $('owEdFileInput').click();
+    };
     $('owEdFileInput').onchange = function (e) {
       var f = e.target.files[0];
       e.target.value = '';
-      if (!f) return;
+      if (!f) { pick(''); return; }
+      note('Читаю файл…');
       shrink(f, function (src) {
         E.setImage(src);                       // видно на превью немедленно
-        E.msg('Картинка загружена — теперь дайте название и опубликуйте', true);
+        note('Файл загружен: ' + f.name + '. Дайте название и нажмите «Выложить».', true);
+        E.msg('Картинка на превью', true);
       });
     };
 
     $('owEdUrlGo').onclick = function () {
       var u = $('owEdUrl').value.trim();
-      if (!u) { E.msg('Вставьте ссылку на картинку'); return; }
+      if (!u) { E.msg('Вставьте ссылку на картинку'); note('Поле ссылки пустое'); return; }
+      pick('url');
       E.setImage(u);
-      E.msg('Картинка подставлена. Скачаю её при публикации', true);
+      note('Ссылка принята. Картинку скачаю при публикации.', true);
+      E.msg('Картинка на превью', true);
     };
 
     $('owEdPublish').onclick = function () {
@@ -641,6 +694,8 @@
           if (r.status !== 'success') { E.msg(r.message || 'Ошибка'); return; }
           E.msg(r.message, true);
           if (r.img) E.setImage(r.img);        // дальше показываем сохранённый файл
+          note('Готово — скин в Skins Browser.', true);
+          pick('');
           $('owEdName').value = ''; $('owEdUrl').value = '';
           E.refreshLimit();
         })

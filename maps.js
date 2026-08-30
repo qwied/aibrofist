@@ -59,8 +59,10 @@ function coinsInMap(raw) {
 // счётчики оценок: голоса игроков + ручная правка владельца
 function tally(m) {
   const votes = Object.values(m.votes || {});
-  const likes = votes.filter(v => v > 0).length + (m.boostLikes || 0);
-  const dislikes = votes.filter(v => v < 0).length + (m.boostDislikes || 0);
+  // boost может быть отрицательным: так владелец способен выставить
+  // итог меньше, чем реальных голосов. Ниже нуля не опускаемся.
+  const likes = Math.max(0, votes.filter(v => v > 0).length + (m.boostLikes || 0));
+  const dislikes = Math.max(0, votes.filter(v => v < 0).length + (m.boostDislikes || 0));
   return { likes, dislikes, rating: likes - dislikes };
 }
 function retally(m) {
@@ -290,16 +292,40 @@ function register(app, getUser, acc) {
     save();
     return true;
   }
+  // свою карту удаляет автор (вкладка «Карты» в профиле),
+  // чужую — только владелец сайта
+  function canDelete(u, author) {
+    if (!u) return false;
+    if (low(u.name) === low(author)) return true;
+    return isOwnerName(u.name);
+  }
+
   app.post('/removeMap', (req, res) => {
     const u = getUser(req);
     if (!u) return res.json({ status: 'error', message: 'Сначала войдите в аккаунт' });
-    res.json({ status: remove(u.name, req.body.mapName) ? 'success' : 'error' });
+    const author = String(req.body.author || u.name);
+    if (!canDelete(u, author))
+      return res.json({ status: 'error', message: 'Можно удалять только свои карты' });
+    res.json({ status: remove(author, req.body.mapName) ? 'success' : 'error' });
   });
+
   app.post('/map/disable', (req, res) => {
     const u = getUser(req);
-    if (!u || low(u.name) !== low(req.body.author_name))
+    if (!canDelete(u, req.body.author_name))
       return res.json({ status: 'error', message: 'Можно удалять только свои карты' });
     res.json({ status: remove(req.body.author_name, req.body.map_name) ? 'success' : 'error' });
+  });
+
+  // отдельный вход для владельца: удалить любую карту из Maps Browser
+  app.post('/owner/removeMap', (req, res) => {
+    const u = getUser(req);
+    if (!u || !isOwnerName(u.name))
+      return res.json({ status: 'error', message: 'Недоступно' });
+    const author = String(req.body.author || '').trim();
+    const mapName = String(req.body.mapName || '').trim();
+    if (!remove(author, mapName))
+      return res.json({ status: 'error', message: 'Карта не найдена' });
+    res.json({ status: 'success', message: '«' + mapName + '» удалена' });
   });
 
   // ---------- карты игрока (вкладка Maps в профиле) ----------
@@ -317,11 +343,23 @@ function register(app, getUser, acc) {
 function find(author, mapName) {
   return maps.find(x => low(x.author) === low(author) && low(x.mapName) === low(mapName));
 }
+/* Владелец задаёт ИТОГОВОЕ число лайков и дизлайков, а не прибавку.
+   Считаем, сколько живых голосов уже есть, и подгоняем поправку так,
+   чтобы на карточке вышло ровно запрошенное. Новые голоса игроков
+   после этого продолжают учитываться поверх. */
 function setBoost(author, mapName, likes, dislikes) {
   const m = find(author, mapName);
   if (!m) return null;
-  if (likes !== null && likes !== undefined) m.boostLikes = Math.max(0, parseInt(likes) || 0);
-  if (dislikes !== null && dislikes !== undefined) m.boostDislikes = Math.max(0, parseInt(dislikes) || 0);
+
+  const votes = Object.values(m.votes || {});
+  const realUp = votes.filter(v => v > 0).length;
+  const realDown = votes.filter(v => v < 0).length;
+
+  if (likes !== null && likes !== undefined && likes !== '')
+    m.boostLikes = Math.max(0, parseInt(likes) || 0) - realUp;
+  if (dislikes !== null && dislikes !== undefined && dislikes !== '')
+    m.boostDislikes = Math.max(0, parseInt(dislikes) || 0) - realDown;
+
   const t = retally(m);
   save();
   return t;

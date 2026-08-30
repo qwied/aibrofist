@@ -37,10 +37,10 @@
     if (!uri) return;
     if (el.tagName === 'IMG') {
       el.src = uri;
-      // без этого картинка растягивала круглую рамку в профиле
+      // Размеры НЕ задаём: строчный стиль перебивал вообще всё, и в
+      // профиле, где у обёртки нет своей ширины, картинка растягивалась
+      // на весь экран. Размер задаёт CSS для каждого места отдельно.
       el.style.objectFit = 'contain';
-      el.style.width = '100%';
-      el.style.height = '100%';
       el.dataset.bfSkin = '1';
     } else {
       el.style.backgroundImage = 'url("' + uri + '")';
