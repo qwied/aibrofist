@@ -1,18 +1,17 @@
 /* ======= Игровой слой AIBrofist =======
    Работает поверх движка редактора (window.GAME).
-   Режимы: twoPlayer, hideAndSeek, sandbox, race. */
+   Режимы: hideAndSeek, race. */
 (function () {
   'use strict';
 
   var q      = new URLSearchParams(location.search);
-  var MODE   = q.get('mode') || 'sandbox';
+  var MODE   = q.get('mode') || 'hideAndSeek';
   var ROOM   = q.get('room') || null;
   var VIEW   = q.get('view');                 // просмотр одной карты из Maps Browser
   var VAUTH  = q.get('author');
 
   var ROUND_MS  = 120000;   // раунд — 2 минуты
   var LOBBY_MS  = 30000;    // ожидание в Hide and Seek — 30 секунд
-  var SANDBOX_MS = 60000;   // в Sandbox карта меняется каждую минуту
 
   var COLOR_NORMAL = '#111827';
   var COLOR_SEEKER = '#1e6fe0';   // искатель — синий
@@ -212,7 +211,7 @@
   }
 
   function nextMap(cb) {
-    var u = '/getRandomMap?mapType=' + encodeURIComponent(MODE === 'sandbox' ? 'sandbox' : MODE)
+    var u = '/getRandomMap?mapType=' + encodeURIComponent(MODE)
           + (currentMap ? '&not=' + encodeURIComponent(currentMap.mapName) : '');
     fetch(u).then(function (r) { return r.json(); }).then(function (m) {
       showMap(m);
@@ -260,13 +259,10 @@
         banner('Раунд окончен', 'Новая карта. До старта 30 секунд.', true);
         setTimeout(function () { banner('', '', false); }, 3000);
       }
-    } else if (MODE === 'twoPlayer' || MODE === 'race') {
+    } else {
       phaseEnds = Date.now() + ROUND_MS;
       nextMap();
       log('Время вышло — следующая карта');
-    } else if (MODE === 'sandbox') {
-      phaseEnds = Date.now() + SANDBOX_MS;
-      nextMap();
     }
   }
 
@@ -294,10 +290,8 @@
       phase = 'lobby'; phaseEnds = Date.now() + LOBBY_MS;
       banner('Ожидание игроков', 'Роли распределятся через 30 секунд.', true);
       setTimeout(function () { banner('', '', false); }, 3500);
-    } else if (MODE === 'twoPlayer' || MODE === 'race') {
-      phase = 'round'; phaseEnds = Date.now() + ROUND_MS;
     } else {
-      phase = 'round'; phaseEnds = Date.now() + SANDBOX_MS;
+      phase = 'round'; phaseEnds = Date.now() + ROUND_MS;
     }
     nextMap();
   }
@@ -439,7 +433,7 @@
     log(ids.length ? 'Все на финише — новая карта!' : 'Финиш! Новая карта');
     setTimeout(function () {
       nextMap(function () {
-        phaseEnds = Date.now() + (MODE === 'sandbox' ? SANDBOX_MS : ROUND_MS);
+        phaseEnds = Date.now() + ROUND_MS;
         switching = false;
       });
     }, 1400);
@@ -518,7 +512,9 @@
     inp.addEventListener(t, function (e) { e.stopPropagation(); }, true);
   });
   inp.addEventListener('keydown', function (e) {
-    e.stopPropagation();
+    // стрелки пропускаем дальше — ими игрок ходит прямо во время набора
+    var move = e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp';
+    if (!move) e.stopPropagation();
     if (e.key === 'Enter') {
       e.preventDefault();
       var v = inp.value.trim();

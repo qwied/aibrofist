@@ -18,10 +18,8 @@
 
   // то, что не помещается в строку, уходит в «Меню»
   var MENU = [
-    { key: 'twoPlayer',   href: 'two-player.html',     txt: 'Two Player Adventure' },
     { key: 'hideAndSeek', href: 'hide-and-seek.html',  txt: 'Hide and Seek' },
-    { key: 'sandbox',     href: 'sandbox.html',        txt: 'Sandbox' },
-    { key: 'race',        href: 'game.html?mode=race', txt: 'Race' },
+    { key: 'race',        href: 'race.html',           txt: 'Race' },
     { sep: true },
     { key: 'skinsBrowser', href: 'skinsBrowser.html',  txt: 'Skins Browser' },
     { key: 'themes',       href: 'themes.html',        txt: 'Темы' },

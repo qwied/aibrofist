@@ -5,10 +5,10 @@
   'use strict';
 
   var ROUTES = {
-    'two player adventure': 'two-player.html',
     'hide and seek':        'hide-and-seek.html',
-    'sandbox':              'sandbox.html',
-    'race':                 { play: 'race' },
+    'race':                 'race.html',
+    'гонка':                'race.html',
+    'прятки':               'hide-and-seek.html',
     'map editor':           'editor.html',
     'editor':               'editor.html',
     'skin editor':          'skinEditor.html',

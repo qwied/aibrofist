@@ -2,9 +2,9 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>AIBrofist — Прятки</title>
+<title>AIBrofist — Гонка</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Прятки в AIBrofist: один ищет, остальные прячутся на картах игроков.">
+<meta name="description" content="Гонка в AIBrofist: добеги до финиша быстрее остальных.">
 <link rel="stylesheet" href="ui.css">
 <script src="theme.js"></script>
 <script src="device.js"></script>
@@ -45,16 +45,16 @@
 
 <div class="bfWrap">
   <div class="mdWrap">
-    <div class="mdArt"><img src="mode-hide.png" alt="Прятки"></div>
+    <div class="mdArt"><img src="mode-race.png" alt="Гонка"></div>
     <div>
-      <div class="mdName">Прятки</div>
-      <div class="mdText">Один игрок становится искателем, остальные разбегаются по карте. У прячущихся есть полминуты, чтобы найти укрытие, дальше начинается охота.</div>
+      <div class="mdName">Гонка</div>
+      <div class="mdText">Все стартуют одновременно и бегут к финишу. Побеждает тот, кто первым коснётся флага — но дорога к нему редко бывает прямой.</div>
       <ul class="mdList">
-        <li>Искатель выбирается случайно в начале каждого раунда.</li>
-        <li>Прячущиеся видят таймер и знают, сколько осталось до конца.</li>
-        <li>Пойманный меняет цвет и помогает искать остальных.</li>
-        <li>Карту выбирает сервер из тех, что добавил разработчик.</li>
-        <li>Хорошее укрытие — не самое дальнее, а самое неочевидное.</li>
+        <li>Шипы и яд возвращают на последний чекпоинт, а не в начало.</li>
+        <li>Батуты забрасывают выше, чем достаёт обычный прыжок.</li>
+        <li>Платформы и ротаторы движутся — иногда выгоднее подождать.</li>
+        <li>Монеты разбросаны в стороне от быстрого пути: решайте, стоят ли они времени.</li>
+        <li>Время круга видно на экране, свой рекорд можно побить на той же карте.</li>
       </ul>
       <button class="mdPlay" id="mdPlay">ИГРАТЬ</button>
       <a class="mdBack" href="/">← На главную</a>
@@ -71,7 +71,7 @@
 <script src="account.js" defer></script>
 <script>
 document.getElementById('mdPlay').onclick = function () {
-  location.href = 'game.html?mode=hideAndSeek';
+  location.href = 'game.html?mode=race';
 };
 </script>
 </body>

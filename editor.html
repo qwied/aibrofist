@@ -550,7 +550,7 @@ function shade(hex, amt){
 /* ══════════════════════════════════════════════════
    TOOL TABLE
    ══════════════════════════════════════════════════ */
-var ALL = "sandbox hideAndSeek twoPlayer race";
+var ALL = "hideAndSeek race";
 /* У каждого режима свои объекты. Общие есть везде, остальные привязаны
    к одному режиму и в другом просто не существуют — ни в палитре,
    ни при загрузке карты, ни при публикации (это проверяет сервер). */
@@ -572,9 +572,9 @@ var TOOLS = [
   // только прятки
   {t:"cover",      n:"Укрытие",     m:"hideAndSeek"},
   // только игра на двоих
-  {t:"door",       n:"Дверь",       m:"twoPlayer"},
-  {t:"button",     n:"Кнопка",      m:"twoPlayer"},
-  {t:"lever",      n:"Рычаг",       m:"twoPlayer"},
+  {t:"door",       n:"Дверь (выход)", m:ALL},
+  {t:"button",     n:"Кнопка",      m:ALL},
+  {t:"lever",      n:"Рычаг",       m:ALL},
   // только гонка
   {t:"checkpoint", n:"Чекпоинт",    m:"race"},
   {t:"finishline", n:"Финиш",       m:"race"}
@@ -1217,7 +1217,7 @@ sceneEl.appendChild(Object.assign(document.createElement("div"),{className:"sep"
 sceneEl.appendChild(sBtn("bPlay",SVG.play,"Играть","play"));
 document.getElementById("bGrid").classList.add("on");
 
-["hideAndSeek","twoPlayer","race"].forEach(function(m,i){
+["hideAndSeek","race"].forEach(function(m,i){
   var d = document.createElement("div");
   d.className = "modeBtn" + (i===0?" on":""); d.textContent = m; d.dataset.mode = m;
   document.getElementById("modes").appendChild(d);
@@ -1472,9 +1472,30 @@ cv.addEventListener("touchend", function(e){
   e.preventDefault();
 }, {passive:false});
 
+/* Пока пишешь в чат, ходить всё равно можно: стрелки остаются за игроком,
+   а буквы уходят в текст. Раньше любое поле ввода блокировало управление
+   целиком, и во время набора игрок стоял столбом. */
+function typingInChat(){
+  var el = document.activeElement;
+  return !!(el && el.id === "gMsg");
+}
+function inSomeField(){
+  var el = document.activeElement;
+  if(!el) return false;
+  if(el.id === "gMsg") return false;                 // чат — особый случай
+  return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable;
+}
+function movementKey(code){
+  return code === "ArrowLeft" || code === "ArrowRight" || code === "ArrowUp";
+}
+
 document.addEventListener("keydown", function(e){
-  if(document.activeElement && document.activeElement.tagName === "INPUT") return;
+  if(inSomeField()) return;
   if(playing){
+    // в чате слушаем только стрелки, иначе буквы не набрать
+    if(typingInChat() && !movementKey(e.code)) return;
+    if(typingInChat()) e.preventDefault();           // курсор в поле не двигаем
+
     if(e.code === "ArrowLeft" || e.code === "KeyA") keys.l = true;
     if(e.code === "ArrowRight"|| e.code === "KeyD") keys.r = true;
     if(e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space"){ keys.u = true; buf = BUFFER; e.preventDefault(); }
@@ -1495,6 +1516,7 @@ document.addEventListener("keydown", function(e){
   if(e.key === "0") resetView();
 });
 document.addEventListener("keyup", function(e){
+  if(inSomeField()) return;
   if(e.code === "Space") spaceDown = false;
   if(playing){
     if(e.code === "ArrowLeft" || e.code === "KeyA") keys.l = false;
@@ -1794,7 +1816,7 @@ document.getElementById("file").addEventListener("change", function(e){
       commit();
       objects = d.objects || [];
       uid = objects.reduce(function(m2,o){ return Math.max(m2,(o.id||0)+1); },1);
-      mode = d.mode || "sandbox";
+      mode = d.mode || "hideAndSeek";
       if(d.gravity !== undefined){
         gravityScale = d.gravity;
         document.getElementById("grav").value = gravityScale;
@@ -1858,6 +1880,8 @@ window.GAME = {
     if(playing) stop();
     objects = (d.objects || []).map(function(o){ return Object.assign({}, o); });
     if(d.mode) mode = d.mode;
+    // режимы sandbox и twoPlayer убраны — старые карты открываем как прятки
+    if(mode === "sandbox" || mode === "twoPlayer") mode = "hideAndSeek";
     // объекты чужого режима в карту не пускаем
     objects = objects.filter(function(o){ return allowedIn(o.type, mode); });
     // в старых картах галочки не было — восстанавливаем прежнее поведение
@@ -1966,7 +1990,7 @@ socket.on('connect', () => {
     }
 
     var body = 'mapName=' + encodeURIComponent(name)
-             + '&mapType=' + encodeURIComponent(window.__mode || 'sandbox')
+             + '&mapType=' + encodeURIComponent(window.__mode || 'hideAndSeek')
              + '&mapData=' + encodeURIComponent(data)
              + '&mapOverwrite=' + (overwrite ? 'true' : 'false');
 

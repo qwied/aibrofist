@@ -40,6 +40,22 @@ edge.forEach(s => {
               c.toFixed(2), c >= MIN ? '✓' : '✗');
 });
 
+// каждый выбранный цвет должен реально попадать в стиль
+console.log('\nраспределение цветов по интерфейсу:');
+let spread = 0;
+[['#ff0000'], ['#ff0000','#00ff00'], ['#ff0000','#00ff00','#0000ff'],
+ ['#ff0000','#00ff00','#0000ff','#ffaa00']].forEach(set => {
+  const p = T.palette(set);
+  const css = T.css(p);
+  const cols = [p.brand, p.brand2, p.brand3, p.brand4].slice(0, set.length);
+  const used = cols.filter(c => css.includes(c)).length;
+  const bg = /body\{background:/.test(css);
+  if (used !== set.length || !bg) spread++;
+  console.log('  ', set.length, 'цвет(а):', used + '/' + set.length,
+              '| фон страницы:', bg ? '✓' : '✗');
+});
+console.log(spread ? 'цвета распределены неверно' : 'каждый цвет участвует в оформлении ✓');
+
 // пустой набор возвращает «без темы»
 console.log('\nбез цветов:', T.palette([]) === null ? 'обычное оформление ✓' : '✗');
 

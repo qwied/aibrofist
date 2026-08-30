@@ -118,75 +118,94 @@
     };
   }
 
-  /* ---------- применение ---------- */
+  /* ---------- применение ----------
+     Каждый выбранный цвет отвечает за свою часть интерфейса, а не только
+     за кнопки. Один цвет — вся страница в его тонах. Два — шапка и
+     активные элементы берут первый, кнопки и ссылки второй. Три — плюс
+     карточки и чипы. Четыре — плюс выделения и вкладки. */
   function css(p) {
-    var grad = p.raw.length > 1
-      ? 'linear-gradient(135deg,' + p.brand + ' 0%,' + p.brand2 + ' 100%)'
-      : p.brand;
+    var c = p.raw.length;
+    var A = p.brand, B = c > 1 ? p.brand2 : p.brand,
+        C = c > 2 ? p.brand3 : B, D = c > 3 ? p.brand4 : A;
+    var onA = on(A), onB = on(B), onC = on(C), onD = on(D);
+
+    var grad = c > 1
+      ? 'linear-gradient(135deg,' + A + ' 0%,' + B + ' 100%)'
+      : A;
+    var stripe = c > 1
+      ? 'linear-gradient(90deg,' + p.raw.join(',') + ')'
+      : A;
+
+    // фон страницы — очень светлый оттенок последнего цвета,
+    // чтобы белое полотно тоже участвовало в теме
+    var pageBg = mix('#ffffff', D, 0.05);
+    var cardBg = mix('#ffffff', C, 0.03);
 
     return [
       ':root{',
-      '--blue:', p.brand, ';--accent:', p.brand, ';--accent-dark:', mix(p.brand, '#000', 0.18), ';',
-      '--brand-2:', p.brand2, ';--brand-3:', p.brand3, ';--brand-4:', p.brand4, ';',
-      '--on-brand:', p.onBrand, ';',
-      '--ink:', p.ink, ';--muted:', p.muted, ';--line:', p.line, ';',
-      '--soft:', p.soft, ';--hdr-bg:', p.head, ';',
+      '--blue:', A, ';--accent:', A, ';--accent-dark:', mix(A, '#000', 0.18), ';',
+      '--brand-2:', B, ';--brand-3:', C, ';--brand-4:', D, ';',
+      '--on-brand:', onA, ';',
+      '--ink:', p.ink, ';--muted:', p.muted, ';--line:', mix('#e5e7eb', C, 0.3), ';',
+      '--soft:', mix('#ffffff', C, 0.07), ';--hdr-bg:', p.head, ';',
       '--bf-grad:', grad, ';',
       '}',
 
-      /* --- наша оболочка --- */
-      '.bfHead{background:', p.head, ';border-bottom-color:', p.line, '}',
-      '.bfNav a:hover,.bfMenuBtn:hover{background:', p.hover, '}',
-      '.bfNav a.on{background:', grad, ';color:', p.onBrand, '}',
-      '.bfBrand b{color:', p.dark, '}',
-      '.bfBrandMark i{background:', p.dark, '}',
-      '.bfAvatar{border-color:', p.line, '}',
-      '.bfCoin{color:', mix(p.brand, '#7a5c00', 0.35), '}',
+      /* --- вся страница --- */
+      'body{background:', pageBg, ' !important;color:', p.ink, '}',
+      '.bfWrap{background:transparent}',
 
-      '.bfBtn{border-color:', p.brand, ';color:', p.brand, '}',
-      '.bfBtn:hover{background:', p.brand, ';color:', p.onBrand, '}',
-      '.bfBtn.go{background:', grad, ';color:', p.onBrand, ';border-color:transparent}',
-      '.bfBtn.go:hover{filter:brightness(.94)}',
-      '.bfMini{border-color:', p.brand, ';color:', p.brand, '}',
-      '.bfMini:hover{background:', p.brand, ';color:', p.onBrand, '}',
-      '.bfChip.on{background:', grad, ';border-color:transparent;color:', p.onBrand, '}',
-      '.bfTab.on{border-bottom-color:', p.brand, '}',
-      '.bfCard.on,.bfCard:hover{border-color:', p.brand2, '}',
-      '.bfPager button{border-color:', p.brand, ';color:', p.brand, '}',
-      '.bfDropItem:hover,.bfLangItem:hover{background:', p.hover, '}',
-      '.bfLangItem.on{background:', grad, ';border-color:transparent;color:', p.onBrand, '}',
-      '.bfInput:focus,.bfSelect:focus{border-color:', p.brand, ';outline:none}',
-      '.bfPanel,.bfCard{border-color:', p.line, '}',
-      '.sbCard,.sbArt,.avArt,.seStage,.avStage{border-color:', p.line, '}',
-      '.seStage,.avStage,.sbArt,.avArt{background:', p.soft, '}',
-      '.sbTag{background:', p.soft2, ';color:', p.brand2, '}',
+      /* --- шапка: первый цвет --- */
+      '.bfHead{background:', mix('#f5f5f5', A, 0.12), ';border-bottom:3px solid transparent;',
+      'border-image:', stripe, ' 1}',
+      '.bfNav a:hover,.bfMenuBtn:hover{background:', mix('#ffffff', A, 0.18), '}',
+      '.bfNav a.on{background:', grad, ';color:', onA, '}',
+      '.bfBrand b,.bfBrandMark i{color:', p.dark, ';background:', p.dark, '}',
+      '.bfBrand b{background:none}',
 
-      /* --- вендорные страницы: там цвета зашиты в разметку --- */
-      '.play-button,.refresh-button,.pagination-controls,.searchUsersContainer div img{',
-      'background:', grad, ' !important;color:', p.onBrand, ' !important;border-color:transparent !important}',
-      '.maps-row:hover{background:', p.soft, ' !important}',
-      '.maps-table-header-style div,.map-name-row a{color:', p.brand, ' !important}',
-      'a{color:', p.brand, '}',
-      '.tabs .on,.profile-tabs .on{border-color:', p.brand, ' !important}',
+      /* --- кнопки: второй цвет --- */
+      '.bfBtn{border-color:', B, ';color:', B, ';background:#fff}',
+      '.bfBtn:hover{background:', B, ';color:', onB, '}',
+      '.bfBtn.go{background:', grad, ';color:', onA, ';border-color:transparent}',
+      '.bfMini{border-color:', B, ';color:', B, '}',
+      '.bfMini:hover{background:', B, ';color:', onB, '}',
+      '.mbPlay{border-color:', B, ';color:', B, '}',
+      '.mbPlay:hover,.mdPlay{background:', grad, ';color:', onA, ';border-color:transparent}',
+      'a{color:', B, '}',
 
-      /* --- редактор --- */
-      '.tool.on,.modeBtn.on,.sBtn.on{background:', grad, ' !important;color:', p.onBrand, ' !important}',
+      /* --- карточки и панели: третий цвет --- */
+      '.bfPanel,.bfCard,.mbRow,.sbCard,.upRow,.upSkin,.thSet{',
+      'background:', cardBg, ';border-color:', mix('#e5e7eb', C, 0.38), '}',
+      '.mbRow:hover,.bfCard:hover,.sbCard:hover{border-color:', C, '}',
+      '.seStage,.avStage,.sbArt,.avArt,.upSkin .art,.mdArt{background:', mix('#ffffff', C, 0.10), '}',
+      '.bfHint{color:', p.muted, '}',
+
+      /* --- выделения и вкладки: четвёртый цвет --- */
+      '.bfChip.on{background:', D, ';border-color:transparent;color:', onD, '}',
+      '.bfTab.on{color:', p.ink, ';border-bottom-color:', D, '}',
+      '.bfLangItem.on,.thSet.on{border-color:', D, '}',
+      '.bfLangItem.on{background:', D, ';color:', onD, '}',
+      '.bfPager button{border-color:', D, ';color:', D, '}',
+      '.mbRate.up{color:', mix(C, '#15803d', 0.4), '}',
+      '.bfCoin{color:', mix(A, '#7a5c00', 0.45), '}',
+
+      /* --- поля ввода --- */
+      '.bfInput,.bfSelect{background:#fff;border-color:', mix('#cfd6de', C, 0.3), '}',
+      '.bfInput:focus,.bfSelect:focus{border-color:', B, ';outline:none}',
+
+      /* --- выпадающие списки --- */
+      '.bfDrop{border-color:', mix('#e5e7eb', C, 0.35), '}',
+      '.bfDropItem:hover,.bfLangItem:hover{background:', mix('#ffffff', B, 0.14), '}',
+
+      /* --- редактор и панель владельца --- */
+      '.tool.on,.modeBtn.on,.sBtn.on{background:', grad, ' !important;color:', onA, ' !important}',
       '#bfPublish{background:', p.dark, '}',
-      '#bfPublish:hover{background:', mix(p.dark, p.brand, 0.35), '}',
-
-      /* --- панель владельца --- */
+      '#bfPublish:hover{background:', mix(p.dark, A, 0.35), '}',
       '.ow-fab{background:', p.dark, '}',
-      '.ow-fab:hover{background:', p.brand, '}',
-      '.ow-b,.ow-bar button{border-color:', p.brand, ';color:', p.brand, '}',
-      '.ow-b:hover,.ow-bar button:hover{background:', p.brand, ';color:', p.onBrand, '}',
-      '.ow-bar button.go,.ow-bar button.picked{background:', grad, ';color:', p.onBrand, '}',
-
-      /* --- если цветов несколько, показываем их полосой --- */
-      p.raw.length > 1
-        ? '.bfHead{box-shadow:inset 0 -3px 0 0 transparent;' +
-          'border-image:linear-gradient(90deg,' + p.raw.join(',') + ') 1;' +
-          'border-bottom-width:3px;border-bottom-style:solid}'
-        : ''
+      '.ow-fab:hover{background:', A, '}',
+      '.ow-b,.ow-bar button{border-color:', B, ';color:', B, '}',
+      '.ow-b:hover,.ow-bar button:hover{background:', B, ';color:', onB, '}',
+      '.ow-bar button.go,.ow-bar button.picked{background:', grad, ';color:', onA, '}'
     ].join('');
   }
 
@@ -256,7 +275,7 @@
   }
 
   window.BFTheme = {
-    apply: apply, palette: palette, load: load, save: save, unlock: unlock,
+    apply: apply, palette: palette, css: css, load: load, save: save, unlock: unlock,
     get state() { return state; },
     helpers: { mix: mix, lum: lum, on: on, usable: usable, rotate: rotate,
                contrast: contrast, hsl: rgb2hsl }

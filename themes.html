@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="ui.css">
 <script src="device.js"></script>
 <style>
-.thWrap{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
+.thWrap{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start}
 @media (max-width:900px){ .thWrap{grid-template-columns:1fr} }
 
 /* ---------- замок ---------- */
@@ -47,17 +47,6 @@
 .thSet .bar span{flex:1}
 .thSet .nm{font-size:13.5px;font-weight:600;text-align:center}
 
-/* ---------- предпросмотр ---------- */
-.thPrev{border:1px solid var(--line);border-radius:16px;overflow:hidden;
-  position:sticky;top:calc(var(--hdr) + 12px)}
-.thPrevHead{display:flex;align-items:center;gap:8px;padding:10px 12px;font-weight:700;font-size:14px}
-.thPrevBody{padding:14px;display:flex;flex-direction:column;gap:10px;background:#fff}
-.thPrevRow{display:flex;gap:8px}
-.thPrevRow button{flex:1;font-size:13.5px;padding:10px 0;border-radius:9px;cursor:pointer}
-.thPrevCard{border:1px solid var(--line);border-radius:11px;padding:10px;font-size:13px}
-.thPrevChips{display:flex;gap:6px;flex-wrap:wrap}
-.thPrevChips span{padding:6px 12px;border-radius:20px;font-size:12.5px;border:1px solid var(--line)}
-@media (max-width:900px){ .thPrev{position:static} }
 </style>
 	<link rel="icon" href="/favicon.ico" sizes="32x32">
 	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -88,22 +77,6 @@
     </div>
 
     <div>
-      <div class="thPrev" id="thPrev">
-        <div class="thPrevHead" id="thPrevHead">AIBROFIST</div>
-        <div class="thPrevBody">
-          <div class="thPrevRow">
-            <button id="pvGo">Играть</button>
-            <button id="pvGhost">Обзор</button>
-          </div>
-          <div class="thPrevChips" id="pvChips">
-            <span id="pvChip1">Голова</span><span id="pvChip2">Тело</span><span id="pvChip3">Плащ</span>
-          </div>
-          <div class="thPrevCard" id="pvCard">
-            Карта «Adventure X»<br><span id="pvMuted">Автор: Herp · рейтинг 12</span>
-          </div>
-        </div>
-      </div>
-
       <button class="bfBtn go" id="thSave" style="margin-top:14px" data-i18n="save">Сохранить</button>
       <button class="bfBtn ghost" id="thReset" data-i18n="defaultTheme">Вернуть обычное оформление</button>
       <div class="bfMsg" id="thMsg"></div>
@@ -256,34 +229,10 @@
     });
   }
 
-  /* ---------- живой предпросмотр ---------- */
+  /* Тема применяется сразу ко всей странице — отдельная панель
+     предпросмотра больше не нужна, цвета видно на самом интерфейсе. */
   function preview() {
-    if (!window.BFTheme) return;
-    BFTheme.apply(picked);                 // сразу видно на всей странице
-    var p = BFTheme.palette(picked);
-    var head = $('thPrevHead'), go = $('pvGo'), ghost = $('pvGhost');
-    if (!p) {
-      head.style.cssText = 'background:#f5f5f5;color:#111827';
-      go.style.cssText = 'background:#2196F3;color:#fff;border:none';
-      ghost.style.cssText = 'background:#fff;color:#2196F3;border:1px solid #2196F3';
-      $('pvMuted').style.color = '#6b7280';
-      ['pvChip1','pvChip2','pvChip3'].forEach(function (id) {
-        $(id).style.cssText = 'background:#fff;border:1px solid #e5e7eb;color:#111827';
-      });
-      return;
-    }
-    var grad = p.raw.length > 1
-      ? 'linear-gradient(135deg,' + p.brand + ',' + p.brand2 + ')' : p.brand;
-    head.style.cssText = 'background:' + p.head + ';color:' + p.dark;
-    go.style.cssText = 'background:' + grad + ';color:' + p.onBrand + ';border:none';
-    ghost.style.cssText = 'background:#fff;color:' + p.brand + ';border:1px solid ' + p.brand;
-    $('pvMuted').style.color = p.muted;
-    $('pvCard').style.borderColor = p.line;
-    [['pvChip1', p.brand], ['pvChip2', p.brand2], ['pvChip3', p.brand3]].forEach(function (a) {
-      var el = $(a[0]);
-      el.style.cssText = 'background:' + a[1] + ';border:1px solid transparent;color:' +
-        BFTheme.helpers.on(a[1]);
-    });
+    if (window.BFTheme) BFTheme.apply(picked);
   }
 
   /* ---------- замок ---------- */

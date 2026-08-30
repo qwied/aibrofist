@@ -5,7 +5,7 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, 'data');
 const MAPS_FILE = path.join(DATA_DIR, 'maps.json');
 
-const MODES = ['hideAndSeek', 'twoPlayer', 'race'];
+const MODES = ['hideAndSeek', 'race'];
 // в игровые режимы попадают только карты владельца сайта
 // (имя можно поменять переменной окружения OWNER_NAME, без правки кода)
 const OWNER = process.env.OWNER_NAME || 'System';
@@ -24,8 +24,9 @@ const TOOL_MODES = {
   rect:null, circle:null, triangle:null, text:null, poison:null, spike:null,
   bounce:null, coin:null, platform:null, rotator:null, gate:null, spawn:null,
   cover:['hideAndSeek'], seeker:null,   // убран из палитры, старые карты не ломаем
-  door:['twoPlayer'], button:['twoPlayer'], lever:['twoPlayer'],
-  checkpoint:['race'], finishline:['race']
+  door:null, button:null, lever:null,   // механизмы доступны в обоих режимах
+  finishline:null,                      // финиш нужен и в прятках, и в гонке
+  checkpoint:['race']
 };
 const TOOL_RU = {
   cover:'Укрытие', seeker:'Ищущий', door:'Дверь', button:'Кнопка',
@@ -107,7 +108,7 @@ function register(app, getUser, acc) {
     if (!u) return res.json({ status: 'error', message: 'Сначала войдите в аккаунт' });
 
     const mapName = String(req.body.mapName || '').trim();
-    const mapType = String(req.body.mapType || 'sandbox');
+    const mapType = String(req.body.mapType || 'hideAndSeek');
     const mapData = String(req.body.mapData || '');
     const overwrite = String(req.body.mapOverwrite || '') === 'true';
 
@@ -250,10 +251,9 @@ function register(app, getUser, acc) {
   // ---------- случайная карта режима (для Sandbox и игр) ----------
   app.get('/getRandomMap', (req, res) => {
     const t = req.query.mapType;
-    // sandbox — карты всех режимов и всех авторов
-    // остальные режимы — карты владельца плюс те, что владелец добавил
-    // в игру кнопкой «Добавить в игру» в Maps Browser
-    const pool = (!t || t === 'sandbox')
+    // без указания режима берём любую карту, иначе — карты владельца
+    // плюс те, что он добавил кнопкой «Добавить в игру» в Maps Browser
+    const pool = !t
       ? maps.slice()
       : maps.filter(m => {
           if (isOwnerName(m.author) && m.mapType === t) return true;
@@ -370,7 +370,7 @@ function setBoost(author, mapName, likes, dislikes) {
 function setInGame(author, mapName, mode, on) {
   const m = find(author, mapName);
   if (!m) return null;
-  if (MODES.indexOf(mode) === -1 && mode !== 'sandbox') return { bad: true };
+  if (MODES.indexOf(mode) === -1) return { bad: true };
 
   m.inGameModes = Array.isArray(m.inGameModes) ? m.inGameModes : [];
   const i = m.inGameModes.indexOf(mode);
