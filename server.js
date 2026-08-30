@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 });
 
 // служебные файлы наружу не отдаём
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/themes.js','/extras.js','/package.json','/package-lock.json','/readme-v32.md','/audit-ui.js','/test-ui.js','/test-avatar.js','/test-i18n.js','/test-theme.js','/check-domain.js','/domain-pp-ua.md'];
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/themes.js','/extras.js','/package.json','/package-lock.json','/readme-v33.md','/audit-ui.js','/test-ui.js','/test-avatar.js','/test-i18n.js','/test-theme.js','/check-domain.js','/domain-pp-ua.md'];
 app.use((req, res, next) => {
   const p = req.path.toLowerCase();
   if (PRIVATE.indexOf(p) !== -1 || p.indexOf('/data') === 0 || p.indexOf('/node_modules') === 0)
@@ -55,6 +55,12 @@ app.get('/owner.js', (req, res) => {
 app.use('/skinimg', express.static(path.join(__dirname, 'data', 'skinimg'), {
   maxAge: '7d', fallthrough: true
 }));
+
+// иконки сайта: браузер запрашивает /favicon.ico ещё до загрузки страницы
+app.get('/favicon.ico', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=604800');
+  res.sendFile(path.join(__dirname, 'favicon.ico'));
+});
 
 app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
