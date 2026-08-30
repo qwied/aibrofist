@@ -23,7 +23,7 @@ const OBJ_LIMIT   = 2000;              // максимум объектов в �
 const TOOL_MODES = {
   rect:null, circle:null, triangle:null, text:null, poison:null, spike:null,
   bounce:null, coin:null, platform:null, rotator:null, gate:null, spawn:null,
-  cover:['hideAndSeek'], seeker:['hideAndSeek'],
+  cover:['hideAndSeek'], seeker:null,   // убран из палитры, старые карты не ломаем
   door:['twoPlayer'], button:['twoPlayer'], lever:['twoPlayer'],
   checkpoint:['race'], finishline:['race']
 };

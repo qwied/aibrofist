@@ -59,9 +59,6 @@
     + 'width:52px;height:52px;border-radius:50%;border:none;background:rgba(33,150,243,.85);'
     + 'color:#fff;font-size:22px;cursor:pointer}'
     + 'html.is-mobile #gTalk,html.is-tablet #gTalk{display:block}'
-    + '#gHint{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:59;'
-    + 'background:rgba(0,0,0,.5);color:#fff;padding:5px 13px;border-radius:14px;font:11.5px sans-serif;pointer-events:none}'
-    + 'html.is-mobile #gHint,html.is-tablet #gHint{display:none}'
     // на телефоне: шапка компактнее, карточка карты уходит наверх, чтобы не мешать кнопкам
     + 'html.is-mobile #gTop,html.is-tablet #gTop{padding:5px 9px;gap:8px;font-size:12px}'
     + 'html.is-mobile #gExit,html.is-tablet #gExit{padding:9px 14px;font-size:13px}'
@@ -84,7 +81,6 @@
     + '<span id="gRating" style="color:#6b7280"></span></div></div>'
     + '<div id="gBanner"><h2 id="gbT"></h2><p id="gbP"></p></div>'
     + '<div id="gChat"><input id="gMsg" maxlength="90"></div>'
-    + '<div id="gHint">Просто печатай, чтобы говорить · Enter — отправить · A/D или ←→ — идти · W / ↑ / Пробел — прыжок</div>'
     + '<button id="gTalk">💬</button>'
 );
 
@@ -166,6 +162,18 @@
       .catch(function () {});
   }
   loadMySkin();
+
+  // Дверь засчитывается, когда в ней все игроки — движок спрашивает список здесь
+  if (window.GAME) {
+    window.GAME.others = function () {
+      var out = [];
+      for (var k in others) {
+        var o = others[k];
+        if (o && !o.gone) out.push({ x: o.x, y: o.y, w: o.w, h: o.h, gone: o.gone });
+      }
+      return out;
+    };
+  }
 
   var SAY_FADE = 2600;
   var spoken = {};
@@ -270,7 +278,6 @@
       phase = 'dev';
       $('gTimeBox').style.display = 'none';
         $('gChat').style.display = 'none';
-      $('gHint').style.display = 'none';
       $('gRate').style.display = 'flex';
       fetch('/getMapData?author=' + encodeURIComponent(VAUTH || '') + '&mapName=' + encodeURIComponent(VIEW))
         .then(function (r) { return r.json(); })

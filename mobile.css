@@ -98,8 +98,7 @@ html.is-touch .refresh-button:hover { background: inherit; }
     text-align: center;
     margin-top: 12px !important;
   }
-  .profile-picture { width: 96px !important; clip: auto !important; }
-  .profile-picture-wrapper { overflow: hidden; }
+  /* размеры аватарки заданы ниже, в общем блоке профиля */
   .profile-data-wrapper { align-items: center; }
   .profile-header, .profile-name, .profile-join-date, .profile-credits {
     float: none !important;
@@ -462,7 +461,6 @@ html[data-page="editor"].is-mobile .ow-fab { bottom: 130px !important; }
 
 /* редактор: панели не должны наезжать друг на друга */
 @media (max-width: 900px){
-  #bfPublish{ top: 56px !important; right: 8px !important; }
   #modes{ max-width: calc(100vw - 16px) !important; }
   /* строка режимов и строка инструментов не перекрывают кнопку публикации */
   #scene{ padding-right: 4px !important; }
@@ -529,7 +527,6 @@ html[data-page="editor"] #c { touch-action: none; }
   }
   #props, #widgets { max-height: calc(100vh - 118px) !important; }
   #zoomBox { bottom: 6px !important; right: 222px !important; }
-  #bfPublish { top: 4px !important; right: 6px !important; padding: 7px 11px !important; }
   html[data-page="editor"] .ow-fab, .ow-fab { bottom: 6px !important; right: 6px !important;
     width: 40px !important; height: 40px !important; font-size: 17px !important; }
 
@@ -649,7 +646,6 @@ html[data-page="editor"] #c { touch-action: none; }
   #tools { max-height: calc(100vh - 8px) !important; }
   #insp { max-height: calc(100vh - 90px) !important; }
   #props, #widgets { max-height: calc(100vh - 150px) !important; }
-  #bfPublish { top: 8px !important; }
 }
 
 /* ---------- очень узкие экраны ---------- */
@@ -718,31 +714,66 @@ img[data-bf-skin], img.bfAva {
 .profile-icon    { width: 40px; height: 40px; }
 .user-avatar     { width: 44px; height: 44px; }
 .lbAva           { width: 42px; height: 42px; }
-.profile-picture-wrapper { width: 132px; height: 132px; }
 
 /* сами картинки в этих местах */
 .profile-image { width: 100% !important; height: 100% !important; object-fit: contain !important; }
 .user-avatar img, .lbAva img { width: 100%; height: 100%; object-fit: contain; }
 
-/* большая аватарка в профиле: вендорный clip работает только для
-   position:absolute и нашей картинке только мешает */
-.profile-picture {
-  width: 132px !important;
-  height: 132px !important;
-  max-width: 132px !important;
-  max-height: 132px !important;
-  clip: auto !important;
-  object-fit: contain !important;
+@media (max-width: 640px) {
+  .bfAvatar { width: 34px; height: 34px; }
+}
+
+/* =====================================================================
+   v28 — страница профиля под единой шапкой
+   ===================================================================== */
+
+/* Вендорная разметка профиля построена на float, а строка поиска
+   налезала на шапку. Переводим блоки в обычный поток и убираем
+   горизонтальную прокрутку. */
+.container { max-width: 1024px; padding: 0 12px; box-sizing: border-box; }
+body { overflow-x: hidden; }
+
+.searchUsersContainer {
+  float: none !important;
+  width: 100% !important;
+  margin: 14px 0 0 !important;
+  background: none !important;
+}
+.searchUsersContainer div { float: none !important; display: flex; align-items: stretch; }
+.searchUsersContainer div input { float: none !important; flex: 1 1 auto; min-width: 0; }
+.searchUsersContainer div img { float: none !important; flex: 0 0 auto; }
+
+.full-profile-container { margin-top: 18px !important; float: none !important; }
+
+/* большая аватарка: квадратный контейнер, картинка вписана внутрь */
+.profile-picture-wrapper {
+  width: 136px; height: 136px;
   border-radius: 50%;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  float: none !important;
+  flex: 0 0 auto;
   background: #f6f8fa;
-  padding: 6px;
-  box-sizing: border-box;
-  border: 1px solid #e2e8f0;
+}
+.profile-picture {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  clip: auto !important;          /* вендорный clip резал картинку */
+  position: static !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
 }
 
 @media (max-width: 640px) {
-  .profile-picture { width: 104px !important; height: 104px !important;
-    max-width: 104px !important; max-height: 104px !important; }
   .profile-picture-wrapper { width: 104px; height: 104px; }
-  .bfAvatar { width: 34px; height: 34px; }
 }
+
+/* шапка поверх вендорной вёрстки: та тащит float и ломала строку */
+.bfHead, .bfHead * { float: none !important; }
+.bfHead { flex-wrap: nowrap !important; }
+.bfNav { flex-wrap: nowrap !important; }
+.bfRight { flex-wrap: nowrap !important; margin-left: auto; }

@@ -101,6 +101,12 @@ canvas{display:block;position:absolute;inset:0;touch-action:none}
 .pRow input[type=color]{width:44px;height:26px;padding:1px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer}
 .pRow input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent);cursor:pointer}
 .pRow input[type=range]{width:100px;accent-color:var(--accent)}
+/* объяснение связей механизмов — свёрнуто, разворачивается по клику */
+.pHelp{margin:6px 0 2px}
+.pHelpHead{font-size:11.5px;color:var(--accent);cursor:pointer;padding:6px 0;user-select:none}
+.pHelpBody{display:none;font-size:11.5px;line-height:1.7;color:#5b6673;
+  background:#f6f8fb;border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-top:4px}
+.pHelpBody code{background:#e6ebf2;border-radius:4px;padding:1px 5px;font-size:11px}
 .grp{margin:13px 0 5px;padding-top:9px;border-top:1px solid var(--line);font-size:10.5px;font-weight:700;
   letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
 .zBtns{display:flex;gap:5px;margin-top:5px}
@@ -116,7 +122,6 @@ canvas{display:block;position:absolute;inset:0;touch-action:none}
 #gravBox b{font-weight:600;color:#5b6472}
 #gravVal{min-width:20px;text-align:right;font-weight:700;color:var(--accent)}
 #gravBox input{width:104px;accent-color:var(--accent)}
-#hint{position:fixed;left:14px;bottom:62px;font-size:11px;color:#a4abb8;z-index:10;user-select:none;max-width:46%;line-height:1.6}
 
 /* zoom */
 #zoomBox{position:fixed;right:14px;bottom:14px;display:flex;padding:3px;z-index:11}
@@ -205,21 +210,10 @@ body{background:#eef2f8;overflow:hidden}
 <div id="insp" class="panel">
   <div id="inspHead">
     <div class="tab on" data-tab="props">Свойства</div>
-    <div class="tab" data-tab="widgets">Помощь</div>
     <div class="tab" id="inspClose" title="Закрыть">✕</div>
   </div>
   <div id="props"></div>
-  <div id="widgets" style="display:none">
-    <b>Связи механизмов</b><br>
-    1. Поставь <b>Ворота</b> или <b>Дверь</b>, задай <b>ID</b> — например <code>g1</code>.<br>
-    2. Поставь <b>Кнопку</b> или <b>Рычаг</b>, впиши в <b>Цели</b> тот же <code>g1</code>.<br>
-    3. Жми ▶ — механизм заработает.<br><br>
-    <b>Опасности</b><br>
-    Галочка <b>Смертельный</b> есть у любого объекта — даже обычный блок станет ядовитым.<br><br>
-    <b>Горячие клавиши</b><br>
-    <code>Ctrl+Z</code> отмена · <code>Ctrl+D</code> дубликат · <code>Del</code> удалить<br>
-    <code>Space</code>+ЛКМ панорама · колесо — зум · <code>G</code> сетка
-  </div>
+  <div id="widgets" style="display:none"></div>
 </div>
 
 <div id="gravBox" class="panel">
@@ -227,7 +221,6 @@ body{background:#eef2f8;overflow:hidden}
   <input type="range" id="grav" min="0" max="30" step="1" value="10">
   <span id="gravVal">10</span>
 </div>
-<div id="hint">ЛКМ — рисовать и двигать · колесо — зум · Space+ЛКМ — панорама · ▶ — играть</div>
 
 <div id="zoomBox" class="panel">
   <div class="zBtn" id="zOut">−</div>
@@ -561,7 +554,6 @@ var TOOLS = [
   {t:"spawn",      n:"Точка старта",m:ALL},
   // только прятки
   {t:"cover",      n:"Укрытие",     m:"hideAndSeek"},
-  {t:"seeker",     n:"Ищущий",      m:"hideAndSeek"},
   // только игра на двоих
   {t:"door",       n:"Дверь",       m:"twoPlayer"},
   {t:"button",     n:"Кнопка",      m:"twoPlayer"},
@@ -584,13 +576,13 @@ var INK = "#111827";
 var COLORS = {
   rect:INK, circle:INK, triangle:INK, text:INK, poison:"", spike:"", bounce:INK,
   coin:"", platform:INK, rotator:"", gate:INK, button:INK, lever:INK, cover:INK,
-  door:INK, checkpoint:"", finishline:"", seeker:"#b91c1c", spawn:INK
+  door:INK, checkpoint:"", finishline:"", spawn:INK
 };
 var SIZES = {
   rect:[90,26], circle:[58,58], triangle:[58,52], text:[70,24], poison:[110,26],
   spike:[80,22], bounce:[74,20], coin:[22,22], platform:[112,16], rotator:[96,14],
   gate:[26,96], button:[34,18], lever:[22,42], cover:[70,52], door:[32,84],
-  checkpoint:[30,64], finishline:[42,86], seeker:[22,74], spawn:[22,74]
+  checkpoint:[30,64], finishline:[42,86], spawn:[22,74]
 };
 var SOLID  = ["rect","circle","triangle","platform","cover","gate","door","bounce"];
 /* Раньше яд, шипы и ротатор убивали просто потому, что так называются.
@@ -598,7 +590,7 @@ var SOLID  = ["rect","circle","triangle","platform","cover","gate","door","bounc
    и её можно снять хоть с самого яда. Модели остались как были. */
 var HAZARD = [];
 var DEADLY_BY_DEFAULT = ["poison","spike","rotator"];
-var LINKED = ["gate","platform","rotator","cover","button","lever","door"];
+var LINKED = ["gate","platform","rotator","cover","button","lever"];
 
 /* ══════════════════════════════════════════════════
    STATE
@@ -676,7 +668,7 @@ function mk(type,x,y,w,h){
   if(type === "rotator") o.spin = 2.2;
   if(type === "bounce") o.power = 17;
   if(LINKED.indexOf(type) !== -1){ o.customId = "w"+o.id; o.targetIds = ""; }
-  if(type === "gate" || type === "door") o.startsOpen = false;
+  if(type === "gate") o.startsOpen = false;
   return o;
 }
 function demo(){
@@ -828,6 +820,20 @@ function showMsg(t,s){
 function hideMsg(){ var m = document.getElementById("msg"); m.classList.remove("show"); m.style.display = "none"; }
 
 var opened = function(o){ return (o.type === "gate" || o.type === "door") && !!o._act; };
+
+/* Все ли игроки уже в двери. В одиночном прогоне редактора игрок один,
+   поэтому условие выполняется сразу. В сетевой игре список приходит
+   из game.js через GAME.others. */
+function allAtDoor(o){
+  var others = (window.GAME && window.GAME.others) ? window.GAME.others() : null;
+  if(!others || !others.length) return true;
+  for(var i = 0; i < others.length; i++){
+    var p = others[i];
+    if(!p || p.gone) continue;
+    if(!overlaps(o, p.x, p.y, p.w || 22, p.h || 74)) return false;
+  }
+  return true;
+}
 var solid  = function(o){ return SOLID.indexOf(o.type) !== -1 && !opened(o) && o.ghost !== true; };
 var hazard = function(o){ return o.deadly === true && !opened(o); };
 function hit(ax,ay,aw,ah,bx,by,bw,bh){ return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by; }
@@ -1039,10 +1045,14 @@ function step(){
       o._reached = true; spawnPt = {x:o.x, y:o.y+o.h-pl.h};
       burst(o.x+o.w/2, o.y+o.h*0.25, 14, "#4ade80", 2.6, 30);
     }
-    if(o.type === "finishline" && !done){
+    // Дверь — это выход. В игре на двоих уровень засчитывается, когда
+    // в неё вошли ВСЕ игроки; одному достаточно дойти самому.
+    if((o.type === "finishline" || (o.type === "door" && !opened(o))) && !done){
+      if(o.type === "door" && !allAtDoor(o)) return;
       done = true; shake = 6;
       burst(o.x+o.w/2, o.y+o.h/2, 40, "#fbbf24", 5, 60);
-      showMsg("ФИНИШ!", "Время " + (timeMs/1000).toFixed(1) + "с · монет " + coins + "/" + coinsTotal +
+      showMsg(o.type === "door" ? "УРОВЕНЬ ПРОЙДЕН!" : "ФИНИШ!",
+              "Время " + (timeMs/1000).toFixed(1) + "с · монет " + coins + "/" + coinsTotal +
               " · смертей " + deaths + "   —   R заново, ✕ выход");
     }
     if(o.type === "button" && !o._act){ o._act = true; drive(o); }
@@ -1501,6 +1511,31 @@ function chk(l,v,fn){
   r.appendChild(a); r.appendChild(i);
 }
 function grp(t){ var d = document.createElement("div"); d.className = "grp"; d.textContent = t; props.appendChild(d); }
+
+/* Как связать механизм. Показываем только у ворот, кнопок и рычагов —
+   там, где это действительно нужно, и по клику, а не постоянной надписью. */
+function linkHelp(){
+  var d = document.createElement("div");
+  d.className = "pHelp";
+  var h = document.createElement("div");
+  h.className = "pHelpHead";
+  h.textContent = "Как связать? ▾";
+  var b = document.createElement("div");
+  b.className = "pHelpBody";
+  b.innerHTML =
+      "1. У <b>Ворот</b> задай <b>ID</b> — например <code>g1</code>.<br>"
+    + "2. У <b>Кнопки</b> или <b>Рычага</b> впиши тот же <code>g1</code> в поле <b>Цели</b>.<br>"
+    + "3. Нажми ▶ — ворота откроются от кнопки.<br><br>"
+    + "Целей можно указать несколько через запятую: <code>g1,g2</code>.<br>"
+    + "Кнопка держит, пока на ней стоят. Рычаг переключает насовсем.";
+  h.onclick = function(){
+    var open = b.style.display === "block";
+    b.style.display = open ? "none" : "block";
+    h.textContent = open ? "Как связать? ▾" : "Как связать? ▴";
+  };
+  d.appendChild(h); d.appendChild(b);
+  props.appendChild(d);
+}
 function inspect(){
   var box = document.getElementById("insp");
   if(!sel || playing){ box.style.display = "none"; return; }
@@ -1541,7 +1576,8 @@ function inspect(){
     grp("Связи");
     txt("ID", sel.customId, function(v){ sel.customId = v; });
     if(sel.type === "button" || sel.type === "lever") txt("Цели", sel.targetIds, function(v){ sel.targetIds = v; });
-    if(sel.type === "gate" || sel.type === "door") chk("Открыт сначала", sel.startsOpen, function(v){ sel.startsOpen = v; });
+    if(sel.type === "gate") chk("Открыт сначала", sel.startsOpen, function(v){ sel.startsOpen = v; });
+    if(["gate","button","lever"].indexOf(sel.type) !== -1) linkHelp();
   }
 
   grp("Порядок");
@@ -1710,6 +1746,8 @@ window.GAME = {
     // в старых картах галочки не было — восстанавливаем прежнее поведение
     objects.forEach(function(o){
       if(o.deadly === undefined && DEADLY_BY_DEFAULT.indexOf(o.type) !== -1) o.deadly = true;
+      // «Ищущий» убран из палитры: в старых картах превращаем его в старт
+      if(o.type === "seeker") o.type = "spawn";
     });
     if(objects.length > OBJ_LIMIT) objects.length = OBJ_LIMIT;
     objects.forEach(function(o){ if(o.id >= uid) uid = o.id + 1; });

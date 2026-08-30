@@ -134,6 +134,9 @@
     coinLimit:    ['В карте можно поставить максимум 3 монеты','A map can hold at most 3 coins','У карті можна поставити максимум 3 монети','Eine Karte darf höchstens 3 Münzen enthalten','Une carte accepte 3 pièces au maximum','Un mapa admite 3 monedas como máximo','Um mapa aceita no máximo 3 moedas','Mapa może mieć maksymalnie 3 monety','Bir haritada en fazla 3 jeton olabilir','一张地图最多放 3 枚金币'],
     publishMap:   ['Опубликовать в Maps Browser','Publish to Maps Browser','Опублікувати в Maps Browser','In Maps Browser veröffentlichen','Publier dans Maps Browser','Publicar en Maps Browser','Publicar no Maps Browser','Opublikuj w Maps Browser','Maps Browser\'a yayınla','发布到地图库'],
 
+    joinDate:     ['Дата регистрации','Join Date','Дата реєстрації','Beitrittsdatum','Date d\'inscription','Fecha de registro','Data de registo','Data rejestracji','Katılma tarihi','注册日期'],
+    accept:       ['Принять','Accept','Прийняти','Annehmen','Accepter','Aceptar','Aceitar','Akceptuj','Kabul et','接受'],
+    decline:      ['Отклонить','Decline','Відхилити','Ablehnen','Refuser','Rechazar','Recusar','Odrzuć','Reddet','拒绝'],
     searchUsers:  ['Поиск игроков','Search users','Пошук гравців','Spieler suchen','Rechercher des joueurs','Buscar jugadores','Procurar jogadores','Szukaj graczy','Oyuncu ara','搜索玩家'],
     addFriend:    ['Добавить в друзья','Add friend','Додати в друзі','Freund hinzufügen','Ajouter en ami','Añadir amigo','Adicionar amigo','Dodaj znajomego','Arkadaş ekle','加为好友'],
     report:       ['Пожаловаться','Report','Поскаржитися','Melden','Signaler','Reportar','Denunciar','Zgłoś','Bildir','举报'],
@@ -171,6 +174,17 @@
     'Name': 'colName', 'Rating': 'colRating', 'Author': 'colAuthor', 'Date': 'colDate',
     'PLAY': 'play', 'Refresh': 'refresh', 'No maps found': 'noMaps',
     'Sort by date': 'sortDate', 'Sort by rating': 'sortRating', 'Mode: All': 'modeAll',
+    'Play': 'play', 'Mode: All': 'modeAll', 'Sort by rating': 'sortRating',
+    'Sort by date': 'sortDate', 'Refresh': 'refresh', 'Author': 'colAuthor',
+    'Name': 'colName', 'Rating': 'colRating', 'Date': 'colDate',
+    'Two Player Adventure': 'twoPlayer', 'Hide And Seek': 'hideAndSeek',
+    'Join Date': 'joinDate', 'Add friend': 'addFriend', 'Remove': 'removeTxt',
+    'Accept': 'accept', 'Decline': 'decline', 'Cancel': 'cancel',
+    'Equip': 'equip', 'Equipped': 'equipped', 'Free': 'free', 'Buy': 'buy',
+    'Try on': 'tryOn', 'Save': 'save', 'Reset': 'resetAll', 'Randomise': 'randomize',
+    'Head': 'slotHead', 'Face': 'slotFace', 'Body': 'slotBody', 'Back': 'slotBack',
+    'Shop': 'shop', 'My items': 'myTab', 'Preview': 'preview',
+    'Publish to Skins Browser': 'publishSkin',
     'Author Name': 'colAuthor', 'Skin Name': 'colName',
     'Search users': 'searchUsers', 'Add friend': 'addFriend', 'Report': 'report',
     'Edit': 'editTxt', 'Remove': 'removeTxt', 'Friends': 'friendsTxt',
@@ -289,6 +303,9 @@
     idx = LANGS.indexOf(next);
     document.documentElement.setAttribute('lang', next);
     applyTo(document.body || document.documentElement);
+    // чужие скрипты рисуют интерфейс с задержкой — добираем их
+    setTimeout(function () { applyTo(document.body || document.documentElement); }, 250);
+    setTimeout(function () { applyTo(document.body || document.documentElement); }, 900);
     if (!silent) {
       try { localStorage.setItem('bfLang', next); } catch (e) {}
     }

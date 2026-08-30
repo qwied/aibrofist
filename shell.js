@@ -107,6 +107,30 @@
       if (l.sep) { drop.appendChild(el('div', 'bfDropSep')); return; }
       drop.appendChild(link(l, 'bfDropItem'));
     });
+
+    // Язык переключается здесь, а не только в настройках аккаунта:
+    // выбор применяется сразу ко всему интерфейсу, включая гостей.
+    drop.appendChild(el('div', 'bfDropSep'));
+    drop.appendChild(el('div', 'bfDropName', T('language', 'Язык')));
+    var langBox = el('div', 'bfLangs');
+    if (window.I18N) {
+      var auto = el('div', 'bfLangItem', T('langAuto', 'Автоматически'));
+      auto.onclick = function () { I18N.set('auto'); closeAll(null); };
+      langBox.appendChild(auto);
+      I18N.langs.forEach(function (code) {
+        var it = el('div', 'bfLangItem', I18N.names[code]);
+        it.dataset.lang = code;
+        if (code === I18N.current) it.classList.add('on');
+        it.onclick = function () {
+          I18N.set(code);
+          Array.prototype.forEach.call(langBox.children, function (x) { x.classList.remove('on'); });
+          it.classList.add('on');
+          closeAll(null);
+        };
+        langBox.appendChild(it);
+      });
+    }
+    drop.appendChild(langBox);
     document.body.appendChild(drop);
 
     menuBtn.onclick = function (e) {
@@ -205,6 +229,14 @@
     build();
     loadMe();
     if (window.I18N) I18N.apply(document.body);
+
+    // при смене языка перевод должен лечь на всю страницу целиком,
+    // включая то, что дорисовали чужие скрипты
+    window.addEventListener('bf-lang', function () {
+      if (window.I18N) I18N.apply(document.body);
+      var p = document.getElementById('bfProf');
+      if (p && p.classList.contains('open')) fillProfile(p);
+    });
     // вендорный код может дорисовать свою шапку позже — прячем и её
     try {
       new MutationObserver(function () {

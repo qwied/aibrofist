@@ -187,7 +187,7 @@ console.log(bootError
 if (bootError) { console.log(bootError.stack.split('\n').slice(0, 4).join('\n')); process.exit(1); }
 
 // ---- жмём каждую кнопку ----
-const buttons = ['bSave', 'bOpen', 'bImport', 'bJson', 'bPlay', 'bUndo', 'bRedo',
+const buttons = ['bSave', 'bOpen', 'bJson', 'bPlay', 'bUndo', 'bRedo',
                  'bCopy', 'bDel', 'bGrid', 'zIn', 'zOut', 'inspClose', 'dOk', 'dNo'];
 // эти кнопки обрабатываются делегированием на родителе (в браузере — всплытие)
 const DELEGATED = { inspClose: 'inspHead' };
