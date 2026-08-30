@@ -31,6 +31,15 @@
   var MARK = '<span class="bfBrandMark"><i></i><i></i></span>';
   var me = null;
 
+  // пустая фигура — пока не подгрузился настоящий скин
+  function defaultFace() {
+    if (!window.BFSkin) return 'data:image/svg+xml;charset=utf-8,' +
+      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>');
+    var svg = window.BFSkin.svg({ head: 'h_none', face: 'f_none', body: 'b_none', back: 'k_none' },
+                         {}, { height: 300 });
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+
   function el(tag, cls, html) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -81,7 +90,11 @@
         (window.BFCoin ? BFCoin.svg(17) : '') + ' <span>0</span></span>';
     var ava = el('div', 'bfAvatar');
     ava.id = 'bfHeadAvatar';
-    ava.innerHTML = MARK;
+    var avaImg = document.createElement('img');
+    avaImg.className = 'bfAva';
+    avaImg.alt = '';
+    avaImg.src = defaultFace();
+    ava.appendChild(avaImg);
     right.appendChild(ava);
     head.appendChild(right);
 

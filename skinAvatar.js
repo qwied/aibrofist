@@ -27,28 +27,37 @@
   function dataUri(skin) {
     if (skin && skin.img) return skin.img;   // скин-картинка от владельца
     if (!window.BFSkin) return null;
-    var svg = BFSkin.svg(skin, byId, { height: 300 });
+    var svg = window.BFSkin.svg(skin, byId, { height: 300 });
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
+  /* Один и тот же приём во всех местах: скин всегда рисуется КАРТИНКОЙ.
+     Раньше для не-<img> элементов он ставился фоном, а внутри оставалась
+     чёрная заглушка-фигурка — поверх скина, отчего иконка выглядела
+     сломанной. Теперь у такого элемента создаётся <img class="bfAva">,
+     а остальное содержимое убирается. */
   function paint(el, skin) {
-    // у скина-картинки берём её саму, иначе рисуем фигуру
     var uri = (skin && skin.img) ? skin.img : dataUri(skin);
     if (!uri) return;
-    if (el.tagName === 'IMG') {
-      el.src = uri;
-      // Размеры НЕ задаём: строчный стиль перебивал вообще всё, и в
-      // профиле, где у обёртки нет своей ширины, картинка растягивалась
-      // на весь экран. Размер задаёт CSS для каждого места отдельно.
-      el.style.objectFit = 'contain';
-      el.dataset.bfSkin = '1';
-    } else {
-      el.style.backgroundImage = 'url("' + uri + '")';
-      el.style.backgroundSize = 'contain';
-      el.style.backgroundRepeat = 'no-repeat';
-      el.style.backgroundPosition = 'center';
-      el.dataset.bfSkin = '1';
+
+    var img = el;
+    if (el.tagName !== 'IMG') {
+      img = el.querySelector('img.bfAva');
+      if (!img) {
+        el.innerHTML = '';                      // убираем заглушку
+        img = document.createElement('img');
+        img.className = 'bfAva';
+        img.alt = '';
+        el.appendChild(img);
+      }
+      // на случай, если раньше скин ставился фоном
+      el.style.backgroundImage = '';
     }
+
+    img.src = uri;
+    img.style.objectFit = 'contain';
+    img.dataset.bfSkin = '1';
+    el.dataset.bfSkin = '1';
   }
 
   // накапливаем ники и запрашиваем пачкой — по одному запросу на список
@@ -120,7 +129,8 @@
     );
     for (var i = 0; i < list.length; i++) {
       var el = list[i];
-      if (el.dataset.bfSkin) continue;
+      // перерисовываем, если скин ещё не поставлен
+      if (el.dataset.bfSkin && (el.tagName === 'IMG' || el.querySelector('img.bfAva'))) continue;
       var n = nameFor(el);
       if (n) want(n, el);
     }
