@@ -329,84 +329,64 @@
     return document.documentElement.getAttribute('data-page') === 'editor';
   }
 
-  function apply(colors, mode) {
-    mode = mode || state.mode || 'light';
+  /* Тем всего две. Светлая — обычное оформление сайта, стиль пустой;
+     тёмная собирается из базового акцента. Выбора цветов больше нет. */
+  function apply(mode) {
+    mode = (mode === 'dark') ? 'dark' : 'light';
     if (skipPage()) {
       document.documentElement.dataset.bfMode = 'light';
       return;
     }
-    var list = (colors && colors.length) ? colors : (mode === 'dark' ? BASE : null);
-    var p = palette(list);
+    var p = (mode === 'dark') ? palette(BASE) : null;
 
     if (!styleEl) {
       styleEl = document.createElement('style');
       styleEl.id = 'bfThemeStyle';
       document.head.appendChild(styleEl);
     }
-    // светлая тема без выбранных цветов — обычное оформление, стиль пустой
     styleEl.textContent = p ? css(p, mode) : '';
 
     var root = document.documentElement;
     root.dataset.bfMode = mode;
-    root.dataset.bfTheme = p ? p.raw.join(',') : '';
+    root.dataset.bfTheme = '';
     window.dispatchEvent(new CustomEvent('bf-theme',
-      { detail: { colors: p ? p.raw : [], mode: mode } }));
+      { detail: { colors: [], mode: mode } }));
   }
 
   /* ---------- загрузка ---------- */
-  var state = { unlocked: false, colors: [], mode: 'light',
-                price: 100, max: 4, presets: [], coins: 0 };
+  var state = { unlocked: false, mode: 'light', price: 100, coins: 0, guest: true };
 
   function load() {
-    // сначала последняя известная тема из памяти браузера — чтобы
-    // страница не мигала белым до ответа сервера
+    // последняя известная тема из памяти браузера — чтобы страница
+    // не мигала белым, пока не ответил сервер
     try {
       var cachedMode = localStorage.getItem('bfThemeMode');
-      if (cachedMode === 'dark' || cachedMode === 'light') state.mode = cachedMode;
-      var cached = JSON.parse(localStorage.getItem('bfTheme') || 'null');
-      if ((cached && cached.length) || state.mode === 'dark') apply(cached || [], state.mode);
+      if (cachedMode === 'dark') { state.mode = 'dark'; apply('dark'); }
     } catch (e) {}
 
     return fetch('/theme/get', { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         state.unlocked = !!d.unlocked;
+        state.guest = !!d.guest;
         state.price = d.price;
-        state.max = d.max;
-        state.presets = d.presets || [];
         state.coins = d.coins || 0;
-        state.colors = (d.theme && d.theme.colors) || [];
-        state.mode = d.mode || 'light';
-        apply(state.colors, state.mode);
-        try {
-          localStorage.setItem('bfTheme', JSON.stringify(state.colors));
-          localStorage.setItem('bfThemeMode', state.mode);
-        } catch (e) {}
+        // не открыл темы — всегда светлая, что бы ни лежало в браузере
+        state.mode = state.unlocked ? (d.mode || 'light') : 'light';
+        apply(state.mode);
+        try { localStorage.setItem('bfThemeMode', state.mode); } catch (e) {}
         return state;
       })
       .catch(function () { return state; });
   }
 
-  function save(colors) {
-    return fetch('/theme/set', {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'colors=' + encodeURIComponent(JSON.stringify(colors || []))
-    }).then(function (r) { return r.json(); })
-      .then(function (r) {
-        if (r.status === 'success') {
-          state.colors = colors || [];
-          apply(state.colors, state.mode);
-          try { localStorage.setItem('bfTheme', JSON.stringify(state.colors)); } catch (e) {}
-        }
-        return r;
-      });
-  }
-
-  // светлая/тёмная — бесплатно и сразу
+  // переключить тему может только тот, кто её открыл за монеты
   function setMode(mode) {
+    if (!state.unlocked)
+      return Promise.resolve({ status: 'error', code: 'locked',
+                              message: 'Темы ещё не открыты' });
     state.mode = (mode === 'dark') ? 'dark' : 'light';
-    apply(state.colors, state.mode);
+    apply(state.mode);
     try { localStorage.setItem('bfThemeMode', state.mode); } catch (e) {}
     return fetch('/theme/mode', {
       method: 'POST', credentials: 'same-origin',
@@ -425,7 +405,7 @@
   }
 
   window.BFTheme = {
-    apply: apply, palette: palette, css: css, load: load, save: save,
+    apply: apply, palette: palette, css: css, load: load,
     setMode: setMode, unlock: unlock,
     get state() { return state; },
     helpers: { mix: mix, lum: lum, on: on, usable: usable, rotate: rotate,

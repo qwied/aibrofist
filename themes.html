@@ -26,9 +26,6 @@
 .thModeName{text-align:center;font-weight:700;font-size:14.5px;margin-top:9px}
 @media (max-width:640px){ .thMode{width:calc(50% - 7px)} }
 
-.thWrap{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start}
-@media (max-width:900px){ .thWrap{grid-template-columns:1fr} }
-
 /* ---------- замок ---------- */
 .thLock{border:1px solid var(--line);border-radius:16px;padding:26px 22px;text-align:center;
   background:var(--soft);margin-bottom:20px}
@@ -38,34 +35,8 @@
   display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px}
 .thLock button{max-width:280px;margin:0 auto}
 
-/* ---------- слоты цветов ---------- */
-.thSlots{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px}
-.thSlot{width:78px;height:78px;border-radius:14px;border:2px solid var(--line);
-  position:relative;cursor:pointer;overflow:hidden;background:#fff;flex:0 0 auto}
-.thSlot input{position:absolute;inset:0;opacity:0;cursor:pointer;border:none;padding:0}
-.thSlot .fill{position:absolute;inset:0}
-.thSlot .num{position:absolute;left:6px;top:5px;font-size:11px;font-weight:700;
-  color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
-.thSlot .x{position:absolute;right:4px;top:3px;width:20px;height:20px;border-radius:50%;
-  background:rgba(0,0,0,.42);color:#fff;font-size:13px;line-height:20px;text-align:center;z-index:3}
-.thSlot.empty{border-style:dashed;display:flex;align-items:center;justify-content:center;
-  color:var(--muted);font-size:26px}
-.thHint{font-size:13px;color:var(--muted);margin-bottom:16px}
-
-/* ---------- палитра ---------- */
-.thPal{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:7px;margin-bottom:6px}
-.thSw{aspect-ratio:1;border-radius:9px;cursor:pointer;border:2px solid transparent}
-.thSw:hover{transform:scale(1.08)}
-.thSw.on{border-color:var(--ink);box-shadow:0 0 0 2px #fff inset}
-
-/* ---------- готовые наборы ---------- */
-.thSets{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
-.thSet{border:2px solid var(--line);border-radius:13px;padding:10px;cursor:pointer;background:#fff}
-.thSet.on{border-color:var(--blue)}
-.thSet .bar{height:34px;border-radius:8px;margin-bottom:8px;display:flex;overflow:hidden}
-.thSet .bar span{flex:1}
-.thSet .nm{font-size:13.5px;font-weight:600;text-align:center}
-
+/* витрина тем под замком — смотреть можно, включить нельзя */
+.thLocked{opacity:.55;pointer-events:none;filter:grayscale(.35)}
 </style>
 	<link rel="icon" href="/favicon.ico" sizes="32x32">
 	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -77,9 +48,11 @@
 
 <div class="bfWrap">
   <div class="bfTitle" data-i18n="themes">Темы</div>
-  <div class="bfSub" data-i18n="themesSub">Выберите от одного до четырёх цветов — интерфейс перекрасится целиком.</div>
+  <div class="bfSub" data-i18n="themesSub">Светлое и тёмное оформление сайта.</div>
 
-  <div class="thModes">
+  <div id="thLock"></div>
+
+  <div class="thModes" id="thModes">
     <div class="thMode" data-mode="light">
       <div class="thModeArt light"><span></span><span></span><span></span></div>
       <div class="thModeName" data-i18n="lightTheme">Светлая</div>
@@ -89,30 +62,7 @@
       <div class="thModeName" data-i18n="darkTheme">Тёмная</div>
     </div>
   </div>
-  <div class="thHint" data-i18n="modeFree">Светлая и тёмная тема доступны всем и включаются сразу.</div>
-
-  <div id="thLock"></div>
-
-  <div class="thWrap" id="thMain" style="display:none">
-    <div>
-      <div class="bfTitle" style="font-size:17px;margin-bottom:8px" data-i18n="yourColors">Ваши цвета</div>
-      <div class="thSlots" id="thSlots"></div>
-      <div class="thHint" id="thHint"></div>
-
-      <div class="bfTitle" style="font-size:17px;margin:18px 0 8px" data-i18n="allColors">Все цвета</div>
-      <div class="thPal" id="thPal"></div>
-      <div class="thHint" data-i18n="pickerHint">Нажмите на свой цвет в квадрате выше, чтобы выбрать любой оттенок.</div>
-
-      <div class="bfTitle" style="font-size:17px;margin:18px 0 8px" data-i18n="readySets">Готовые наборы</div>
-      <div class="thSets" id="thSets"></div>
-    </div>
-
-    <div>
-      <button class="bfBtn go" id="thSave" style="margin-top:14px" data-i18n="save">Сохранить</button>
-      <button class="bfBtn ghost" id="thReset" data-i18n="defaultTheme">Вернуть обычное оформление</button>
-      <div class="bfMsg" id="thMsg"></div>
-    </div>
-  </div>
+  <div class="bfMsg" id="thMsg"></div>
 </div>
 
 <link rel="stylesheet" href="mobile.css">
@@ -129,37 +79,6 @@
   var T = function (k, f) { return (window.I18N && I18N.t(k) !== k) ? I18N.t(k) : f; };
   var $ = function (id) { return document.getElementById(id); };
 
-  var MAX = 4;
-  var picked = [];
-
-  /* Полная палитра: 12 оттенков по кругу × 5 уровней яркости,
-     плюс серая шкала. Этого хватает, чтобы собрать почти любой цвет
-     в два касания, а точный оттенок берётся из квадрата слота. */
-  function buildPalette() {
-    var out = [];
-    for (var l = 0; l < 5; l++) {
-      var light = 0.28 + l * 0.13;
-      for (var h = 0; h < 12; h++) {
-        out.push(hsl(h * 30, 0.72, light));
-      }
-    }
-    ['#000000','#1f2937','#4b5563','#9ca3af','#d1d5db','#f3f4f6',
-     '#ffffff','#7c2d12','#78350f','#14532d','#1e3a8a','#4c1d95'].forEach(function (c) {
-      out.push(c);
-    });
-    return out;
-  }
-  function hsl(h, s, l) {
-    var c = (1 - Math.abs(2 * l - 1)) * s;
-    var x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    var m = l - c / 2, r = 0, g = 0, b = 0;
-    if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; }
-    else if (h < 180) { g = c; b = x; } else if (h < 240) { g = x; b = c; }
-    else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
-    var f = function (v) { return Math.round((v + m) * 255); };
-    return '#' + ((1 << 24) + (f(r) << 16) + (f(g) << 8) + f(b)).toString(16).slice(1);
-  }
-
   function msg(text, ok) {
     var m = $('thMsg');
     m.textContent = text;
@@ -168,114 +87,42 @@
     msg._t = setTimeout(function () { m.textContent = ''; }, 4000);
   }
 
-  /* ---------- слоты ---------- */
-  function drawSlots() {
-    var box = $('thSlots');
-    box.innerHTML = '';
-    picked.forEach(function (c, i) {
-      var d = document.createElement('div');
-      d.className = 'thSlot';
-      d.innerHTML = '<div class="fill" style="background:' + c + '"></div>'
-                  + '<div class="num">' + (i + 1) + '</div>'
-                  + '<div class="x" data-drop="' + i + '">X</div>';
-      var inp = document.createElement('input');
-      inp.type = 'color'; inp.value = c;
-      inp.oninput = function () { picked[i] = inp.value; preview(); drawSlots(); };
-      d.appendChild(inp);
-      box.appendChild(d);
+  function markMode(m) {
+    Array.prototype.forEach.call(document.querySelectorAll('.thMode'), function (el) {
+      el.classList.toggle('on', el.dataset.mode === m);
     });
-    if (picked.length < MAX) {
-      var add = document.createElement('div');
-      add.className = 'thSlot empty';
-      add.textContent = '+';
-      var inp2 = document.createElement('input');
-      inp2.type = 'color'; inp2.value = '#2196F3';
-      inp2.oninput = function () { pick(inp2.value); };
-      add.appendChild(inp2);
-      box.appendChild(add);
-    }
-    $('thHint').textContent = picked.length
-      ? T('slotsHint', 'Выбрано цветов: ') + picked.length + ' / ' + MAX
-      : T('pickFirst', 'Пока ничего не выбрано — нажмите цвет ниже.');
-    markPalette();
   }
 
-  function pick(c) {
-    c = String(c).toLowerCase();
-    var at = picked.indexOf(c);
-    if (at !== -1) { picked.splice(at, 1); }
-    else if (picked.length < MAX) { picked.push(c); }
-    else { picked[MAX - 1] = c; }
-    preview(); drawSlots();
-  }
-
-  document.addEventListener('click', function (e) {
-    var d = e.target.closest && e.target.closest('[data-drop]');
-    if (d) {
-      e.stopPropagation();
-      picked.splice(parseInt(d.dataset.drop, 10), 1);
-      preview(); drawSlots();
-    }
+  Array.prototype.forEach.call(document.querySelectorAll('.thMode'), function (el) {
+    el.onclick = function () {
+      markMode(el.dataset.mode);
+      BFTheme.setMode(el.dataset.mode).then(function (r) {
+        if (r && r.status === 'error') {
+          msg(r.message || T('errorTxt', 'Ошибка'));
+          markMode(BFTheme.state.mode);
+        }
+      });
+    };
   });
 
-  /* ---------- палитра ---------- */
-  function drawPalette() {
-    var box = $('thPal');
-    box.innerHTML = '';
-    buildPalette().forEach(function (c) {
-      var s = document.createElement('div');
-      s.className = 'thSw';
-      s.style.background = c;
-      s.dataset.c = c;
-      s.title = c;
-      s.onclick = function () { pick(c); };
-      box.appendChild(s);
-    });
-  }
-  function markPalette() {
-    var set = {};
-    picked.forEach(function (c) { set[c.toLowerCase()] = 1; });
-    Array.prototype.forEach.call($('thPal').children, function (s) {
-      s.classList.toggle('on', !!set[s.dataset.c.toLowerCase()]);
-    });
-  }
-
-  /* ---------- готовые наборы ---------- */
-  function drawSets(presets) {
-    var box = $('thSets');
-    box.innerHTML = '';
-    presets.forEach(function (p) {
-      var d = document.createElement('div');
-      d.className = 'thSet';
-      d.innerHTML = '<div class="bar">' +
-        p.colors.map(function (c) { return '<span style="background:' + c + '"></span>'; }).join('') +
-        '</div><div class="nm">' + p.name + '</div>';
-      d.onclick = function () {
-        picked = p.colors.slice(0, MAX).map(function (c) { return c.toLowerCase(); });
-        preview(); drawSlots();
-        Array.prototype.forEach.call(box.children, function (x) { x.classList.remove('on'); });
-        d.classList.add('on');
-      };
-      box.appendChild(d);
-    });
-  }
-
-  /* Тема применяется сразу ко всей странице — отдельная панель
-     предпросмотра больше не нужна, цвета видно на самом интерфейсе. */
-  function preview() {
-    if (window.BFTheme) BFTheme.apply(picked);
-  }
-
-  /* ---------- замок ---------- */
+  /* ---------- замок ----------
+     Светлая и тёмная тема открываются один раз за монеты и после этого
+     доступны любому игроку — переключать можно сколько угодно. */
   function drawLock(st) {
     var box = $('thLock');
-    if (st.unlocked) { box.innerHTML = ''; $('thMain').style.display = ''; return; }
-    $('thMain').style.display = 'none';
+    var modes = $('thModes');
+    if (st.unlocked) {
+      box.innerHTML = '';
+      modes.classList.remove('thLocked');
+      return;
+    }
+    modes.classList.add('thLocked');
+    box.className = 'thLock';
     box.innerHTML =
         '<h3>' + T('themesLocked', 'Темы пока закрыты') + '</h3>'
       + '<p>' + T('themesWhat',
-          'Выберите свои цвета — перекрасится вся игра: шапка, кнопки, карточки, редактор. '
-          + 'Покупка разовая, менять цвета потом можно сколько угодно.') + '</p>'
+          'Открывает светлое и тёмное оформление всего сайта: шапка, кнопки, карточки, списки. '
+          + 'Покупка разовая — дальше переключайте темы сколько угодно.') + '</p>'
       + '<div class="price">' + st.price + ' ' + (window.BFCoin ? BFCoin.svg(24) : '') + '</div>'
       + '<button class="bfBtn go" id="thBuy">' + T('unlockThemes', 'Открыть темы') + '</button>'
       + '<div class="bfMsg" id="thLockMsg" style="margin-top:8px"></div>';
@@ -298,51 +145,15 @@
     };
   }
 
-  /* ---------- кнопки ---------- */
-  $('thSave').onclick = function () {
-    BFTheme.save(picked).then(function (r) {
-      if (r.status === 'success') msg(T('saved', 'Сохранено'), true);
-      else msg(r.message || T('errorTxt', 'Ошибка'));
-    }).catch(function () { msg(T('serverDown', 'Сервер недоступен')); });
-  };
-
-  $('thReset').onclick = function () {
-    picked = [];
-    preview(); drawSlots();
-    BFTheme.save([]).then(function () { msg(T('saved', 'Сохранено'), true); })
-      .catch(function () { msg(T('serverDown', 'Сервер недоступен')); });
-  };
-
-  /* ---------- светлая и тёмная ---------- */
-  function markMode(m) {
-    Array.prototype.forEach.call(document.querySelectorAll('.thMode'), function (el) {
-      el.classList.toggle('on', el.dataset.mode === m);
-    });
-  }
-  Array.prototype.forEach.call(document.querySelectorAll('.thMode'), function (el) {
-    el.onclick = function () {
-      markMode(el.dataset.mode);
-      BFTheme.setMode(el.dataset.mode);
-    };
-  });
-
-  /* ---------- старт ---------- */
   function start() {
     BFTheme.load().then(function (st) {
-      MAX = st.max || 4;
       markMode(st.mode || 'light');
       drawLock(st);
-      if (!st.unlocked) return;
-      picked = (st.colors || []).slice();
-      drawPalette();
-      drawSets(st.presets || []);
-      drawSlots();
-      preview();
     });
   }
   start();
 
-  window.addEventListener('bf-lang', function () { drawSlots(); });
+  window.addEventListener('bf-lang', start);
 })();
 </script>
 </body>

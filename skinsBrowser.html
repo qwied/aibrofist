@@ -17,7 +17,8 @@
 .sbName{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sbAuthor{font-size:13px;color:var(--muted);margin:2px 0 6px}
 .sbAuthor a{color:var(--blue);text-decoration:none}
-.sbRating{font-weight:700;font-size:15px;margin-bottom:7px}
+.sbRating{font-weight:700;font-size:15px;margin-bottom:7px;display:flex;gap:9px;justify-content:center}
+.sbRating .up{color:var(--green)} .sbRating .down{color:var(--red)}
 
 .sbTag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:20px;
   background:#eef7ff;color:var(--blue);margin-bottom:6px}
@@ -108,12 +109,14 @@
       + '<div class="sbName">' + esc(s.skinName) + '</div>'
       + '<div class="sbAuthor">' + T('colAuthor', 'Автор') + ': '
       +   '<a href="users.html?name=' + encodeURIComponent(s.author) + '">' + esc(s.author) + '</a></div>'
-      + '<div class="sbRating">' + (s.rating > 0 ? '+' : '') + s.rating + '</div>'
+      + '<div class="sbRating"><span class="up">' + s.likes + '</span>'
+      +   '<span class="down">' + s.dislikes + '</span></div>'
       + '<div class="bfVote">'
       +   '<button class="up' + (s.myVote > 0 ? ' on' : '') + '" data-vote="1" data-sid="' + s.id + '">👍 ' + s.likes + '</button>'
       +   '<button class="down' + (s.myVote < 0 ? ' on' : '') + '" data-vote="-1" data-sid="' + s.id + '">👎 ' + s.dislikes + '</button>'
-      + '</div>'
-      + '<button class="bfMini" data-wear="' + s.id + '">' + T('tryOn', 'Примерить') + '</button>';
+      + '</div>';
+    /* Кнопка «Примерить» убрана: она надевала любой чужой скин бесплатно.
+       Надеть образ можно на странице Avatar — свой, купленный или из витрины. */
 
     // всё, что доступно только владельцу, дорисовывает owner.js —
     // этот файл сервер отдаёт исключительно ему
@@ -148,19 +151,9 @@
 
   document.addEventListener('click', function (e) {
     var v = e.target.closest && e.target.closest('[data-vote]');
-    var w = e.target.closest && e.target.closest('[data-wear]');
-
     if (v) {
       post('/skins/vote', { id: v.dataset.sid, vote: v.dataset.vote })
         .then(function (r) { r.status === 'success' ? load() : msg(r.message || T('errorTxt')); })
-        .catch(function () { msg(T('serverDown')); });
-    }
-    if (w) {
-      post('/skins/wear', { id: w.dataset.wear })
-        .then(function (r) {
-          if (r.status === 'success') msg(T('wornOk', 'Скин надет') + ' — ' + r.skinName, true);
-          else msg(r.message || T('errorTxt'));
-        })
         .catch(function () { msg(T('serverDown')); });
     }
   });

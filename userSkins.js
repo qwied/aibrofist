@@ -342,13 +342,19 @@ function register(app, acc, skinsApi) {
     const s = list.find(x => x.id === String(req.body.id || ''));
     if (!s) return res.json({ status: 'error', message: 'Скин не найден' });
 
+    // Надеть можно только свой образ, купленный или выставленный в витрине
+    // Avatar. Раньше через Skins Browser надевался любой чужой скин даром.
+    u.boughtSkins = Array.isArray(u.boughtSkins) ? u.boughtSkins : [];
+    const mine   = low(s.author) === low(u.name);
+    const bought = u.boughtSkins.indexOf(s.id) !== -1;
+    if (!mine && !bought && !s.inAvatar)
+      return res.json({ status: 'error',
+                        message: 'Этот скин не ваш — надеть его нельзя' });
+
     // скины из витрины Avatar с ценой нужно сначала купить
-    if (s.inAvatar && (s.price || 0) > 0 && low(s.author) !== low(u.name)) {
-      u.boughtSkins = Array.isArray(u.boughtSkins) ? u.boughtSkins : [];
-      if (u.boughtSkins.indexOf(s.id) === -1)
-        return res.json({ status: 'error', code: 'buy', price: s.price,
-                          message: 'Сначала купите этот скин за ' + s.price + ' монет' });
-    }
+    if (s.inAvatar && (s.price || 0) > 0 && !mine && !bought)
+      return res.json({ status: 'error', code: 'buy', price: s.price,
+                        message: 'Сначала купите этот скин за ' + s.price + ' монет' });
 
     u.skin = skinsApi.normalize(s.skin);
     u.wearing = s.id;

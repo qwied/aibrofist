@@ -352,25 +352,19 @@ function figure(w,h,col,accent,skin){
 
 /* Each painter draws the object in its own local space (0,0 → w,h). */
 var PAINT = {
+  /* Три базовые фигуры рисуются одной плоской заливкой: без скруглений,
+     градиентов и бликов. Что нарисовано — то и считает хитбокс. */
   rect: function(o){
-    ctx.fillStyle = o.fill ? o.fill : grad(0,0,0,o.h,C.stone1,C.stone3);
-    rr(0,0,o.w,o.h,Math.min(5,o.h/4)); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,.14)";
-    rr(2,2,Math.max(0,o.w-4),Math.max(1,o.h*0.28),3); ctx.fill();
+    ctx.fillStyle = o.fill || C.ink;
+    ctx.fillRect(0,0,o.w,o.h);
   },
   circle: function(o){
-    var g = ctx.createRadialGradient(o.w*0.35,o.h*0.32,1,o.w*0.5,o.h*0.5,Math.max(o.w,o.h)*0.62);
-    g.addColorStop(0, o.fill || "#6b7280"); g.addColorStop(1, shade(o.fill || "#374151",-38));
-    ctx.fillStyle = g;
+    ctx.fillStyle = o.fill || C.ink;
     ctx.beginPath(); ctx.ellipse(o.w/2,o.h/2,o.w/2,o.h/2,0,0,6.2832); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,.3)";
-    ctx.beginPath(); ctx.ellipse(o.w*0.34,o.h*0.3,o.w*0.15,o.h*0.11,-0.5,0,6.2832); ctx.fill();
   },
   triangle: function(o){
-    ctx.fillStyle = o.fill ? o.fill : grad(0,0,0,o.h,C.stone1,C.stone3);
+    ctx.fillStyle = o.fill || C.ink;
     ctx.beginPath(); ctx.moveTo(o.w/2,0); ctx.lineTo(o.w,o.h); ctx.lineTo(0,o.h); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,.16)";
-    ctx.beginPath(); ctx.moveTo(o.w/2,o.h*0.1); ctx.lineTo(o.w*0.72,o.h*0.86); ctx.lineTo(o.w/2,o.h*0.86); ctx.closePath(); ctx.fill();
   },
   text: function(o){
     ctx.fillStyle = o.fill || C.ink;
@@ -442,23 +436,6 @@ var PAINT = {
     ctx.fillStyle = "rgba(255,255,255,.4)"; ctx.fillRect(0,0,o.w,Math.max(1.5,o.h*0.16));
     ctx.fillStyle = "rgba(0,0,0,.22)";           // tread marks
     for(var i=6;i<o.w-4;i+=13) ctx.fillRect(i, o.h*0.42, 5, Math.max(2,o.h*0.3));
-  },
-  cover: function(o){
-    var rh = o.h*0.38;
-    ctx.fillStyle = grad(0,rh,0,o.h,C.wood1,C.wood2);
-    rr(0,rh,o.w,o.h-rh,3); ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,.2)"; ctx.lineWidth = 1;
-    for(var i=1;i<3;i++){ ctx.beginPath(); ctx.moveTo(0,rh+(o.h-rh)*i/3); ctx.lineTo(o.w,rh+(o.h-rh)*i/3); ctx.stroke(); }
-    ctx.fillStyle = "#7c2d12";
-    ctx.beginPath(); ctx.moveTo(-o.w*0.04,rh); ctx.lineTo(o.w/2,0); ctx.lineTo(o.w*1.04,rh); ctx.closePath(); ctx.fill();
-  },
-  gate: function(o){
-    var post = Math.max(4, o.w*0.2);
-    ctx.fillStyle = grad(0,0,0,o.h,C.metal2,C.metal3);
-    rr(0,0,post,o.h,2); ctx.fill(); rr(o.w-post,0,post,o.h,2); ctx.fill();
-    ctx.fillStyle = grad(0,0,0,o.h,C.gate1,C.gate2);
-    var bars = Math.max(2, Math.round(o.h/26));
-    for(var i=0;i<bars;i++) rr(post, o.h*i/bars + 2, Math.max(0,o.w-post*2), Math.max(2,o.h/bars-4), 2), ctx.fill();
   },
   door: function(o){
     ctx.fillStyle = grad(0,0,o.w,0,C.wood1,C.wood2);
@@ -557,10 +534,7 @@ var TOOLS = [
   {t:"triangle",   n:"Треугольник", m:ALL},
   {t:"text",       n:"Текст",       m:ALL},
   {t:"coin",       n:"Монета",      m:ALL},
-  {t:"gate",       n:"Ворота",      m:ALL},
   {t:"spawn",      n:"Точка старта",m:ALL},
-  // только прятки
-  {t:"cover",      n:"Укрытие",     m:"hideAndSeek"},
   {t:"button",     n:"Кнопка",      m:ALL},
   {t:"lever",      n:"Рычаг",       m:ALL},
   // только гонка
@@ -580,21 +554,23 @@ var OBJ_LIMIT = 2000;   // максимум объектов в карте, од
 var INK = "#111827";
 var COLORS = {
   rect:INK, circle:INK, triangle:INK, text:INK,
-  coin:"", gate:INK, button:INK, lever:INK, cover:INK,
-  door:INK, checkpoint:"", finishline:"", spawn:INK
+  coin:"", button:INK, lever:INK,
+  checkpoint:"", finishline:"", spawn:INK
 };
 var SIZES = {
   rect:[90,26], circle:[58,58], triangle:[58,52], text:[70,24], coin:[22,22],
-  gate:[26,96], button:[34,18], lever:[22,42], cover:[70,52], door:[32,84],
+  button:[34,18], lever:[22,42],
   checkpoint:[30,64], finishline:[42,86], spawn:[22,74]
 };
-var SOLID  = ["rect","circle","triangle","cover","gate"];
+var SOLID  = ["rect","circle","triangle"];
 /* Раньше яд, шипы и ротатор убивали просто потому, что так называются.
    Теперь смертельность — свойство объекта: галочка «Яд» есть у каждого,
    и её можно снять хоть с самого яда. Модели остались как были. */
 var HAZARD = [];
 var DEADLY_BY_DEFAULT = [];
-var LINKED = ["gate","cover","button","lever"];
+/* Ворота и укрытие убраны, но механика связей осталась: цель кнопки или
+   рычага — теперь любой обычный блок, круг или треугольник. */
+var LINKED = ["rect","circle","triangle","button","lever"];
 
 /* ══════════════════════════════════════════════════
    STATE
@@ -675,8 +651,7 @@ function mk(type,x,y,w,h){
            deadly: DEADLY_BY_DEFAULT.indexOf(type) !== -1};
   if(type === "text") o.text = "Text";
 
-  if(LINKED.indexOf(type) !== -1){ o.customId = "w"+o.id; o.targetIds = ""; }
-  if(type === "gate") o.startsOpen = false;
+  if(type === "button" || type === "lever"){ o.customId = "w"+o.id; o.targetIds = ""; }
   return o;
 }
 function demo(){
@@ -780,7 +755,7 @@ function moveA(){ return MOVE_A * gk(); }
 function wallVX(){ return WALL_VX * gk(); }
 function maxFall(){ return 12 + gravityScale * 0.8; }
 
-var pl = {x:0,y:0,w:22,h:74,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,selfJump:false};
+var pl = {x:0,y:0,w:22,h:74,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,selfJump:false,hidden:false};
 var keys = {l:false,r:false,u:false};
 var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false;
 var deaths = 0, coins = 0, coinsTotal = 0, timeMs = 0, shake = 0, acc = 0, last = 0;
@@ -829,7 +804,9 @@ function showMsg(t,s){
 }
 function hideMsg(){ var m = document.getElementById("msg"); m.classList.remove("show"); m.style.display = "none"; }
 
-var opened = function(o){ return o.type === "gate" && !!o._act; };
+/* «Открыт» — объект, который включила кнопка или рычаг: он становится
+   полупрозрачным и проходимым. Сами кнопка и рычаг так не исчезают. */
+var opened = function(o){ return o.type !== "button" && o.type !== "lever" && !!o._act; };
 
 /* Все ли игроки уже в двери. В одиночном прогоне редактора игрок один,
    поэтому условие выполняется сразу. В сетевой игре список приходит
@@ -844,7 +821,9 @@ function allAtDoor(o){
   }
   return true;
 }
-var solid  = function(o){ return SOLID.indexOf(o.type) !== -1 && !opened(o) && o.ghost !== true; };
+/* Укрытие для пряток игрок проходит насквозь — иначе за него не спрятаться. */
+var solid  = function(o){ return SOLID.indexOf(o.type) !== -1 && !opened(o)
+                              && o.ghost !== true && o.hideSpot !== true; };
 var hazard = function(o){ return o.deadly === true && !opened(o); };
 function hit(ax,ay,aw,ah,bx,by,bw,bh){ return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by; }
 
@@ -855,7 +834,7 @@ function hit(ax,ay,aw,ah,bx,by,bw,bh){ return ax<bx+bw && ax+aw>bx && ay<by+bh &
    вращался только на картинке. Теперь у каждого объекта настоящий
    многоугольник, который поворачивается вместе с ним.
    ══════════════════════════════════════════════════ */
-var CIRCLE_SIDES = 16;
+var CIRCLE_SIDES = 32;   // чем больше сторон, тем точнее хитбокс круга
 
 function rawPoly(o){
   var pts, i, a;
@@ -971,6 +950,9 @@ function step(){
 
   if(coy > 0) coy--;
   if(buf > 0) buf--;
+  /* Кнопку прыжка можно держать: как только игрок коснулся земли,
+     он прыгает снова, без повторного нажатия. */
+  if(keys.u && !pl.selfJump && (pl.ground || coy > 0)) buf = BUFFER;
   if(buf > 0){
     if(coy > 0 || pl.ground){
       pl.vy = jumpV(); buf = 0; coy = 0; pl.ground = false; pl.selfJump = true;
@@ -1042,8 +1024,11 @@ function step(){
   });
   if(pl.ground) pl.wall = 0;
 
+  pl.hidden = false;
   near.forEach(function(o){
     var over = overlaps(o, pl.x, pl.y, pl.w, pl.h);
+    // зашёл в укрытие — искатель не видит ни фигуру, ни ник
+    if(over && o.hideSpot === true) pl.hidden = true;
     if(!over){
       if(o.type === "button" && o._act){ o._act = false; drive(o); }
       if(o.type === "lever") o._latch = false;
@@ -1114,6 +1099,11 @@ function paint(o, isSel){
     ctx.globalAlpha = 1; ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 2;
     ctx.setLineDash([5,4]); ctx.strokeRect(-1,-1,o.w+2,o.h+2); ctx.setLineDash([]);
   }
+  // укрытие для пряток видно только в редакторе — зелёной рамкой
+  if(!playing && o.hideSpot){
+    ctx.globalAlpha = 1; ctx.strokeStyle = "#16a34a"; ctx.lineWidth = 2;
+    ctx.setLineDash([3,3]); ctx.strokeRect(-2,-2,o.w+4,o.h+4); ctx.setLineDash([]);
+  }
   ctx.restore();
   if(isSel){
     var k = 1/view.s;
@@ -1150,6 +1140,8 @@ function render(){
   }
   if(playing && !pl.dead){
     ctx.save(); ctx.translate(pl.x, pl.y);
+    // себя в укрытии видно бледным — чужие не видят вообще
+    if(pl.hidden) ctx.globalAlpha = 0.35;
     figure(pl.w, pl.h, (window.GAME && window.GAME.myColor) || "#111827", true,
            (window.GAME && window.GAME.mySkin) || null);
     ctx.restore();
@@ -1281,7 +1273,9 @@ document.getElementById("modes").addEventListener("click", function(e){
         if(!o.spin) o.spin = 2; o.deadly = true; }
       if(o.type === "bounce"){ o.type = "rect"; o.bouncy = true; }
       if(o.type === "poison" || o.type === "spike"){ o.type = "rect"; o.deadly = true; }
-      if(o.type === "door"){ o.type = "gate"; }
+      // Ворота, дверь и укрытие убраны — в старых картах становятся блоком,
+      // чтобы геометрия уровня не разъехалась
+      if(o.type === "door" || o.type === "gate" || o.type === "cover"){ o.type = "rect"; }
     });
     sel = null; markDirty(); indexMovers();
     showMsg("Убрано объектов: " + drop.length,
@@ -1575,7 +1569,7 @@ function chk(l,v,fn){
 }
 function grp(t){ var d = document.createElement("div"); d.className = "grp"; d.textContent = t; props.appendChild(d); }
 
-/* Как связать механизм. Показываем только у ворот, кнопок и рычагов —
+/* Как связать механизм. Показываем у кнопок, рычагов и их целей —
    там, где это действительно нужно, и по клику, а не постоянной надписью. */
 function linkHelp(){
   var d = document.createElement("div");
@@ -1588,7 +1582,7 @@ function linkHelp(){
   b.innerHTML =
       "1. У <b>Ворот</b> задай <b>ID</b> — например <code>g1</code>.<br>"
     + "2. У <b>Кнопки</b> или <b>Рычага</b> впиши тот же <code>g1</code> в поле <b>Цели</b>.<br>"
-    + "3. Нажми ▶ — ворота откроются от кнопки.<br><br>"
+    + "3. Нажми ▶ — блок откроется от кнопки.<br><br>"
     + "Целей можно указать несколько через запятую: <code>g1,g2</code>.<br>"
     + "Кнопка держит, пока на ней стоят. Рычаг переключает насовсем.";
   h.onclick = function(){
@@ -1628,6 +1622,10 @@ function inspect(){
     chk("Яд (убивает)", sel.deadly, function(v){ sel.deadly = v; });
   if(SOLID.indexOf(sel.type) !== -1)
     chk("Проходимый (декорация)", !!sel.ghost, function(v){ sel.ghost = v; });
+  /* Прятки: за таким объектом игрок исчезает для искателя вместе с ником.
+     Коллизии у него нет — иначе внутрь не зайти. */
+  if(SOLID.indexOf(sel.type) !== -1 && mode === "hideAndSeek")
+    chk("Укрытие для пряток", !!sel.hideSpot, function(v){ sel.hideSpot = v; });
   /* Батут, движение и вращение — теперь свойства, а не отдельные объекты.
      Любой блок можно сделать прыгучим, подвижным или крутящимся. */
   if(SOLID.indexOf(sel.type) !== -1){
@@ -1656,8 +1654,9 @@ function inspect(){
     grp("Связи");
     txt("ID", sel.customId, function(v){ sel.customId = v; });
     if(sel.type === "button" || sel.type === "lever") txt("Цели", sel.targetIds, function(v){ sel.targetIds = v; });
-    if(sel.type === "gate") chk("Открыт сначала", sel.startsOpen, function(v){ sel.startsOpen = v; });
-    if(["gate","button","lever"].indexOf(sel.type) !== -1) linkHelp();
+    if(SOLID.indexOf(sel.type) !== -1)
+      chk("Открыт сначала (проходим)", sel.startsOpen, function(v){ sel.startsOpen = v; });
+    linkHelp();
   }
 
   grp("Порядок");
@@ -1911,7 +1910,9 @@ window.GAME = {
         if(!o.spin) o.spin = 2; o.deadly = true; }
       if(o.type === "bounce"){ o.type = "rect"; o.bouncy = true; }
       if(o.type === "poison" || o.type === "spike"){ o.type = "rect"; o.deadly = true; }
-      if(o.type === "door"){ o.type = "gate"; }
+      // Ворота, дверь и укрытие убраны — в старых картах становятся блоком,
+      // чтобы геометрия уровня не разъехалась
+      if(o.type === "door" || o.type === "gate" || o.type === "cover"){ o.type = "rect"; }
     });
     if(objects.length > OBJ_LIMIT) objects.length = OBJ_LIMIT;
     objects.forEach(function(o){ if(o.id >= uid) uid = o.id + 1; });

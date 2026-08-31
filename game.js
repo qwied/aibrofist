@@ -376,6 +376,7 @@
       }
       o.say = d.position.say || '';
       o.fin = !!d.position.fin;
+      o.hid = !!d.position.hid;
     });
 
     socket.on('chatMessage', function (m) {
@@ -395,7 +396,8 @@
     socket.emit('movePlayer', { position: {
       x: Math.round(p.x), y: Math.round(p.y), w: p.w, h: p.h,
       color: GAME.myColor || COLOR_NORMAL, say: typing || '', fin: !!GAME.done,
-      sk: mySkinStr
+      sk: mySkinStr,
+      hid: !!GAME.hidden          // сижу в укрытии — меня не рисуют у других
     }});
 
     checkAllFinished();
@@ -404,7 +406,7 @@
     if (MODE === 'hideAndSeek' && me.role === 'seeker' && phase === 'round') {
       Object.keys(others).forEach(function (id) {
         var o = others[id];
-        if (o.caught) return;
+        if (o.caught || o.hid) return;     // в укрытии игрока не поймать
         if (Math.abs(o.x - p.x) < 34 && Math.abs(o.y - p.y) < 60) {
           o.caught = true;
           socket.emit('sendChat', { text: o.name + ' пойман!' });
@@ -445,6 +447,8 @@
       var o = others[id];
       o.x += (o.tx - o.x) * 0.3;
       o.y += (o.ty - o.y) * 0.3;
+      // спрятался за объектом — ни фигуры, ни ника, ни реплики
+      if (o.hid) return;
       var w = o.w || 22, h = o.h || 74;
       ctx.save();
       ctx.translate(o.x, o.y);
@@ -453,7 +457,13 @@
       drawTag(ctx, o.name || '', o.say, o.x + w / 2, o.y, (o.h || 74));
     });
     var p = GAME.pl;
-    if (GAME.playing && me.name) drawTag(ctx, me.name, typing, p.x + p.w / 2, p.y, p.h);
+    if (GAME.playing && me.name) {
+      // свой ник в укрытии показываем бледным — напоминание, что тебя не видно
+      ctx.save();
+      if (GAME.hidden) ctx.globalAlpha = 0.35;
+      drawTag(ctx, me.name, typing, p.x + p.w / 2, p.y, p.h);
+      ctx.restore();
+    }
   };
 
   // имя — под игроком зелёным, реплика — над головой
