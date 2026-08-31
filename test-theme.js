@@ -40,19 +40,22 @@ edge.forEach(s => {
               c.toFixed(2), c >= MIN ? '✓' : '✗');
 });
 
-// каждый выбранный цвет должен реально попадать в стиль
+// каждый выбранный цвет должен давать свой оттенок в интерфейсе.
+// Сравниваем не с исходным значением, а с тем, что попало в стиль:
+// акценты подгоняются под подложку, поэтому точного совпадения нет.
 console.log('\nраспределение цветов по интерфейсу:');
 let spread = 0;
 [['#ff0000'], ['#ff0000','#00ff00'], ['#ff0000','#00ff00','#0000ff'],
  ['#ff0000','#00ff00','#0000ff','#ffaa00']].forEach(set => {
-  const p = T.palette(set);
-  const css = T.css(p);
-  const cols = [p.brand, p.brand2, p.brand3, p.brand4].slice(0, set.length);
-  const used = cols.filter(c => css.includes(c)).length;
+  const css = T.css(T.palette(set));
+  const vars = ['--blue', '--brand-2', '--brand-3', '--brand-4']
+    .map(v => (new RegExp(v + ':\\s*(#[0-9a-f]{6})').exec(css) || [])[1])
+    .slice(0, set.length);
+  const distinct = new Set(vars).size;
   const bg = /body\{background:/.test(css);
-  if (used !== set.length || !bg) spread++;
-  console.log('  ', set.length, 'цвет(а):', used + '/' + set.length,
-              '| фон страницы:', bg ? '✓' : '✗');
+  if (distinct !== set.length || !bg) spread++;
+  console.log('  ', set.length, 'цвет(а):', distinct + '/' + set.length,
+              'разных оттенков | фон страницы:', bg ? '✓' : '✗');
 });
 console.log(spread ? 'цвета распределены неверно' : 'каждый цвет участвует в оформлении ✓');
 
@@ -74,6 +77,33 @@ let bgBad = 0;
               ok ? '✓' : '✗');
 });
 console.log(bgBad ? 'фон подобран плохо' : 'фон окрашен и текст читается ✓');
+
+// светлая и тёмная: текст, кнопки и границы должны быть видны
+console.log('\nсветлая и тёмная тема:');
+let modeBad = 0;
+['light', 'dark'].forEach(mode => {
+  [['#2196F3'], ['#16a34a', '#065f46'], ['#000000'], ['#ffffff']].forEach(set => {
+    const p = T.palette(set);
+    const css = T.css(p, mode);
+    const bg   = /html\{background:(#[0-9a-f]{6})/.exec(css)[1];
+    const ink  = /--ink:\s*(#[0-9a-f]{6})/.exec(css)[1];
+    const acc  = /--blue:\s*(#[0-9a-f]{6})/.exec(css)[1];
+    const line = /--line:\s*(#[0-9a-f]{6})/.exec(css)[1];
+
+    const textOk   = H.contrast(ink, bg) >= 7;      // текст читается
+    const btnOk    = H.contrast(acc, bg) >= 3;      // кнопку видно на фоне
+    const btnTxtOk = H.contrast(acc, H.on(acc)) >= 4.5;
+    const lineOk   = H.contrast(line, bg) >= 1.15;  // границы не сливаются
+    const ok = textOk && btnOk && btnTxtOk && lineOk;
+    if (!ok) modeBad++;
+    console.log('  ', mode.padEnd(5), set.join(',').padEnd(18),
+      'фон', bg, '| текст', H.contrast(ink, bg).toFixed(1),
+      '| кнопка', H.contrast(acc, bg).toFixed(1),
+      '| подпись', H.contrast(acc, H.on(acc)).toFixed(1),
+      '| граница', H.contrast(line, bg).toFixed(2), ok ? '✓' : '✗');
+  });
+});
+console.log(modeBad ? 'в теме что-то не видно' : 'в обеих темах всё различимо ✓');
 
 // пустой набор возвращает «без темы»
 console.log('\nбез цветов:', T.palette([]) === null ? 'обычное оформление ✓' : '✗');

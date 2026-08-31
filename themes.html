@@ -7,6 +7,25 @@
 <link rel="stylesheet" href="ui.css">
 <script src="device.js"></script>
 <style>
+/* переключатель светлой и тёмной темы */
+.thModes{display:flex;gap:14px;margin:6px 0 8px;flex-wrap:wrap}
+.thMode{border:2px solid var(--line);border-radius:14px;padding:10px;cursor:pointer;
+  width:190px;background:var(--panel,#fff)}
+.thMode.on{border-color:var(--blue)}
+.thModeArt{height:74px;border-radius:10px;padding:10px;display:flex;flex-direction:column;
+  gap:7px;justify-content:center}
+.thModeArt.light{background:#f4f6fa;border:1px solid #e3e7ee}
+.thModeArt.dark{background:#16181d;border:1px solid #333a46}
+.thModeArt span{display:block;height:9px;border-radius:5px}
+.thModeArt.light span:nth-child(1){width:62%;background:#c9d2df}
+.thModeArt.light span:nth-child(2){width:88%;background:#e2e7ef}
+.thModeArt.light span:nth-child(3){width:44%;background:#2196F3}
+.thModeArt.dark span:nth-child(1){width:62%;background:#3a4250}
+.thModeArt.dark span:nth-child(2){width:88%;background:#262b35}
+.thModeArt.dark span:nth-child(3){width:44%;background:#4aa8f0}
+.thModeName{text-align:center;font-weight:700;font-size:14.5px;margin-top:9px}
+@media (max-width:640px){ .thMode{width:calc(50% - 7px)} }
+
 .thWrap{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start}
 @media (max-width:900px){ .thWrap{grid-template-columns:1fr} }
 
@@ -59,6 +78,18 @@
 <div class="bfWrap">
   <div class="bfTitle" data-i18n="themes">Темы</div>
   <div class="bfSub" data-i18n="themesSub">Выберите от одного до четырёх цветов — интерфейс перекрасится целиком.</div>
+
+  <div class="thModes">
+    <div class="thMode" data-mode="light">
+      <div class="thModeArt light"><span></span><span></span><span></span></div>
+      <div class="thModeName" data-i18n="lightTheme">Светлая</div>
+    </div>
+    <div class="thMode" data-mode="dark">
+      <div class="thModeArt dark"><span></span><span></span><span></span></div>
+      <div class="thModeName" data-i18n="darkTheme">Тёмная</div>
+    </div>
+  </div>
+  <div class="thHint" data-i18n="modeFree">Светлая и тёмная тема доступны всем и включаются сразу.</div>
 
   <div id="thLock"></div>
 
@@ -282,10 +313,24 @@
       .catch(function () { msg(T('serverDown', 'Сервер недоступен')); });
   };
 
+  /* ---------- светлая и тёмная ---------- */
+  function markMode(m) {
+    Array.prototype.forEach.call(document.querySelectorAll('.thMode'), function (el) {
+      el.classList.toggle('on', el.dataset.mode === m);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.thMode'), function (el) {
+    el.onclick = function () {
+      markMode(el.dataset.mode);
+      BFTheme.setMode(el.dataset.mode);
+    };
+  });
+
   /* ---------- старт ---------- */
   function start() {
     BFTheme.load().then(function (st) {
       MAX = st.max || 4;
+      markMode(st.mode || 'light');
       drawLock(st);
       if (!st.unlocked) return;
       picked = (st.colors || []).slice();

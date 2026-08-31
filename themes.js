@@ -40,6 +40,12 @@ function cleanColors(raw) {
   return out.length ? out : null;
 }
 
+const MODES = ['light', 'dark'];
+
+function modeOf(u) {
+  return (u && MODES.indexOf(u.themeMode) !== -1) ? u.themeMode : 'light';
+}
+
 function themeOf(u) {
   if (!u || !Array.isArray(u.themeColors) || !u.themeColors.length) return null;
   return { colors: u.themeColors.slice(0, MAX_COLORS) };
@@ -56,9 +62,24 @@ function register(app, acc) {
       price: UNLOCK_PRICE,
       coins: u ? (u.coins || 0) : 0,
       max: MAX_COLORS,
+      mode: modeOf(u),
+      modes: MODES,
       theme: themeOf(u),
       presets: PRESETS
     });
+  });
+
+  /* Светлая и тёмная тема бесплатны для всех: это не украшение,
+     а удобство чтения. За монеты открывается только выбор цветов. */
+  app.post('/theme/mode', (req, res) => {
+    const want = String(req.body.mode || '').toLowerCase();
+    if (MODES.indexOf(want) === -1)
+      return res.json({ status: 'error', message: 'Неизвестная тема' });
+
+    const u = currentUser(req);
+    if (u) { u.themeMode = want; save(); }
+    // гостю тему не сохраняем, но и не запрещаем — она ляжет в браузер
+    res.json({ status: 'success', mode: want, saved: !!u });
   });
 
   app.post('/theme/unlock', (req, res) => {
@@ -109,4 +130,4 @@ function register(app, acc) {
   // отдельного публичного маршрута нет
 }
 
-module.exports = { register, PRESETS, UNLOCK_PRICE, MAX_COLORS, themeOf };
+module.exports = { register, PRESETS, UNLOCK_PRICE, MAX_COLORS, MODES, themeOf, modeOf };

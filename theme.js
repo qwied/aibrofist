@@ -87,6 +87,43 @@
     return usable(hsl2hex((c.h + deg + 360) % 360, c.s, c.l));
   }
 
+  /* ---------- тёмная тема ----------
+     Оттенки как в привычных тёмных интерфейсах: почти чёрный фон,
+     панели чуть светлее, тонкие границы и мягкий светлый текст.
+     Чистый чёрный не берём — на нём режет глаза, а границы пропадают. */
+  var DARK = {
+    bg:     '#16181d',   // фон страницы
+    bg2:    '#1b1e25',   // второй тон для перехода
+    panel:  '#1f232b',   // карточки и панели
+    raised: '#262b35',   // то, что лежит поверх: списки, поля
+    line:   '#333a46',
+    ink:    '#e7eaf0',
+    muted:  '#98a1b0',
+    head:   '#1a1e26'
+  };
+
+  /* Кнопка должна отличаться от подложки, иначе её просто не видно.
+     Двигаем яркость акцента в сторону от фона, пока контраст с ним
+     не станет 3 и выше, — и следим, чтобы подпись на самой кнопке
+     при этом осталась читаемой. */
+  function fitOn(hex, bg) {
+    if (contrast(hex, bg) >= 3.05) return hex;
+    var c = rgb2hsl(hex);
+    var up = lum(bg) < 0.4;                 // на тёмном фоне светлеем, на светлом темнеем
+    var sat = Math.max(0.28, c.s);
+    var best = hex, bestK = contrast(hex, bg);
+
+    for (var i = 1; i <= 30; i++) {
+      var l = up ? Math.min(0.86, c.l + 0.025 * i) : Math.max(0.10, c.l - 0.025 * i);
+      var cand = hsl2hex(c.h, sat, l);
+      if (contrast(cand, on(cand)) < 4.5) continue;   // подпись должна читаться
+      var k = contrast(cand, bg);
+      if (k > bestK) { best = cand; bestK = k; }
+      if (k >= 3.2) return cand;
+    }
+    return best;
+  }
+
   /* ---------- палитра из выбранных цветов ---------- */
   function palette(colors) {
     var raw = (colors || []).filter(Boolean);
@@ -123,61 +160,80 @@
      за кнопки. Один цвет — вся страница в его тонах. Два — шапка и
      активные элементы берут первый, кнопки и ссылки второй. Три — плюс
      карточки и чипы. Четыре — плюс выделения и вкладки. */
-  function css(p) {
+  function css(p, mode) {
+    var dark = mode === 'dark';
     var c = p.raw.length;
     var A = p.brand, B = c > 1 ? p.brand2 : p.brand,
         C = c > 2 ? p.brand3 : B, D = c > 3 ? p.brand4 : A;
-    var onA = on(A), onB = on(B), onC = on(C), onD = on(D);
 
-    var grad = c > 1
-      ? 'linear-gradient(135deg,' + A + ' 0%,' + B + ' 100%)'
-      : A;
-    var stripe = c > 1
-      ? 'linear-gradient(90deg,' + p.raw.join(',') + ')'
-      : A;
+    var onA, onB, onC, onD;
 
     /* Фон страницы. Раньше подмешивалось 5% цвета — на глаз это почти
        белый лист. Теперь заметный оттенок, а при нескольких цветах —
        мягкий переход между ними по диагонали. Больше 22% не берём:
        дальше тёмный текст начинает терять контраст. */
-    var tint = function (c, k) { return mix('#ffffff', c, k); };
-    var pageBg = tint(A, 0.17);
+    var tint = dark
+      ? function (col, k) { return mix(DARK.bg, col, k * 0.55); }
+      : function (col, k) { return mix('#ffffff', col, k); };
+    var pageBg = dark ? mix(DARK.bg, A, 0.07) : tint(A, 0.17);
+
+    // подгоняем акценты под получившуюся подложку
+    A = fitOn(A, pageBg); B = fitOn(B, pageBg);
+    C = fitOn(C, pageBg); D = fitOn(D, pageBg);
+    onA = on(A); onB = on(B); onC = on(C); onD = on(D);
+
+    // градиенты собираем уже из подогнанных цветов
+    var grad = c > 1
+      ? 'linear-gradient(135deg,' + A + ' 0%,' + B + ' 100%)'
+      : A;
+    var stripe = c > 1
+      ? 'linear-gradient(90deg,' + [A, B, C, D].slice(0, c).join(',') + ')'
+      : A;
+
     var pageImg = c > 1
       ? 'linear-gradient(160deg,' + tint(A, 0.20) + ' 0%,' +
         (c > 2 ? tint(B, 0.16) + ' 45%,' + tint(C, 0.20) : tint(B, 0.20)) + ' 100%)'
       : 'linear-gradient(160deg,' + tint(A, 0.22) + ' 0%,' + tint(A, 0.09) + ' 100%)';
-    var cardBg = tint(C, 0.05);
-    var panelBg = tint(C, 0.03);
+
+    var cardBg  = dark ? mix(DARK.panel,  C, 0.05) : tint(C, 0.05);
+    var panelBg = dark ? mix(DARK.panel,  C, 0.03) : tint(C, 0.03);
+    var raised  = dark ? mix(DARK.raised, C, 0.05) : '#ffffff';
+    var ink     = dark ? DARK.ink   : p.ink;
+    var muted   = dark ? DARK.muted : p.muted;
+    var line    = dark ? mix(DARK.line, C, 0.14) : mix('#e5e7eb', C, 0.3);
+    var headBg  = dark ? mix(DARK.head, A, 0.08) : mix('#f5f5f5', A, 0.12);
 
     return [
       ':root{',
       '--blue:', A, ';--accent:', A, ';--accent-dark:', mix(A, '#000', 0.18), ';',
       '--brand-2:', B, ';--brand-3:', C, ';--brand-4:', D, ';',
       '--on-brand:', onA, ';',
-      '--ink:', p.ink, ';--muted:', p.muted, ';--line:', mix('#e5e7eb', C, 0.3), ';',
-      '--soft:', mix('#ffffff', C, 0.07), ';--hdr-bg:', p.head, ';',
+      '--ink:', ink, ';--muted:', muted, ';--line:', line, ';',
+      '--soft:', dark ? mix(DARK.raised, C, 0.06) : mix('#ffffff', C, 0.07), ';',
+      '--panel:', raised, ';--hdr-bg:', headBg, ';',
       '--bf-grad:', grad, ';',
       '}',
 
       /* --- вся страница --- */
-      'html{background:', pageBg, '}',
+      'html{background:', pageBg, ';color-scheme:', dark ? 'dark' : 'light', '}',
       'body{background:', pageBg, ' !important;background-image:', pageImg, ' !important;',
       'background-attachment:fixed !important;background-repeat:no-repeat !important;',
-      'min-height:100vh;color:', p.ink, '}',
+      'min-height:100vh;color:', ink, '}',
       '.bfWrap{background:transparent}',
       /* белые полотна внутри страниц тоже подкрашиваем */
       '.container,.bfPanel{background:transparent}',
 
       /* --- шапка: первый цвет --- */
-      '.bfHead{background:', mix('#f5f5f5', A, 0.12), ';border-bottom:3px solid transparent;',
+      '.bfHead{background:', headBg, ';border-bottom:3px solid transparent;',
       'border-image:', stripe, ' 1}',
-      '.bfNav a:hover,.bfMenuBtn:hover{background:', mix('#ffffff', A, 0.18), '}',
+      '.bfNav a:hover,.bfMenuBtn:hover{background:', dark ? DARK.raised : mix('#ffffff', A, 0.18), '}',
+      '.bfNav a,.bfMenuBtn{color:', ink, '}',
       '.bfNav a.on{background:', grad, ';color:', onA, '}',
-      '.bfBrand b,.bfBrandMark i{color:', p.dark, ';background:', p.dark, '}',
-      '.bfBrand b{background:none}',
+      '.bfBrand b{color:', dark ? ink : p.dark, ';background:none}',
+      '.bfBrandMark i{background:', dark ? ink : p.dark, '}',
 
       /* --- кнопки: второй цвет --- */
-      '.bfBtn{border-color:', B, ';color:', B, ';background:#fff}',
+      '.bfBtn{border-color:', B, ';color:', B, ';background:', raised, '}',
       '.bfBtn:hover{background:', B, ';color:', onB, '}',
       '.bfBtn.go{background:', grad, ';color:', onA, ';border-color:transparent}',
       '.bfMini{border-color:', B, ';color:', B, '}',
@@ -190,7 +246,9 @@
       '.bfCard,.mbRow,.sbCard,.upRow,.upSkin,.thSet,.mdArt{',
       'background:', cardBg, ';border-color:', mix('#e5e7eb', C, 0.42), '}',
       '.bfPanel{background:', panelBg, ';border-color:', mix('#e5e7eb', C, 0.42), '}',
-      '.bfDrop,.ow-box{background:', tint(C, 0.04), '}',
+      '.ow-box{background:', raised, ';color:', ink, ';border-color:', line, '}',
+      '.ow-i,.ow-bar input,.ow-sk input{background:', dark ? DARK.bg : '#fff', ';color:', ink, ';',
+      'border-color:', line, '}',
       '.mbRow:hover,.bfCard:hover,.sbCard:hover{border-color:', C, '}',
       '.seStage,.avStage,.sbArt,.avArt,.upSkin .art,.mdArt{background:', mix('#ffffff', C, 0.10), '}',
       '.bfHint{color:', p.muted, '}',
@@ -205,11 +263,15 @@
       '.bfCoin{color:', mix(A, '#7a5c00', 0.45), '}',
 
       /* --- поля ввода --- */
-      '.bfInput,.bfSelect{background:#fff;border-color:', mix('#cfd6de', C, 0.3), '}',
+      '.bfInput,.bfSelect,textarea{background:', raised, ';color:', ink, ';',
+      'border-color:', dark ? line : mix('#cfd6de', C, 0.3), '}',
+      '.bfInput::placeholder,.bfSelect::placeholder{color:', muted, '}',
       '.bfInput:focus,.bfSelect:focus{border-color:', B, ';outline:none}',
 
       /* --- выпадающие списки --- */
-      '.bfDrop{border-color:', mix('#e5e7eb', C, 0.35), '}',
+      '.bfDrop{border-color:', line, ';background:', raised, ';color:', ink, '}',
+      '.bfDropName{color:', muted, '}',
+      '.bfLangItem{border-color:', line, ';color:', ink, '}',
       '.bfDropItem:hover,.bfLangItem:hover{background:', mix('#ffffff', B, 0.14), '}',
 
       /* --- редактор и панель владельца --- */
@@ -220,32 +282,69 @@
       '.ow-fab:hover{background:', A, '}',
       '.ow-b,.ow-bar button{border-color:', B, ';color:', B, '}',
       '.ow-b:hover,.ow-bar button:hover{background:', B, ';color:', onB, '}',
-      '.ow-bar button.go,.ow-bar button.picked{background:', grad, ';color:', onA, '}'
+      '.ow-bar button.go,.ow-bar button.picked{background:', grad, ';color:', onA, '}',
+
+      /* --- то, что осталось белым в разметке страниц --- */
+      dark ? [
+        '.bfCardName,.bfTab,.sbName,.mbName,.upName,.mdName,.mdText,.mdList li{color:',
+          ink, '}',
+        '.bfCardMeta,.bfSub,.mbDate,.upRow .who span,.thHint{color:', muted, '}',
+        '.thSlot,.thSet,.upFound,.upAbout{background:', raised, ';border-color:', line, '}',
+        '.upFound a{color:', ink, ';border-color:', line, '}',
+        '.upFound a:hover{background:', DARK.bg, '}',
+        '.thLock{background:', panelBg, ';border-color:', line, '}',
+        '.mbRow:hover{background:', mix(DARK.panel, A, 0.10), '}',
+        '.bfTabs{border-bottom-color:', line, '}',
+        '.bfVote button{background:', raised, ';color:', ink, ';border-color:', line, '}',
+        '.mbPlay,.bfMini{background:', raised, '}',
+        '.bfHint{color:', muted, '}',
+        'input,select,textarea{color-scheme:dark}',
+        /* редактор: панели и холст */
+        ':root{--panel:', DARK.panel, ';--ink:', ink, ';--line:', line, ';--muted:', muted, '}',
+        '.panel{background:', DARK.panel, ';color:', ink, '}',
+        '#insp .pHelpBody{background:', DARK.bg, ';color:', muted, ';border-color:', line, '}',
+        '.tool,.modeBtn,.sBtn{color:', ink, '}',
+        '#dlg .card{background:', DARK.panel, ';color:', ink, '}',
+        '#dIn{background:', DARK.bg, ';color:', ink, ';border-color:', line, '}'
+      ].join('') : ''
     ].join('');
   }
 
   var styleEl = null;
-  function apply(colors) {
-    var p = palette(colors);
+  var BASE = ['#2196F3'];          // акцент по умолчанию, если цвета не выбраны
+
+  function apply(colors, mode) {
+    mode = mode || state.mode || 'light';
+    var list = (colors && colors.length) ? colors : (mode === 'dark' ? BASE : null);
+    var p = palette(list);
+
     if (!styleEl) {
       styleEl = document.createElement('style');
       styleEl.id = 'bfThemeStyle';
       document.head.appendChild(styleEl);
     }
-    styleEl.textContent = p ? css(p) : '';
-    document.documentElement.dataset.bfTheme = p ? p.raw.join(',') : '';
-    window.dispatchEvent(new CustomEvent('bf-theme', { detail: { colors: p ? p.raw : [] } }));
+    // светлая тема без выбранных цветов — обычное оформление, стиль пустой
+    styleEl.textContent = p ? css(p, mode) : '';
+
+    var root = document.documentElement;
+    root.dataset.bfMode = mode;
+    root.dataset.bfTheme = p ? p.raw.join(',') : '';
+    window.dispatchEvent(new CustomEvent('bf-theme',
+      { detail: { colors: p ? p.raw : [], mode: mode } }));
   }
 
   /* ---------- загрузка ---------- */
-  var state = { unlocked: false, colors: [], price: 100, max: 4, presets: [], coins: 0 };
+  var state = { unlocked: false, colors: [], mode: 'light',
+                price: 100, max: 4, presets: [], coins: 0 };
 
   function load() {
     // сначала последняя известная тема из памяти браузера — чтобы
     // страница не мигала белым до ответа сервера
     try {
+      var cachedMode = localStorage.getItem('bfThemeMode');
+      if (cachedMode === 'dark' || cachedMode === 'light') state.mode = cachedMode;
       var cached = JSON.parse(localStorage.getItem('bfTheme') || 'null');
-      if (cached && cached.length) apply(cached);
+      if ((cached && cached.length) || state.mode === 'dark') apply(cached || [], state.mode);
     } catch (e) {}
 
     return fetch('/theme/get', { credentials: 'same-origin' })
@@ -257,8 +356,12 @@
         state.presets = d.presets || [];
         state.coins = d.coins || 0;
         state.colors = (d.theme && d.theme.colors) || [];
-        apply(state.colors);
-        try { localStorage.setItem('bfTheme', JSON.stringify(state.colors)); } catch (e) {}
+        state.mode = d.mode || 'light';
+        apply(state.colors, state.mode);
+        try {
+          localStorage.setItem('bfTheme', JSON.stringify(state.colors));
+          localStorage.setItem('bfThemeMode', state.mode);
+        } catch (e) {}
         return state;
       })
       .catch(function () { return state; });
@@ -273,11 +376,23 @@
       .then(function (r) {
         if (r.status === 'success') {
           state.colors = colors || [];
-          apply(state.colors);
+          apply(state.colors, state.mode);
           try { localStorage.setItem('bfTheme', JSON.stringify(state.colors)); } catch (e) {}
         }
         return r;
       });
+  }
+
+  // светлая/тёмная — бесплатно и сразу
+  function setMode(mode) {
+    state.mode = (mode === 'dark') ? 'dark' : 'light';
+    apply(state.colors, state.mode);
+    try { localStorage.setItem('bfThemeMode', state.mode); } catch (e) {}
+    return fetch('/theme/mode', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'mode=' + state.mode
+    }).then(function (r) { return r.json(); }).catch(function () { return { status: 'offline' }; });
   }
 
   function unlock() {
@@ -290,7 +405,8 @@
   }
 
   window.BFTheme = {
-    apply: apply, palette: palette, css: css, load: load, save: save, unlock: unlock,
+    apply: apply, palette: palette, css: css, load: load, save: save,
+    setMode: setMode, unlock: unlock,
     get state() { return state; },
     helpers: { mix: mix, lum: lum, on: on, usable: usable, rotate: rotate,
                contrast: contrast, hsl: rgb2hsl }
