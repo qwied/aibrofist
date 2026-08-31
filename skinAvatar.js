@@ -123,9 +123,12 @@
   function scan(root) {
     root = root || document;
     if (!root.querySelectorAll) return;
+    /* Здесь был пропуск: у строк списка друзей картинка не имеет ни
+       класса, ни адреса — только data-bf-name, и сканер её не находил,
+       поэтому аватарки друзей оставались пустыми. */
     var list = root.querySelectorAll(
-      'img.profile-image, img.profile-picture, .user-avatar img, ' +
-      'img[src*="/avatar/"], .bfAvatar'
+      '[data-bf-name], img.profile-image, img.profile-picture, ' +
+      '.user-avatar img, img[src*="/avatar/"], .bfAvatar'
     );
     for (var i = 0; i < list.length; i++) {
       var el = list[i];

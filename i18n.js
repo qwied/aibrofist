@@ -167,6 +167,7 @@
     joinDate:     ['Дата регистрации','Join Date','Дата реєстрації','Beitrittsdatum','Date d\'inscription','Fecha de registro','Data de registo','Data rejestracji','Katılma tarihi','注册日期'],
     accept:       ['Принять','Accept','Прийняти','Annehmen','Accepter','Aceptar','Aceitar','Akceptuj','Kabul et','接受'],
     decline:      ['Отклонить','Decline','Відхилити','Ablehnen','Refuser','Rechazar','Recusar','Odrzuć','Reddet','拒绝'],
+    find:         ['Найти','Find','Знайти','Suchen','Trouver','Buscar','Procurar','Znajdź','Bul','查找'],
     searchUsers:  ['Поиск игроков','Search users','Пошук гравців','Spieler suchen','Rechercher des joueurs','Buscar jugadores','Procurar jogadores','Szukaj graczy','Oyuncu ara','搜索玩家'],
     addFriend:    ['Добавить в друзья','Add friend','Додати в друзі','Freund hinzufügen','Ajouter en ami','Añadir amigo','Adicionar amigo','Dodaj znajomego','Arkadaş ekle','加为好友'],
     report:       ['Пожаловаться','Report','Поскаржитися','Melden','Signaler','Reportar','Denunciar','Zgłoś','Bildir','举报'],

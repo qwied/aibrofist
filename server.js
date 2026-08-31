@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 });
 
 // служебные файлы наружу не отдаём
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/themes.js','/extras.js','/package.json','/package-lock.json','/readme-v36.md','/audit-ui.js','/test-ui.js','/test-avatar.js','/test-i18n.js','/test-theme.js','/check-domain.js','/domain-pp-ua.md'];
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/themes.js','/extras.js','/package.json','/package-lock.json','/readme-v38.md','/audit-ui.js','/test-ui.js','/test-avatar.js','/test-i18n.js','/test-theme.js','/test-objects.js','/check-domain.js','/domain-pp-ua.md'];
 app.use((req, res, next) => {
   const p = req.path.toLowerCase();
   if (PRIVATE.indexOf(p) !== -1 || p.indexOf('/data') === 0 || p.indexOf('/node_modules') === 0)
@@ -169,7 +169,7 @@ io.on('connection', (socket) => {
     io.to(room).emit('playersList', roomPlayers);
     io.to(room).emit('playerJoined', player);
 
-    console.log(`✅ [${room}] ${data.playerName} (${data.gameMode}) | Total: ${gameState.stats.totalPlayers}`);
+    console.log(`[${room}] ${data.playerName} (${data.gameMode}) | Total: ${gameState.stats.totalPlayers}`);
   });
 
   socket.on('movePlayer', (data) => {
@@ -261,7 +261,7 @@ io.on('connection', (socket) => {
       }
 
       io.to(room).emit('playerLeft', { playerId: socket.id });
-      console.log(`❌ ${player.name} | Осталось: ${gameState.stats.totalPlayers}`);
+      console.log(`${player.name} | Осталось: ${gameState.stats.totalPlayers}`);
     }
   });
 });
@@ -299,7 +299,7 @@ setInterval(() => {
       if (!rp.size) { gameState.rooms.delete(p.room); gameState.stats.totalRooms--; }
     }
     io.to(p.room).emit('playerLeft', { playerId: id });
-    console.log('🧹 убран зависший игрок', p.name);
+    console.log('убран зависший игрок', p.name);
   });
 }, 20000);
 
@@ -307,11 +307,11 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`
   ╔════════════════════════════════════════════════════════════╗
-  ║   🎮 AIBROFIST MULTIPLAYER SERVER                        ║
-  ║   ✅ Запущен на http://localhost:${PORT}                   ║
-  ║   👥 До 2000+ игроков одновременно                         ║
-  ║   🎮 Map Editor + Two Player + Hide and Seek + Sandbox     ║
-  ║   🚀 Оптимизирован для экстремальных нагрузок              ║
+  ║   AIBROFIST MULTIPLAYER SERVER                        ║
+  ║   Запущен на http://localhost:${PORT}                   ║
+  ║   До 2000+ игроков одновременно                         ║
+  ║   Map Editor + Two Player + Hide and Seek + Sandbox     ║
+  ║   Оптимизирован для экстремальных нагрузок              ║
   ╚════════════════════════════════════════════════════════════╝
   `);
 });

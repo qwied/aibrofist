@@ -223,7 +223,7 @@ body.mob #msg h1{font-size:38px}
 <div id="insp" class="panel">
   <div id="inspHead">
     <div class="tab on" data-tab="props">Свойства</div>
-    <div class="tab" id="inspClose" title="Закрыть">✕</div>
+    <div class="tab" id="inspClose" title="Закрыть">Закрыть</div>
   </div>
   <div id="props"></div>
   <div id="widgets" style="display:none"></div>
@@ -242,11 +242,11 @@ body.mob #msg h1{font-size:38px}
 </div>
 
 <div id="hud" class="panel">
-  <div id="exitBtn">✕ Выйти</div>
+  <div id="exitBtn">Выйти</div>
   <div class="stat"><i>⏱</i><span id="sTime">0.0</span></div>
-  <div class="stat" title="монет в карте (максимум 3)"><i>🪙</i><span id="sCoin">0</span></div>
+  <div class="stat" title="монет в карте (максимум 3)"><i>Монеты</i><span id="sCoin">0</span></div>
       <div class="stat" title="объектов в карте (максимум 2000)"><i>▦</i><span id="sObj">0</span></div>
-  <div class="stat"><i>💀</i><span id="sDeath">0</span></div>
+  <div class="stat" title="смертей"><i>Смерти</i><span id="sDeath">0</span></div>
 </div>
 <div id="msg"><h1 id="msgT"></h1><p id="msgS"></p></div>
 
@@ -301,9 +301,9 @@ var C = {
   red1:"#f87171", red2:"#dc2626",
   ink:"#111827"
 };
-function grad(x0,y0,x1,y1,a,b){
-  var g = ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,a); g.addColorStop(1,b); return g;
-}
+/* Плоская заливка вместо градиента. Объекты выглядели «масляными»
+   из-за переливов и бликов — теперь это просто цвет. */
+function grad(x0,y0,x1,y1,a,b){ return a; }
 function rr(x,y,w,h,r){
   r = Math.min(r, Math.abs(w)/2, Math.abs(h)/2);
   ctx.beginPath();
@@ -346,11 +346,6 @@ function figure(w,h,col,accent,skin){
   ctx.fillStyle = col;
   ctx.beginPath(); ctx.arc(w/2, d/2, d/2, 0, 6.2832); ctx.fill();
   if(bodyH > 0){ rr(0, top, w, bodyH, Math.min(w*0.22, bodyH/2)); ctx.fill(); }
-  if(accent){                                  // little highlight so he reads as 3D
-    ctx.fillStyle = "rgba(255,255,255,.22)";
-    ctx.beginPath(); ctx.arc(w*0.36, d*0.36, d*0.19, 0, 6.2832); ctx.fill();
-    ctx.fillRect(w*0.16, top + bodyH*0.12, w*0.16, bodyH*0.6);
-  }
   // одежда, лицо и головной убор — поверх
   if(skin && window.BFSkinCanvas) BFSkinCanvas.front(ctx, w, h, skin);
 }
@@ -561,18 +556,11 @@ var TOOLS = [
   {t:"circle",     n:"Круг",        m:ALL},
   {t:"triangle",   n:"Треугольник", m:ALL},
   {t:"text",       n:"Текст",       m:ALL},
-  {t:"poison",     n:"Яд",          m:ALL},
-  {t:"spike",      n:"Шипы",        m:ALL},
-  {t:"bounce",     n:"Батут",       m:ALL},
   {t:"coin",       n:"Монета",      m:ALL},
-  {t:"platform",   n:"Платформа",   m:ALL},
-  {t:"rotator",    n:"Ротатор",     m:ALL},
   {t:"gate",       n:"Ворота",      m:ALL},
   {t:"spawn",      n:"Точка старта",m:ALL},
   // только прятки
   {t:"cover",      n:"Укрытие",     m:"hideAndSeek"},
-  // только игра на двоих
-  {t:"door",       n:"Дверь (выход)", m:ALL},
   {t:"button",     n:"Кнопка",      m:ALL},
   {t:"lever",      n:"Рычаг",       m:ALL},
   // только гонка
@@ -591,23 +579,22 @@ var OBJ_LIMIT = 2000;   // максимум объектов в карте, од
    игрок просто не заметит, и карта станет нечестной. */
 var INK = "#111827";
 var COLORS = {
-  rect:INK, circle:INK, triangle:INK, text:INK, poison:"", spike:"", bounce:INK,
-  coin:"", platform:INK, rotator:"", gate:INK, button:INK, lever:INK, cover:INK,
+  rect:INK, circle:INK, triangle:INK, text:INK,
+  coin:"", gate:INK, button:INK, lever:INK, cover:INK,
   door:INK, checkpoint:"", finishline:"", spawn:INK
 };
 var SIZES = {
-  rect:[90,26], circle:[58,58], triangle:[58,52], text:[70,24], poison:[110,26],
-  spike:[80,22], bounce:[74,20], coin:[22,22], platform:[112,16], rotator:[96,14],
+  rect:[90,26], circle:[58,58], triangle:[58,52], text:[70,24], coin:[22,22],
   gate:[26,96], button:[34,18], lever:[22,42], cover:[70,52], door:[32,84],
   checkpoint:[30,64], finishline:[42,86], spawn:[22,74]
 };
-var SOLID  = ["rect","circle","triangle","platform","cover","gate","door","bounce"];
+var SOLID  = ["rect","circle","triangle","cover","gate"];
 /* Раньше яд, шипы и ротатор убивали просто потому, что так называются.
    Теперь смертельность — свойство объекта: галочка «Яд» есть у каждого,
    и её можно снять хоть с самого яда. Модели остались как были. */
 var HAZARD = [];
-var DEADLY_BY_DEFAULT = ["poison","spike","rotator"];
-var LINKED = ["gate","platform","rotator","cover","button","lever"];
+var DEADLY_BY_DEFAULT = [];
+var LINKED = ["gate","cover","button","lever"];
 
 /* ══════════════════════════════════════════════════
    STATE
@@ -670,7 +657,7 @@ function nearby(x, y, w, h){
 }
 var movers = [];
 function indexMovers(){
-  movers = objects.filter(function(o){ return o.type === "platform" || o.type === "rotator"; });
+  movers = objects.filter(function(o){ return o.moves || o.spins; });
 }
 function overLimit(extra){
   if(objects.length + (extra||1) <= OBJ_LIMIT) return false;
@@ -687,9 +674,7 @@ function mk(type,x,y,w,h){
   var o = {id:uid++, type:type, x:x, y:y, w:w, h:h, rot:0, fill:COLORS[type]||"",
            deadly: DEADLY_BY_DEFAULT.indexOf(type) !== -1};
   if(type === "text") o.text = "Text";
-  if(type === "platform"){ o.moveX = 130; o.moveY = 0; o.speed = 1.1; }
-  if(type === "rotator") o.spin = 2.2;
-  if(type === "bounce") o.power = 17;
+
   if(LINKED.indexOf(type) !== -1){ o.customId = "w"+o.id; o.targetIds = ""; }
   if(type === "gate") o.startsOpen = false;
   return o;
@@ -699,12 +684,12 @@ function demo(){
   var a = [];
   a.push(mk("rect",280,520,280,44));        // ground A
   a.push(mk("rect",280,452,28,70));         // back wall
-  a.push(mk("poison",560,568,120,22));      // the pit
-  a.push(mk("bounce",590,542,60,18));       // rescue trampoline, below ledge level
+  a.push(Object.assign(mk("rect",560,568,120,22), {deadly:true, fill:"#16a34a"}));
+  a.push(Object.assign(mk("rect",590,542,60,18), {bouncy:true, fill:"#a855f7"}));
   a.push(mk("coin",620,428,22,22));         // reward for jumping the gap
   a.push(mk("rect",680,520,300,44));        // ground B
   a.push(mk("checkpoint",700,456,30,64));
-  a.push(mk("spike",840,498,60,22));        // jump these
+  a.push(Object.assign(mk("rect",840,498,60,22), {deadly:true, fill:"#94a3b8"}));
   a.push(mk("coin",870,426,22,22));
   a.push(mk("rect",880,408,90,20));         // bonus ledge, over ground B
   a.push(mk("coin",915,364,22,22));
@@ -844,7 +829,7 @@ function showMsg(t,s){
 }
 function hideMsg(){ var m = document.getElementById("msg"); m.classList.remove("show"); m.style.display = "none"; }
 
-var opened = function(o){ return (o.type === "gate" || o.type === "door") && !!o._act; };
+var opened = function(o){ return o.type === "gate" && !!o._act; };
 
 /* Все ли игроки уже в двери. В одиночном прогоне редактора игрок один,
    поэтому условие выполняется сразу. В сетевой игре список приходит
@@ -890,7 +875,7 @@ function rawPoly(o){
 
 // многоугольник в мировых координатах; пересчитывается только при изменениях
 function polyOf(o){
-  var ang = (o.type === "rotator" && playing) ? (o._spin || 0) : (o.rot||0)*Math.PI/180;
+  var ang = (o.spins && playing) ? (o._spin || 0) : (o.rot||0)*Math.PI/180;
   var key = o.x + "," + o.y + "," + o.w + "," + o.h + "," + ang.toFixed(4) + "," + o.type;
   if(o._pk === key) return o._poly;
 
@@ -962,12 +947,15 @@ function inside(o, x, y){
 function step(){
   anim++;
   objects.forEach(function(o){
-    if(o.type === "platform"){
+    // Движение и вращение — свойства объекта, а не отдельные типы.
+    // Так двигаться и крутиться может любой блок, круг или треугольник.
+    if(o.moves){
       o._t += 0.012*(o.speed||1);
       var k = (Math.sin(o._t)+1)/2;
       var nx = o._hx + (o.moveX||0)*k, ny = o._hy + (o.moveY||0)*k;
       o._dx = nx-o.x; o._dy = ny-o.y; o.x = nx; o.y = ny;
-    } else if(o.type === "rotator") o._spin += (o.spin||2)*0.02;
+    }
+    if(o.spins) o._spin += (o.spin||2)*0.02;
     if(o._squash) o._squash *= 0.82;
   });
   if(shake > 0) shake *= 0.86;
@@ -1038,14 +1026,14 @@ function step(){
 
     if(pl.vy >= 0 && pl.y + pl.h - sp[0] <= Math.max(2, pl.vy + 2)){
       pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE;
-      if(o.type === "bounce"){
+      if(o.bouncy){
         pl.vy = -(o.power||17); pl.ground = false; pl.selfJump = false;
         o._squash = 1; puff(pl.x+pl.w/2, pl.y+pl.h, 9);
       } else {
         if(wasAir && pl.vy > 6) puff(pl.x+pl.w/2, pl.y+pl.h, 5);
         pl.vy = 0; pl.selfJump = false;
       }
-      if(o.type === "platform"){ pl.x += o._dx||0; pl.y += o._dy||0; }
+      if(o.moves){ pl.x += o._dx||0; pl.y += o._dy||0; }
     } else if(pl.vy < 0){
       pl.y = sp[1]; pl.vy = 0;
     } else {
@@ -1072,13 +1060,12 @@ function step(){
     }
     // Дверь — это выход. В игре на двоих уровень засчитывается, когда
     // в неё вошли ВСЕ игроки; одному достаточно дойти самому.
-    if((o.type === "finishline" || (o.type === "door" && !opened(o))) && !done){
-      if(o.type === "door" && !allAtDoor(o)) return;
+    if(o.type === "finishline" && !done){
       done = true; shake = 6;
       burst(o.x+o.w/2, o.y+o.h/2, 40, "#fbbf24", 5, 60);
-      showMsg(o.type === "door" ? "УРОВЕНЬ ПРОЙДЕН!" : "ФИНИШ!",
+      showMsg("ФИНИШ!",
               "Время " + (timeMs/1000).toFixed(1) + "с · монет " + coins + "/" + coinsTotal +
-              " · смертей " + deaths + "   —   R заново, ✕ выход");
+              " · смертей " + deaths + "   —   R заново, Esc выход");
     }
     if(o.type === "button" && !o._act){ o._act = true; drive(o); }
     if(o.type === "lever" && !o._latch){ o._act = !o._act; o._latch = true; drive(o); }
@@ -1104,8 +1091,7 @@ function drawGrid(){
   var step = GRID * view.s;
   while(step < 9) step *= 2;
   var ox = view.x % step, oy = view.y % step;
-  ctx.strokeStyle = document.documentElement.dataset.bfMode === "dark" ? "#252b35" : "#e6eaf1";
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = "#e6eaf1"; ctx.lineWidth = 1;
   ctx.beginPath();
   for(var x = ox; x < VW(); x += step){ ctx.moveTo(x,0); ctx.lineTo(x,VH()); }
   for(var y = oy; y < VH(); y += step){ ctx.moveTo(0,y); ctx.lineTo(VW(),y); }
@@ -1119,13 +1105,11 @@ function paint(o, isSel){
   var open = opened(o);
   ctx.save();
   ctx.translate(o.x+o.w/2, o.y+o.h/2);
-  ctx.rotate(o.type === "rotator" && playing ? (o._spin||0) : (o.rot||0)*Math.PI/180);
+  ctx.rotate(o.spins && playing ? (o._spin||0) : (o.rot||0)*Math.PI/180);
   ctx.translate(-o.w/2, -o.h/2);
   if(open) ctx.globalAlpha = .2;
   if(o.ghost) ctx.globalAlpha *= .45;      // проходимые видно, но они не мешают
-  ctx.shadowColor = "rgba(15,23,42,.18)"; ctx.shadowBlur = 7; ctx.shadowOffsetY = 2;
   (PAINT[o.type] || PAINT.rect)(o);
-  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   if(!playing && o.deadly && DEADLY_BY_DEFAULT.indexOf(o.type) === -1){
     ctx.globalAlpha = 1; ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 2;
     ctx.setLineDash([5,4]); ctx.strokeRect(-1,-1,o.w+2,o.h+2); ctx.setLineDash([]);
@@ -1145,11 +1129,10 @@ function paint(o, isSel){
 }
 function render(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
-  // холст следует выбранной теме
-  var night = document.documentElement.dataset.bfMode === "dark";
+  /* Холст всегда светлый, независимо от темы сайта: карта — это
+     содержимое игры, и она должна выглядеть у всех одинаково. */
   var bg = ctx.createLinearGradient(0,0,0,VH());
-  if(night){ bg.addColorStop(0,"#171a21"); bg.addColorStop(1,"#101319"); }
-  else     { bg.addColorStop(0,"#fbfcfe"); bg.addColorStop(1,"#eef2f8"); }
+  bg.addColorStop(0,"#fbfcfe"); bg.addColorStop(1,"#eef2f8");
   ctx.fillStyle = bg; ctx.fillRect(0,0,VW(),VH());
   drawGrid();
 
@@ -1167,7 +1150,6 @@ function render(){
   }
   if(playing && !pl.dead){
     ctx.save(); ctx.translate(pl.x, pl.y);
-    ctx.shadowColor = "rgba(15,23,42,.25)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
     figure(pl.w, pl.h, (window.GAME && window.GAME.myColor) || "#111827", true,
            (window.GAME && window.GAME.mySkin) || null);
     ctx.restore();
@@ -1290,6 +1272,16 @@ document.getElementById("modes").addEventListener("click", function(e){
       if(o.deadly === undefined && DEADLY_BY_DEFAULT.indexOf(o.type) !== -1) o.deadly = true;
       // «Ищущий» убран из палитры: в старых картах превращаем его в старт
       if(o.type === "seeker") o.type = "spawn";
+      // Платформа, ротатор, батут, яд и шипы стали свойствами обычных
+      // объектов — переносим их поведение, чтобы старые карты играли так же
+      if(o.type === "platform"){ o.type = "rect"; o.moves = true;
+        if(!o.moveX && !o.moveY){ o.moveX = 130; o.moveY = 0; }
+        if(!o.speed) o.speed = 1.1; }
+      if(o.type === "rotator"){ o.type = "rect"; o.spins = true;
+        if(!o.spin) o.spin = 2; o.deadly = true; }
+      if(o.type === "bounce"){ o.type = "rect"; o.bouncy = true; }
+      if(o.type === "poison" || o.type === "spike"){ o.type = "rect"; o.deadly = true; }
+      if(o.type === "door"){ o.type = "gate"; }
     });
     sel = null; markDirty(); indexMovers();
     showMsg("Убрано объектов: " + drop.length,
@@ -1633,16 +1625,33 @@ function inspect(){
 
   grp("Игровые свойства");
   if(["spawn","checkpoint","finishline","coin"].indexOf(sel.type) === -1)
-    chk("Яд ☠ (убивает)", sel.deadly, function(v){ sel.deadly = v; });
+    chk("Яд (убивает)", sel.deadly, function(v){ sel.deadly = v; });
   if(SOLID.indexOf(sel.type) !== -1)
     chk("Проходимый (декорация)", !!sel.ghost, function(v){ sel.ghost = v; });
-  if(sel.type === "bounce") num("Сила прыжка", sel.power||17, function(v){ sel.power = v; });
-  if(sel.type === "platform"){
-    num("Ход по X", sel.moveX||0, function(v){ sel.moveX = v; });
-    num("Ход по Y", sel.moveY||0, function(v){ sel.moveY = v; });
-    num("Скорость", sel.speed||1, function(v){ sel.speed = v; });
+  /* Батут, движение и вращение — теперь свойства, а не отдельные объекты.
+     Любой блок можно сделать прыгучим, подвижным или крутящимся. */
+  if(SOLID.indexOf(sel.type) !== -1){
+    chk("Батут", !!sel.bouncy, function(v){ sel.bouncy = v; inspect(); });
+    if(sel.bouncy) num("Сила прыжка", sel.power||17, function(v){ sel.power = v; });
+
+    chk("Двигается", !!sel.moves, function(v){
+      sel.moves = v;
+      if(v && !sel.moveX && !sel.moveY){ sel.moveX = 130; sel.moveY = 0; sel.speed = 1.1; }
+      inspect();
+    });
+    if(sel.moves){
+      num("Ход по X", sel.moveX||0, function(v){ sel.moveX = v; });
+      num("Ход по Y", sel.moveY||0, function(v){ sel.moveY = v; });
+      num("Скорость", sel.speed||1, function(v){ sel.speed = v; });
+    }
+
+    chk("Вращается", !!sel.spins, function(v){
+      sel.spins = v;
+      if(v && !sel.spin) sel.spin = 2;
+      inspect();
+    });
+    if(sel.spins) num("Скорость вращения", sel.spin||2, function(v){ sel.spin = v; });
   }
-  if(sel.type === "rotator") num("Вращение", sel.spin||2, function(v){ sel.spin = v; });
   if(LINKED.indexOf(sel.type) !== -1){
     grp("Связи");
     txt("ID", sel.customId, function(v){ sel.customId = v; });
@@ -1893,6 +1902,16 @@ window.GAME = {
       if(o.deadly === undefined && DEADLY_BY_DEFAULT.indexOf(o.type) !== -1) o.deadly = true;
       // «Ищущий» убран из палитры: в старых картах превращаем его в старт
       if(o.type === "seeker") o.type = "spawn";
+      // Платформа, ротатор, батут, яд и шипы стали свойствами обычных
+      // объектов — переносим их поведение, чтобы старые карты играли так же
+      if(o.type === "platform"){ o.type = "rect"; o.moves = true;
+        if(!o.moveX && !o.moveY){ o.moveX = 130; o.moveY = 0; }
+        if(!o.speed) o.speed = 1.1; }
+      if(o.type === "rotator"){ o.type = "rect"; o.spins = true;
+        if(!o.spin) o.spin = 2; o.deadly = true; }
+      if(o.type === "bounce"){ o.type = "rect"; o.bouncy = true; }
+      if(o.type === "poison" || o.type === "spike"){ o.type = "rect"; o.deadly = true; }
+      if(o.type === "door"){ o.type = "gate"; }
     });
     if(objects.length > OBJ_LIMIT) objects.length = OBJ_LIMIT;
     objects.forEach(function(o){ if(o.id >= uid) uid = o.id + 1; });
@@ -2030,7 +2049,7 @@ socket.on('connect', () => {
 (function(){
   var a = document.createElement('a');
   a.id = 'bfHome'; a.href = '/'; a.title = 'На главную';
-  a.textContent = '\u2190 AIBROFIST';
+  a.textContent = 'AIBROFIST';
   a.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:12;padding:8px 12px;'
     + 'border-radius:9px;background:#fff;border:1px solid #e2e8f0;color:#111827;'
     + 'text-decoration:none;font:700 12.5px/1 sans-serif;box-shadow:0 2px 8px rgba(15,23,42,.10)';

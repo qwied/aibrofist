@@ -177,7 +177,7 @@
       d.className = 'thSlot';
       d.innerHTML = '<div class="fill" style="background:' + c + '"></div>'
                   + '<div class="num">' + (i + 1) + '</div>'
-                  + '<div class="x" data-drop="' + i + '">✕</div>';
+                  + '<div class="x" data-drop="' + i + '">X</div>';
       var inp = document.createElement('input');
       inp.type = 'color'; inp.value = c;
       inp.oninput = function () { picked[i] = inp.value; preview(); drawSlots(); };

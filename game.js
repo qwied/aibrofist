@@ -70,17 +70,17 @@
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
   document.body.insertAdjacentHTML('beforeend',
-      '<div id="gTop"><span id="gRoleBox" style="display:none">🎭 <b id="gRole"></b></span>'
-    + '<span>👥 <b id="gCount">1</b></span>'
-    + '<span id="gTimeBox">⏱️ <b id="gTime">—</b></span>'
-    + '<button id="gExit">← Меню</button></div>'
+      '<div id="gTop"><span id="gRoleBox" style="display:none">Роль: <b id="gRole"></b></span>'
+    + '<span>Игроков: <b id="gCount">1</b></span>'
+    + '<span id="gTimeBox">Время: <b id="gTime">—</b></span>'
+    + '<button id="gExit">Меню</button></div>'
     + '<div id="gMap"><div class="n" id="gMapName">Загрузка карты…</div>'
     + '<div class="a" id="gMapAuthor"></div><div class="rate" id="gRate" style="display:none">'
     + '<button data-v="1">👍</button><button data-v="-1">👎</button>'
     + '<span id="gRating" style="color:#6b7280"></span></div></div>'
     + '<div id="gBanner"><h2 id="gbT"></h2><p id="gbP"></p></div>'
     + '<div id="gChat"><input id="gMsg" maxlength="90"></div>'
-    + '<button id="gTalk">💬</button>'
+    + '<button id="gTalk">Чат</button>'
 );
 
   var $ = function (id) { return document.getElementById(id); };
@@ -251,7 +251,7 @@
         phase = 'round'; phaseEnds = Date.now() + ROUND_MS;
         banner('', '', false);
         log('Раунд начался! 2 минуты', 's');
-        if (socket) socket.emit('sendChat', { text: '⏱️ раунд начался' });
+        if (socket) socket.emit('sendChat', { text: 'Раунд начался' });
       } else {
         phase = 'lobby'; phaseEnds = Date.now() + LOBBY_MS;
         me.caught = false; applyColor();
@@ -309,7 +309,7 @@
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: 'coins=' + delta
     }).then(function (r) { return r.json(); }).then(function (r) {
-      if (r && r.status === 'success') log('+' + delta + ' 🪙 (всего ' + r.coins + ')');
+      if (r && r.status === 'success') log('+' + delta + ' монет (всего ' + r.coins + ')');
     }).catch(function () {});
   }, 2500);
 
@@ -407,7 +407,7 @@
         if (o.caught) return;
         if (Math.abs(o.x - p.x) < 34 && Math.abs(o.y - p.y) < 60) {
           o.caught = true;
-          socket.emit('sendChat', { text: '🟠 ' + o.name + ' пойман!' });
+          socket.emit('sendChat', { text: o.name + ' пойман!' });
         }
       });
     }

@@ -20,13 +20,18 @@ const COIN_LIMIT  = 3;                 // максимум монет в одн�
 const OBJ_LIMIT   = 2000;              // максимум объектов в карте, одинаково во всех режимах
 
 // у каждого режима свой набор объектов; общие доступны везде
+/* Платформа, ротатор, батут, яд и шипы стали свойствами обычных объектов,
+   а дверь — воротами. Типы оставлены в списке, чтобы старые карты
+   принимались: редактор превращает их в свойства при загрузке. */
 const TOOL_MODES = {
-  rect:null, circle:null, triangle:null, text:null, poison:null, spike:null,
-  bounce:null, coin:null, platform:null, rotator:null, gate:null, spawn:null,
-  cover:['hideAndSeek'], seeker:null,   // убран из палитры, старые карты не ломаем
-  door:null, button:null, lever:null,   // механизмы доступны в обоих режимах
-  finishline:null,                      // финиш нужен и в прятках, и в гонке
-  checkpoint:['race']
+  rect:null, circle:null, triangle:null, text:null, coin:null,
+  gate:null, spawn:null, finishline:null,
+  button:null, lever:null,
+  cover:['hideAndSeek'],
+  checkpoint:['race'],
+  // устаревшие типы — принимаем, но в палитре их больше нет
+  poison:null, spike:null, bounce:null, platform:null, rotator:null,
+  door:null, seeker:null
 };
 const TOOL_RU = {
   cover:'Укрытие', seeker:'Ищущий', door:'Дверь', button:'Кнопка',
@@ -211,6 +216,7 @@ function register(app, getUser, acc) {
 
   // ---------- список карт для Maps Browser ----------
   function list(req, res) {
+    const me = getUser(req);
     const mapType = String(req.query.mapType || '');
     const author = low(req.query.author || '');
     const sortBy = String(req.query.sortBy || 'date');
@@ -230,6 +236,7 @@ function register(app, getUser, acc) {
       return {
         mapName: m.mapName, rating: t.rating, likes: t.likes, dislikes: t.dislikes,
         author: m.author, date: m.date, mapType: m.mapType,
+        myVote: me ? ((m.votes || {})[low(me.name)] || 0) : 0,
         inGameModes: Array.isArray(m.inGameModes) ? m.inGameModes : []
       };
     });
@@ -280,10 +287,13 @@ function register(app, getUser, acc) {
     if (!m) return res.json({ status: 'error', message: 'Карта не найдена' });
     const v = parseInt(req.body.vote) > 0 ? 1 : -1;
     m.votes = m.votes || {};
-    m.votes[low(u.name)] = v;
+    // повторный клик по той же кнопке снимает оценку
+    if (m.votes[low(u.name)] === v) delete m.votes[low(u.name)];
+    else m.votes[low(u.name)] = v;
     const t = retally(m);
     save();
-    res.json({ status: 'success', rating: t.rating, likes: t.likes, dislikes: t.dislikes });
+    res.json({ status: 'success', rating: t.rating, likes: t.likes, dislikes: t.dislikes,
+               myVote: m.votes[low(u.name)] || 0 });
   });
 
   // ---------- удаление ----------

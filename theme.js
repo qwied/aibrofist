@@ -250,7 +250,9 @@
       '.ow-i,.ow-bar input,.ow-sk input{background:', dark ? DARK.bg : '#fff', ';color:', ink, ';',
       'border-color:', line, '}',
       '.mbRow:hover,.bfCard:hover,.sbCard:hover{border-color:', C, '}',
-      '.seStage,.avStage,.sbArt,.avArt,.upSkin .art,.mdArt{background:', mix('#ffffff', C, 0.10), '}',
+      /* Подложки под фигурками оставляем светлыми: это картинки игры,
+         и на цветном фоне персонаж читался бы хуже. */
+      '.seStage,.avStage,.sbArt,.avArt,.upSkin .art{background:#eef3f9}',
       '.bfHint{color:', p.muted, '}',
 
       /* --- выделения и вкладки: четвёртый цвет --- */
@@ -288,6 +290,13 @@
       dark ? [
         '.bfCardName,.bfTab,.sbName,.mbName,.upName,.mdName,.mdText,.mdList li{color:',
           ink, '}',
+        /* главная страница: белая подложка под карточками режимов */
+        '.cards{background:transparent !important}',
+        '.cards .cardContainer .card{background:', raised, ';border-color:', line, ';',
+          'color:', ink, ';box-shadow:none}',
+        '.cards .card div{color:', ink, '}',
+        /* страницы режимов: рамка тёмная, картинка остаётся как есть */
+        '.mdArt{background:', raised, ';border-color:', line, '}',
         '.bfCardMeta,.bfSub,.mbDate,.upRow .who span,.thHint{color:', muted, '}',
         '.thSlot,.thSet,.upFound,.upAbout{background:', raised, ';border-color:', line, '}',
         '.upFound a{color:', ink, ';border-color:', line, '}',
@@ -313,8 +322,19 @@
   var styleEl = null;
   var BASE = ['#2196F3'];          // акцент по умолчанию, если цвета не выбраны
 
+  /* Редактор карт и игровой экран тема не трогает: карта — это
+     содержимое игры, и выглядеть она должна у всех одинаково,
+     иначе объекты и фон менялись бы от настроек игрока. */
+  function skipPage() {
+    return document.documentElement.getAttribute('data-page') === 'editor';
+  }
+
   function apply(colors, mode) {
     mode = mode || state.mode || 'light';
+    if (skipPage()) {
+      document.documentElement.dataset.bfMode = 'light';
+      return;
+    }
     var list = (colors && colors.length) ? colors : (mode === 'dark' ? BASE : null);
     var p = palette(list);
 

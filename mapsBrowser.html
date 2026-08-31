@@ -12,10 +12,10 @@
 .mbFilters .bfInput,.mbFilters .bfSelect{margin-bottom:0}
 .mbFilters .bfBtn{margin-bottom:0;width:auto;padding:11px 22px}
 
-.mbHead{display:grid;grid-template-columns:2fr 92px 1.2fr 1.1fr 124px;gap:10px;
+.mbHead{display:grid;grid-template-columns:2fr 92px 1.2fr 1.1fr 150px 124px;gap:10px;
   padding:0 14px 8px;font-size:13px;font-weight:700;color:var(--muted)}
 .mbList{display:flex;flex-direction:column;gap:10px}
-.mbRow{display:grid;grid-template-columns:2fr 92px 1.2fr 1.1fr 124px;gap:10px 10px;
+.mbRow{display:grid;grid-template-columns:2fr 92px 1.2fr 1.1fr 150px 124px;gap:10px 10px;
   align-items:center;border:1px solid var(--line);border-radius:13px;padding:12px 14px;background:#fff}
 .mbRow:hover{border-color:var(--blue)}
 .mbName{font-weight:700;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -24,6 +24,14 @@
 .mbAuthor{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mbAuthor a{color:var(--blue);text-decoration:none}
 .mbDate{color:var(--muted);font-size:13.5px;white-space:nowrap}
+/* оценки карты: те же кнопки, что и в браузере скинов */
+.mbVote{display:flex;gap:6px}
+.mbVote button{flex:1;font-size:13px;padding:9px 0;border-radius:8px;border:1px solid var(--line);
+  background:var(--panel,#fff);color:var(--muted);cursor:pointer;min-height:40px}
+.mbVote button:hover{border-color:var(--blue);color:var(--blue)}
+.mbVote button.up.on{border-color:var(--green);color:var(--green);background:#f0fdf4}
+.mbVote button.down.on{border-color:var(--red);color:var(--red);background:#fef2f2}
+
 .mbPlay{width:100%;padding:10px 0;border-radius:9px;border:1px solid var(--blue);
   background:#fff;color:var(--blue);cursor:pointer;font-weight:600}
 .mbPlay:hover{background:var(--blue);color:#fff}
@@ -41,6 +49,7 @@
   .mbRate{grid-column:2;text-align:right}
   .mbAuthor{grid-column:1;font-size:13.5px}
   .mbDate{grid-column:2;text-align:right}
+  .mbVote{grid-column:1/-1;margin-top:8px}
   .mbPlay{grid-column:1/-1;margin-top:8px}
 }
 </style>
@@ -81,6 +90,7 @@
     <div data-i18n="colRating">Рейтинг</div>
     <div data-i18n="colAuthor">Автор</div>
     <div data-i18n="colDate">Дата</div>
+    <div data-i18n="colRating">Оценка</div>
     <div></div>
   </div>
   <div id="mbList"><div class="bfHint" data-i18n="loading">Загрузка…</div></div>
@@ -137,6 +147,12 @@
       + '<div class="mbAuthor"><a href="users.html?name=' + encodeURIComponent(m.author) + '">'
       +   esc(m.author) + '</a></div>'
       + '<div class="mbDate">' + when(m.date) + '</div>'
+      + '<div class="mbVote">'
+      +   '<button class="up' + (m.myVote > 0 ? ' on' : '') + '" data-vote="1">'
+      +     '\uD83D\uDC4D ' + m.likes + '</button>'
+      +   '<button class="down' + (m.myVote < 0 ? ' on' : '') + '" data-vote="-1">'
+      +     '\uD83D\uDC4E ' + m.dislikes + '</button>'
+      + '</div>'
       + '<button class="mbPlay" data-play="1">' + T('play', 'Играть') + '</button>'
       + (mine ? '<div class="mbExtra"><button class="mbDel" data-del="1">'
                 + T('removeTxt', 'Удалить') + '</button></div>' : '')
@@ -176,6 +192,17 @@
     if (e.target.closest('[data-play]')) {
       location.href = 'game.html?view=' + encodeURIComponent(r.dataset.map)
                     + '&author=' + encodeURIComponent(r.dataset.author);
+      return;
+    }
+
+    var v = e.target.closest('[data-vote]');
+    if (v) {
+      post('/uploadVote', {
+        author: r.dataset.author, mapName: r.dataset.map, vote: v.dataset.vote
+      }).then(function (x) {
+        if (x.status !== 'success') { msg(x.message || T('errorTxt', 'Ошибка')); return; }
+        load();
+      }).catch(function () { msg(T('serverDown', 'Сервер недоступен')); });
       return;
     }
 

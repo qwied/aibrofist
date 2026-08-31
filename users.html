@@ -45,6 +45,8 @@
 .upRow .ava{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 auto;
   background:var(--soft);display:flex;align-items:center;justify-content:center}
 .upRow .ava img{width:100%;height:100%;object-fit:contain}
+.upRow .ava img:not([src]){visibility:hidden}
+.upAva img:not([src]){visibility:hidden}
 .upRow .who{flex:1 1 auto;min-width:0}
 .upRow .who a{color:var(--ink);text-decoration:none;font-weight:600}
 .upRow .who span{display:block;color:var(--muted);font-size:12.5px}
@@ -79,7 +81,7 @@
 <div class="bfWrap">
   <div class="upSearch">
     <input class="bfInput" id="upQ" data-i18n-ph="searchUsers" placeholder="Поиск игроков">
-    <button class="bfBtn go" id="upGo">🔍</button>
+    <button class="bfBtn go" id="upGo" data-i18n="find">Найти</button>
   </div>
   <div id="upFound"></div>
 

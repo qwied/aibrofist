@@ -85,7 +85,7 @@
     var fab = document.createElement('button');
     fab.className = 'ow-fab';
     fab.title = T('ownerTools', 'Инструменты владельца');
-    fab.textContent = '🛠';
+    fab.textContent = 'Ред';
     fab.onclick = open;
     document.body.appendChild(fab);
   }
@@ -109,22 +109,22 @@
       + '<div class="ow-b" id="owCGo">' + T('apply', 'Применить') + '</div>'
       + '<div class="ow-m" id="owCMsg"></div>'
 
-      + '<div class="ow-sub">👍 ' + T('boostVotes', 'Оценка карты') + '</div>'
+      + '<div class="ow-sub">' + T('boostVotes', 'Оценка карты') + '</div>'
       + '<div class="ow-m" style="text-align:left;color:#6b7280;margin-bottom:4px">'
       +   'Числа задают итог на карточке, а не прибавку.</div>'
       + '<input class="ow-i" id="owVAuthor" placeholder="' + T('colAuthor', 'Автор') + '">'
       + '<input class="ow-i" id="owVMap" placeholder="' + T('colName', 'Название карты') + '">'
       + '<div class="ow-row2">'
-      +   '<input class="ow-i" id="owVLikes" type="number" min="0" placeholder="👍 ' + T('likes', 'Лайки') + '">'
-      +   '<input class="ow-i" id="owVDis" type="number" min="0" placeholder="👎 ' + T('dislikes', 'Дизлайки') + '">'
+      +   '<input class="ow-i" id="owVLikes" type="number" min="0" placeholder="' + T('likes', 'Лайки') + '">'
+      +   '<input class="ow-i" id="owVDis" type="number" min="0" placeholder="' + T('dislikes', 'Дизлайки') + '">'
       + '</div>'
       + '<div class="ow-b" id="owVGo">' + T('apply', 'Применить') + '</div>'
       + '<div class="ow-m" id="owVMsg"></div>'
 
-      + '<div class="ow-sub">🎮 ' + T('addToGame', 'Добавить в игру') + '</div>'
+      + '<div class="ow-sub">' + T('addToGame', 'Добавить в игру') + '</div>'
       + '<div class="ow-m" style="text-align:left;color:#6b7280" id="owGList">…</div>'
 
-      + '<div class="ow-sub">🖼 ' + T('skinsBrowser', 'Skins Browser') + '</div>'
+      + '<div class="ow-sub">' + T('skinsBrowser', 'Skins Browser') + '</div>'
       + '<div class="ow-m" style="text-align:left;color:#6b7280">'
       +   'Накрутка оценок скинов и загрузка скина из картинки — на странице Skins Browser.'
       + '</div>'
@@ -198,7 +198,7 @@
 
     var vote = document.createElement('span');
     vote.className = 'ow-tag vote';
-    vote.textContent = '👍 ' + T('boostVotes', 'Оценка');
+    vote.textContent = T('boostVotes', 'Оценка');
     vote.onclick = function (e) {
       e.stopPropagation();
       open();
@@ -209,7 +209,7 @@
 
     var del = document.createElement('span');
     del.className = 'ow-tag del';
-    del.textContent = '🗑 ' + T('removeTxt', 'Удалить');
+    del.textContent = T('removeTxt', 'Удалить');
     del.onclick = function (e) {
       e.stopPropagation();
       if (del.dataset.armed !== '1') {
@@ -218,7 +218,7 @@
         setTimeout(function () {
           if (del.dataset.armed === '1') {
             del.dataset.armed = '';
-            del.textContent = '🗑 ' + T('removeTxt', 'Удалить');
+            del.textContent = T('removeTxt', 'Удалить');
           }
         }, 4000);
         return;
@@ -226,12 +226,12 @@
       del.textContent = '…';
       post('/owner/removeMap', { author: info.author, mapName: info.mapName })
         .then(function (r) {
-          if (r.status !== 'success') { del.textContent = '⚠ ' + (r.message || ''); return; }
+          if (r.status !== 'success') { del.textContent = r.message || T('errorTxt', 'Ошибка'); return; }
           row.style.opacity = '.35';
           row.style.pointerEvents = 'none';
-          del.textContent = '✔ ' + T('deleted', 'Удалена');
+          del.textContent = T('deleted', 'Удалена');
         })
-        .catch(function () { del.textContent = '⚠'; });
+        .catch(function () { del.textContent = T('errorTxt', 'Ошибка'); });
     };
 
     // по кнопке на каждый режим: клик добавляет, повторный убирает
@@ -255,10 +255,10 @@
           author: info.author, mapName: info.mapName, mode: mode, on: String(next)
         }).then(function (r) {
           b2.textContent = prev;
-          if (r.status !== 'success') { b2.textContent = '⚠'; return; }
+          if (r.status !== 'success') { b2.textContent = T('errorTxt', 'Ошибка'); return; }
           inGame[keyOf(info.author, info.mapName)] = r.modes;
           b2.classList.toggle('on', r.modes.indexOf(mode) !== -1);
-        }).catch(function () { b2.textContent = '⚠'; });
+        }).catch(function () { b2.textContent = T('errorTxt', 'Ошибка'); });
       };
       modes.appendChild(b2);
     });
@@ -419,8 +419,8 @@
       box.className = 'ow-sk';
       box.innerHTML =
           '<div class="pair">'
-        +   '<input type="number" min="0" placeholder="👍" data-lk value="' + s.likes + '">'
-        +   '<input type="number" min="0" placeholder="👎" data-dk value="' + s.dislikes + '">'
+        +   '<input type="number" min="0" placeholder="' + T('likes','Лайки') + '" data-lk value="' + s.likes + '">'
+        +   '<input type="number" min="0" placeholder="' + T('dislikes','Дизлайки') + '" data-dk value="' + s.dislikes + '">'
         + '</div>'
         + '<button data-votes>' + T('boostVotes', 'Накрутка оценок') + '</button>'
         + '<input type="number" min="0" placeholder="' + T('priceCoins', 'Цена в монетах') +

@@ -308,6 +308,22 @@ function register(app) {
     res.json({ page: p.label, count: list.length, guest, relation: p.slice });
   });
 
+  // ---------- пользовательское соглашение ----------
+  app.post('/consent/accept', (req, res) => {
+    const u = currentUser(req);
+    if (u) {
+      u.consent = { version: String(req.body.version || '1'), at: Date.now() };
+      save();
+    }
+    // гостю согласие хранит браузер — аккаунта, куда записать, ещё нет
+    res.json({ status: 'success', saved: !!u });
+  });
+
+  app.get('/consent/state', (req, res) => {
+    const u = currentUser(req);
+    res.json({ accepted: !!(u && u.consent), version: (u && u.consent && u.consent.version) || '' });
+  });
+
   // ---------- кто я (для клиентских инструментов владельца) ----------
   app.get('/whoAmI', (req, res) => {
     const u = currentUser(req);
