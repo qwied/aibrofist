@@ -766,6 +766,14 @@ var W_SPEED = 0.72,  // предел скорости под водой от с�
     W_DIVE  = 0.42,  // гребок вниз
     W_MAXV  = 4.6;
 var WATER_DEF = "#3b82f6";
+var ACID_DEF  = "#38d430";   // яд всегда узнаётся по этому зелёному
+/* Вода в игре — рой мелких частиц с обычной физикой. Слипаются они не
+   физически, а на рисовании: мягкие пятна складываются и обрезаются по
+   плотности, поэтому рой читается как единая жидкость, а не как мячики. */
+var P_R    = 7;              // радиус частицы
+var P_STEP = 13;             // шаг раскладки при заполнении объёма
+var P_MAX  = 700;            // потолок: больше браузер не тянет на телефоне
+var SINK_DEF = 1.8;          // с какой скоростью затягивает вниз
 
 var JUMP_H = 122, MOVE_A = 0.9, MAX_VX = 5.2, FRIC = 0, AIR = 0.94,
     COYOTE = 6, BUFFER = 7, WALL_SLIDE = 2.6, WALL_VX = 6.2, STEP_UP = 16;
@@ -780,7 +788,8 @@ function wallVX(){ return WALL_VX * gk(); }
 function maxFall(){ return 12 + gravityScale * 0.8; }
 
 var pl = {x:0,y:0,w:20,h:60,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,selfJump:false,hidden:false,
-    inWater:false,headUnder:false,inAcid:false,air:AIR_MAX,hp:HP_MAX};
+    inWater:false,headUnder:false,inAcid:false,sinking:false,
+    air:AIR_MAX,hp:HP_MAX};
 var keys = {l:false,r:false,u:false,d:false};
 var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false;
 var deaths = 0, coins = 0, coinsTotal = 0, timeMs = 0, shake = 0, acc = 0, last = 0;
@@ -788,7 +797,7 @@ var deaths = 0, coins = 0, coinsTotal = 0, timeMs = 0, shake = 0, acc = 0, last 
 /* Где игрок относительно воды: верхняя кромка, под водой ли голова
    и не кислота ли это. Считается по тем же объектам, что и коллизии. */
 function waterState(near){
-  var top = Infinity, inW = false, acid = false;
+  var top = Infinity, inW = false, acid = false, sink = false, sv = SINK_DEF;
   for(var i=0;i<near.length;i++){
     var o = near[i];
     if(o.type !== "water") continue;
@@ -797,12 +806,14 @@ function waterState(near){
     inW = true;
     if(o.y < top) top = o.y;
     if(o.acid) acid = true;
+    if(o.sink){ sink = true; sv = o.sinkSpeed || SINK_DEF; }
   }
   pl.inWater = inW;
   pl.inAcid = acid;
+  pl.sinking = inW && sink;
   // голова считается под водой, когда кромка выше макушки
   pl.headUnder = inW && (pl.y + 8 >= top);
-  return { top: inW ? top : 0 };
+  return { top: inW ? top : 0, sink: sink, sinkSpeed: sv };
 }
 
 /* Воздух и урон. Под водой запас тратится, на воздухе восстанавливается;
@@ -839,6 +850,7 @@ function play(){
     o._hx = o.x; o._hy = o.y; o._t = 0; o._act = !!o.startsOpen;
     o._got = false; o._reached = false; o._spin = 0; o._squash = 0;
   });
+  buildWater();
   respawn();
   document.body.classList.add("play");
   sel = null; inspect(); hideMsg(); last = 0; acc = 0; stat();
@@ -847,6 +859,7 @@ function stop(){
   playing = false; document.body.classList.remove("play"); hideMsg(); parts.length = 0;
   objects.forEach(function(o){ if(o._hx !== undefined){ o.x = o._hx; o.y = o._hy; }
     o._act = false; o._reached = false; o._spin = 0; o._got = false; });
+  wp.length = 0; wcell = null;
   resetView();
 }
 function respawn(){
@@ -1010,6 +1023,7 @@ function step(){
     if(o._squash) o._squash *= 0.82;
   });
   if(shake > 0) shake *= 0.86;
+  stepWater();
   stepParts();
   if(done || pl.dead) return;
 
@@ -1047,8 +1061,16 @@ function step(){
        наружу; кнопка вверх — гребок вверх, вниз — погружение. */
     var depth = Math.max(0, Math.min(1, ((pl.y + pl.h) - wat.top) / pl.h));
     pl.vy += G() * W_GRAV;
-    pl.vy -= G() * W_BUOY * depth * 1.6;
-    if(keys.u) pl.vy -= W_SWIM;
+    if(wat.sink){
+      /* Затягивающая вода: выталкивания нет, вместо него тяга вниз до
+         заданной скорости. Барахтаться можно, но выплыть — нет: гребок
+         втрое слабее тяги, поэтому из яда уже не выбраться. */
+      if(pl.vy < wat.sinkSpeed) pl.vy += (wat.sinkSpeed - pl.vy) * 0.22;
+      if(pl.vy < 0) pl.vy = 0;          // вверх не сдвинуться вообще
+    } else {
+      pl.vy -= G() * W_BUOY * depth * 1.6;
+      if(keys.u) pl.vy -= W_SWIM;
+    }
     if(keys.d) pl.vy += W_DIVE;
     pl.vy *= W_DRAG;
     pl.vy = Math.max(-W_MAXV, Math.min(W_MAXV, pl.vy));
@@ -1058,18 +1080,18 @@ function step(){
        он прыгает снова, без повторного нажатия. */
     if(keys.u && !pl.selfJump && (pl.ground || coy > 0)) buf = BUFFER;
     if(buf > 0){
+      /* Карабканья по стенам нет: от стены не оттолкнуться и по ней
+         не забраться. Остаётся только скольжение — см. WALL_SLIDE ниже. */
       if(coy > 0 || pl.ground){
         pl.vy = jumpV(); buf = 0; coy = 0; pl.ground = false; pl.selfJump = true;
         puff(pl.x+pl.w/2, pl.y+pl.h, 5);
-      } else if(pl.wall !== 0){
-        pl.vy = jumpV()*0.95; pl.vx = -pl.wall*wallVX(); buf = 0; pl.selfJump = true;
-        puff(pl.x+pl.w/2, pl.y+pl.h*0.6, 4);
       }
     }
     if(!keys.u && pl.vy < 0 && pl.selfJump) pl.vy += G()*0.68;  // short hop on early release
 
     pl.vy += G();
-    if(pl.wall !== 0 && pl.vy > WALL_SLIDE) pl.vy = WALL_SLIDE;
+    // трение о стену: не остановка, а замедленное сползание вниз
+    if(pl.wall !== 0 && pl.vy > WALL_SLIDE) pl.vy -= (pl.vy - WALL_SLIDE) * 0.55;
     if(pl.vy > maxFall()) pl.vy = maxFall();
   }
 
@@ -1217,7 +1239,7 @@ function paint(o, isSel){
     ctx.setLineDash([3,3]); ctx.strokeRect(-2,-2,o.w+4,o.h+4); ctx.setLineDash([]);
   }
   ctx.restore();
-  if(isSel){
+  if(isSel && o.type !== "spawn"){
     var k = 1/view.s;
     ctx.save();
     ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 1.6*k; ctx.setLineDash([5*k,4*k]);
@@ -1229,10 +1251,222 @@ function paint(o, isSel){
     ctx.restore();
   }
 }
-/* ── ВОДА: рисуется скриптом, никаких картинок ──
+/* ══════════════════════════════════════════════════
+   ВОДА НА ЧАСТИЦАХ
+   В редакторе вода — залитые клетки: так автор видит объём. В игре из
+   этих клеток рождается рой частиц с обычной физикой — тяжесть,
+   отталкивание соседей, столкновения. Частицы не выливаются за
+   пределы налитого объёма: он работает как ёмкость, иначе бассейн,
+   нарисованный в воздухе, утёк бы и карта сломалась.
+   ══════════════════════════════════════════════════ */
+var wp = [];            // частицы
+var wcell = null;       // клетки, где вода разрешена (ключ "cx,cy")
+var wcolor = WATER_DEF, wacid = false;
+
+function wkey(x, y){ return Math.floor(x/WCELL) + "," + Math.floor(y/WCELL); }
+function cellOK(x, y){ return wcell ? wcell[wkey(x, y)] === 1 : false; }
+
+/* Раскладываем частицы по объёму. Если воды налито много, шаг
+   увеличивается, чтобы не выйти за потолок в P_MAX частиц. */
+function buildWater(){
+  wp.length = 0; wcell = {};
+  var vols = [], i, o, area = 0;
+  for(i=0;i<objects.length;i++){
+    o = objects[i];
+    if(o.type !== "water") continue;
+    vols.push(o); area += o.w * o.h;
+    if(o.fill) wcolor = o.fill;
+    wacid = !!o.acid;
+  }
+  if(!vols.length){ wcell = null; return; }
+
+  // клетки объёма минус те, что заняты твёрдым: иначе частицы застрянут в стене
+  var solids = [];
+  for(i=0;i<objects.length;i++) if(solid(objects[i])) solids.push(bbox(objects[i]));
+  for(i=0;i<vols.length;i++){
+    o = vols[i];
+    for(var cy = o.y; cy < o.y + o.h; cy += WCELL)
+      for(var cx = o.x; cx < o.x + o.w; cx += WCELL){
+        var mx = cx + WCELL/2, my = cy + WCELL/2, hit = false;
+        for(var s=0;s<solids.length;s++){
+          var b = solids[s];
+          if(mx > b[0] && mx < b[2] && my > b[1] && my < b[3]){ hit = true; break; }
+        }
+        if(!hit) wcell[wkey(cx, cy)] = 1;
+      }
+  }
+
+  var step = P_STEP;
+  while(area / (step*step) > P_MAX) step += 2;
+  for(i=0;i<vols.length && wp.length < P_MAX;i++){
+    o = vols[i];
+    for(var y = o.y + step/2; y < o.y + o.h && wp.length < P_MAX; y += step)
+      for(var x = o.x + step/2; x < o.x + o.w && wp.length < P_MAX; x += step){
+        if(!cellOK(x, y)) continue;
+        wp.push({ x: x + (Math.random()-0.5)*2, y: y + (Math.random()-0.5)*2, vx: 0, vy: 0 });
+      }
+  }
+}
+
+/* Шаг физики роя. Соседей ищем по хеш-сетке, иначе на 700 частицах
+   получается четверть миллиона пар за кадр. */
+function stepWater(){
+  var n = wp.length;
+  if(!n || !wcell) return;
+  var i, j, p, q, g = G() * 0.5, D = P_R * 2, cell = D;
+  var grid = {}, key, cx, cy, k;
+
+  for(i=0;i<n;i++){
+    p = wp[i];
+    p.vy += g;
+    key = Math.floor(p.x/cell) + "," + Math.floor(p.y/cell);
+    (grid[key] = grid[key] || []).push(i);
+  }
+
+  for(i=0;i<n;i++){
+    p = wp[i];
+    cx = Math.floor(p.x/cell); cy = Math.floor(p.y/cell);
+    for(var ox=-1; ox<=1; ox++) for(var oy=-1; oy<=1; oy++){
+      var b = grid[(cx+ox) + "," + (cy+oy)];
+      if(!b) continue;
+      for(k=0;k<b.length;k++){
+        j = b[k];
+        if(j <= i) continue;
+        q = wp[j];
+        var dx = q.x - p.x, dy = q.y - p.y;
+        var d2 = dx*dx + dy*dy;
+        if(d2 > D*D || d2 < 0.0001) continue;
+        var d = Math.sqrt(d2), f = (D - d) / D * 0.42;
+        dx /= d; dy /= d;
+        p.vx -= dx*f; p.vy -= dy*f;
+        q.vx += dx*f; q.vy += dy*f;
+      }
+    }
+  }
+
+  // игрок расталкивает воду вокруг себя
+  if(playing && !pl.dead && pl.inWater){
+    var px = pl.x + pl.w/2, py = pl.y + pl.h/2, rr = Math.max(pl.w, pl.h)*0.6;
+    for(i=0;i<n;i++){
+      p = wp[i];
+      var ddx = p.x - px, ddy = p.y - py, dd = Math.sqrt(ddx*ddx + ddy*ddy);
+      if(dd > rr || dd < 0.001) continue;
+      p.vx += ddx/dd * 0.5; p.vy += ddy/dd * 0.5;
+    }
+  }
+
+  for(i=0;i<n;i++){
+    p = wp[i];
+    p.vx *= 0.93; p.vy *= 0.985;
+    if(p.vx >  6) p.vx =  6; if(p.vx < -6) p.vx = -6;
+    if(p.vy >  8) p.vy =  8; if(p.vy < -8) p.vy = -8;
+    // по осям отдельно: так частица скользит вдоль стенки, а не залипает
+    var nx = p.x + p.vx;
+    if(cellOK(nx, p.y)) p.x = nx; else p.vx *= -0.3;
+    var ny = p.y + p.vy;
+    if(cellOK(p.x, ny)) p.y = ny; else p.vy *= -0.3;
+  }
+}
+
+/* Метабол-рендер. Каждая частица — мягкое пятно; пятна складываются,
+   потом плотность прогоняется через порог, и края слипаются в общий
+   контур. Никаких спрайтов, всё считается на холсте. */
+/* Заготовка пятна: перерисовывается только когда заметно поменялся
+   масштаб, а не каждый кадр. */
+var bcv = null, bcx = null, bR = -1;
+function blobSprite(r){
+  var size = Math.max(4, Math.min(160, Math.round(r*2)));
+  if(bcv && Math.abs(bR - size) < 2) return bcv;
+  if(!bcv){
+    bcv = document.createElement("canvas");
+    bcx = bcv.getContext ? bcv.getContext("2d") : null;
+  }
+  if(!bcx) return null;
+  bcv.width = size; bcv.height = size; bR = size;
+  bcx.clearRect(0,0,size,size);
+  var h = size/2;
+  var g = bcx.createRadialGradient(h, h, 0, h, h, h);
+  g.addColorStop(0,   "rgba(255,255,255,0.62)");
+  g.addColorStop(0.5, "rgba(255,255,255,0.28)");
+  g.addColorStop(1,   "rgba(255,255,255,0)");
+  bcx.fillStyle = g;
+  bcx.fillRect(0,0,size,size);
+  return bcv;
+}
+
+var wcv = null, wcx = null;
+function drawParticles(){
+  var n = wp.length;
+  if(!n) return;
+  if(!wcv){
+    wcv = document.createElement("canvas");
+    wcx = wcv.getContext ? wcv.getContext("2d") : null;
+  }
+  if(!wcx) return;
+  var W = Math.max(1, Math.round(VW())), H = Math.max(1, Math.round(VH()));
+  if(wcv.width !== W || wcv.height !== H){ wcv.width = W; wcv.height = H; }
+  wcx.setTransform(1,0,0,1,0,0);
+  wcx.clearRect(0,0,W,H);
+
+  var s = view.s, ox = view.x, oy = view.y;
+  var r = P_R * s * 2.1;
+  if(r < 1) return;
+
+  // 1. плотность: одно мягкое пятно рисуется заранее и потом штампуется.
+  //    Считать градиент на каждую частицу каждый кадр слишком дорого.
+  var blob = blobSprite(r);
+  if(!blob) return;
+  wcx.globalCompositeOperation = "lighter";
+  for(var i=0;i<n;i++){
+    var p = wp[i];
+    var sx = p.x*s + ox, sy = p.y*s + oy;
+    if(sx < -r || sy < -r || sx > W+r || sy > H+r) continue;
+    wcx.drawImage(blob, sx-r, sy-r, r*2, r*2);
+  }
+  // 2. порог: складывая картинку саму с собой, поднимаем плотные места
+  //    почти до единицы, а редкие брызги оставляем прозрачными
+  wcx.drawImage(wcv, 0, 0);
+  wcx.drawImage(wcv, 0, 0);
+
+  // 3. красим получившийся объём
+  wcx.globalCompositeOperation = "source-in";
+  var body = wcx.createLinearGradient(0, 0, 0, H);
+  body.addColorStop(0, shade(wcolor, 30));
+  body.addColorStop(1, shade(wcolor, -28));
+  wcx.fillStyle = body;
+  wcx.fillRect(0, 0, W, H);
+  wcx.globalCompositeOperation = "source-over";
+
+  ctx.save();
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.globalAlpha = 0.88;
+  ctx.drawImage(wcv, 0, 0, W, H);
+  ctx.restore();
+}
+
+/* ── ВОДА В РЕДАКТОРЕ: рисуется скриптом, никаких картинок ──
    Тело — вертикальный градиент выбранного цвета, поверхность — живая
    синусоида, и только там, где сверху нет другой воды. */
+var _wsig = "";
+/* Рой пересобирается, когда объём воды в карте изменился. Подпись
+   считаем по клеткам: этого достаточно и это дёшево. */
+function syncWater(){
+  var sig = "", n = 0;
+  for(var i=0;i<objects.length;i++){
+    var o = objects[i];
+    if(o.type !== "water") continue;
+    sig += o.x + "," + o.y + "," + o.w + "," + o.h + ";"; n++;
+  }
+  if(sig === _wsig) return;
+  _wsig = sig;
+  buildWater();
+}
 function drawWater(vx0, vy0, vx1, vy1){
+  // и в редакторе, и в игре вода это рой частиц, а не заливка
+  syncWater();
+  if(!playing) stepWater();
+  drawParticles();
+  return;
   var ws = [];
   for(var i=0;i<objects.length;i++){
     var o = objects[i];
@@ -1561,21 +1795,59 @@ function grips(o){
   return [{n:"nw",x:o.x,y:o.y},{n:"ne",x:o.x+o.w,y:o.y},{n:"sw",x:o.x,y:o.y+o.h},{n:"se",x:o.x+o.w,y:o.y+o.h}];
 }
 function gripAt(x,y){
-  if(!sel) return null;
+  // у точки старта ручек нет: размер игрока задан движком
+  if(!sel || sel.type === "spawn") return null;
   var r = (document.body.classList.contains("mob") ? 15 : 7)/view.s, g = grips(sel);
   for(var i=0;i<g.length;i++) if(Math.abs(x-g[i].x) <= r && Math.abs(y-g[i].y) <= r) return g[i].n;
   return null;
 }
 var snapN = function(v){ return grid ? Math.round(v/GRID)*GRID : v; };
 
+/* ---- БУФЕР ОБМЕНА ----
+   mouseW — последняя позиция курсора в координатах карты: по ней
+   вставляется копия. */
+var clipboard = null;
+var mouseW = {x:0, y:0};
+function copySel(){
+  if(!sel) return false;
+  clipboard = Object.assign({}, sel);
+  showMsg("Скопировано", "Ctrl+V поставит копию под курсором");
+  setTimeout(hideMsg, 1200);
+  return true;
+}
+function pasteAt(x, y){
+  if(!clipboard || playing) return false;
+  if(overLimit(1)) return false;
+  if(clipboard.type === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return false; }
+  if(!allowedIn(clipboard.type, mode)) return false;
+  commit();
+  var c = Object.assign({}, clipboard);
+  c.id = uid++;
+  if(c.customId) c.customId = "w"+c.id;
+  // центр копии садится ровно под курсор
+  c.x = snapN(x - c.w/2);
+  c.y = snapN(y - c.h/2);
+  // точка старта в карте одна
+  if(c.type === "spawn"){
+    var ex = findSpawn();
+    if(ex) objects = objects.filter(function(o){ return o !== ex; });
+  }
+  objects.push(c); sel = c;
+  markDirty(); inspect();
+  return true;
+}
+
 /* ---- ВОДА В РЕДАКТОРЕ ----
    Вода живёт как обычные объекты типа "water" клетками по 20 пикселей.
    Цвет и признак кислоты — общие на весь уровень. */
 function waterStyle(){
-  for(var i=0;i<objects.length;i++)
-    if(objects[i].type === "water")
-      return { fill: objects[i].fill || WATER_DEF, acid: !!objects[i].acid };
-  return { fill: WATER_DEF, acid: false };
+  for(var i=0;i<objects.length;i++){
+    var o = objects[i];
+    if(o.type !== "water") continue;
+    return { fill: o.fill || WATER_DEF, acid: !!o.acid,
+             sink: !!o.sink, sinkSpeed: o.sinkSpeed || SINK_DEF };
+  }
+  return { fill: WATER_DEF, acid: false, sink: false, sinkSpeed: SINK_DEF };
 }
 function waterAt(cx, cy){
   for(var i=0;i<objects.length;i++){
@@ -1586,14 +1858,49 @@ function waterAt(cx, cy){
   }
   return null;
 }
+/* Занята ли клетка твёрдым блоком */
+function cellSolid(cx, cy){
+  var mx = cx + WCELL/2, my = cy + WCELL/2;
+  for(var i=0;i<objects.length;i++){
+    var o = objects[i];
+    if(!solid(o)) continue;
+    var b = bbox(o);
+    if(mx > b[0] && mx < b[2] && my > b[1] && my < b[3]) return true;
+  }
+  return false;
+}
+/* Налив струёй: капля из-под курсора падает вниз, пока под ней пусто,
+   и растекается вбок, если столб уже заполнен. Поэтому вода сама
+   стекает в ямы, а не висит там, где провели мышью. */
 function pourWater(x, y){
   var cx = Math.floor(x / WCELL) * WCELL;
   var cy = Math.floor(y / WCELL) * WCELL;
-  if(waterAt(cx, cy)) return;
+  if(cellSolid(cx, cy)) return;
   if(overLimit(1)) return;
+
+  var guard = 0;
+  while(guard++ < 400){
+    if(!waterAt(cx, cy + WCELL) && !cellSolid(cx, cy + WCELL) && cy + WCELL < 6000){
+      cy += WCELL; continue;                       // под нами пусто — падаем
+    }
+    if(!waterAt(cx, cy)) break;                    // встали на своё место
+
+    // клетка занята водой: растекаемся в сторону, где ниже свободно
+    var moved = false;
+    for(var d = 1; d <= 24 && !moved; d++){
+      for(var s = -1; s <= 1; s += 2){
+        var nx = cx + s*d*WCELL;
+        if(cellSolid(nx, cy) || waterAt(nx, cy)) continue;
+        cx = nx; moved = true; break;
+      }
+    }
+    if(!moved){ cy -= WCELL; if(cellSolid(cx, cy)) return; break; }
+  }
+  if(waterAt(cx, cy) || cellSolid(cx, cy)) return;
+
   var st = waterStyle();
   var o = mk("water", cx, cy, WCELL, WCELL);
-  o.fill = st.fill; o.acid = st.acid;
+  o.fill = st.fill; o.acid = st.acid; o.sink = st.sink; o.sinkSpeed = st.sinkSpeed;
   objects.push(o); sel = o;
 }
 /* Клетки одного ряда склеиваем в один объект: иначе большой бассейн
@@ -1602,7 +1909,8 @@ function mergeWater(){
   var rows = {}, rest = [];
   objects.forEach(function(o){
     if(o.type === "water" && o.h === WCELL){
-      var k = o.y + "|" + (o.fill || WATER_DEF) + "|" + (o.acid ? 1 : 0);
+      var k = o.y + "|" + (o.fill || WATER_DEF) + "|" + (o.acid ? 1 : 0)
+            + "|" + (o.sink ? 1 : 0) + "|" + (o.sinkSpeed || SINK_DEF);
       (rows[k] = rows[k] || []).push(o);
     } else rest.push(o);
   });
@@ -1731,7 +2039,9 @@ cv.addEventListener("mousedown", function(e){
 cv.addEventListener("mousemove", function(e){
   if(playing) return;
   if(pan){ view.x = pan.vx+(e.offsetX-pan.sx); view.y = pan.vy+(e.offsetY-pan.sy); return; }
-  var p = toWorld(e.offsetX, e.offsetY); move(p.x, p.y);
+  var p = toWorld(e.offsetX, e.offsetY);
+  mouseW = p;                       // запоминаем для Ctrl+V
+  move(p.x, p.y);
 });
 addEventListener("mouseup", function(){
   if(pan){ pan = null; cv.style.cursor = tool === "hand" ? "grab" : (tool === "select" ? "default" : "crosshair"); return; }
@@ -1825,6 +2135,10 @@ document.addEventListener("keydown", function(e){
   if(mod && e.code === "KeyZ"){ e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if(mod && e.code === "KeyY"){ e.preventDefault(); redo(); return; }
   if(mod && e.code === "KeyD"){ e.preventDefault(); duplicate(); return; }
+  /* Ctrl+C кладёт объект в буфер, Ctrl+V ставит копию по центру под
+     курсором — там, где мышь была в последний раз над холстом. */
+  if(mod && e.code === "KeyC"){ e.preventDefault(); copySel(); return; }
+  if(mod && e.code === "KeyV"){ e.preventDefault(); pasteAt(mouseW.x, mouseW.y); return; }
   if(e.code === "Space"){ spaceDown = true; e.preventDefault(); }
   if(e.code === "KeyG"){ grid = !grid; document.getElementById("bGrid").classList.toggle("on", grid); }
   if((e.key === "Delete" || e.key === "Backspace") && sel){ removeSel(); }
@@ -1961,15 +2275,36 @@ function inspect(){
 
   grp("Игровые свойства");
   if(sel.type === "water"){
-    /* Опасная вода — кислота: разъедает игрока сразу при касании.
-       Переключатель общий на весь объём, как и цвет. */
-    chk("Опасная вода (кислота)", !!sel.acid, function(v){
-      objects.forEach(function(o){ if(o.type === "water") o.acid = v; });
+    /* Яд: включаешь — весь объём разом перекрашивается в ядовитый зелёный
+       и начинает затягивать вниз, выключаешь — возвращается обычная синяя
+       вода. Цвет всё равно можно потом поменять вручную. */
+    chk("Яд (опасная вода)", !!sel.acid, function(v){
+      objects.forEach(function(o){
+        if(o.type !== "water") return;
+        o.acid = v;
+        o.fill = v ? ACID_DEF : WATER_DEF;
+        o.sink = v;
+        if(v && !o.sinkSpeed) o.sinkSpeed = SINK_DEF;
+      });
       inspect();
     });
+    /* Затягивание работает и на обычной воде — получается трясина. */
+    chk("Затягивает вниз", !!sel.sink, function(v){
+      objects.forEach(function(o){
+        if(o.type !== "water") return;
+        o.sink = v;
+        if(v && !o.sinkSpeed) o.sinkSpeed = SINK_DEF;
+      });
+      inspect();
+    });
+    if(sel.sink)
+      num("Скорость затягивания", sel.sinkSpeed || SINK_DEF, function(v){
+        var sp = Math.max(0.2, Math.min(8, v));
+        objects.forEach(function(o){ if(o.type === "water") o.sinkSpeed = sp; });
+      });
     var wn = objects.filter(function(o){ return o.type === "water"; }).length;
     var wr = pr();
-    wr.innerHTML = "<label>Всего воды</label><b style='font-size:12px'>" + wn + "</b>";
+    wr.innerHTML = "<label>Объёмов воды</label><b style='font-size:12px'>" + wn + "</b>";
   }
   if(["spawn","checkpoint","finishline","coin","water"].indexOf(sel.type) === -1)
     chk("Яд (убивает)", sel.deadly, function(v){ sel.deadly = v; });
@@ -2230,6 +2565,7 @@ window.GAME = {
   commit: commit,                 // генератор карт кладёт снимок для Ctrl+Z
   myColor: null, onDraw: null,
   get keys(){ return keys; },          // состояние управления
+  get water(){ return wp; },           // частицы воды
   get playing(){ return playing; },
   get pl(){ return pl; },
   get view(){ return view; },

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="color-scheme" content="light">
-<title>AIBrofist — AIBrofist — Editor</title>
+<title>AIBrofist — Editor</title>
 <style>
 :root{
   --accent:#3b82f6; --accent-dark:#2563eb; --ink:#1e2530; --muted:#8b93a1;
@@ -121,6 +121,14 @@ canvas{display:block;position:absolute;inset:0;touch-action:none}
 
 /* zoom */
 #zoomBox{position:fixed;right:14px;bottom:14px;display:flex;padding:3px;z-index:11}
+
+/* публикация — в общей панели, чёрная кнопка курсивом */
+#bfPublish{margin-left:6px;padding:0 14px;height:36px;border:none;border-radius:9px;
+  background:#111827;color:#fff;font-style:italic;font-weight:700;font-size:13.5px;
+  letter-spacing:.2px;cursor:pointer;white-space:nowrap;align-self:center;font-family:inherit}
+#bfPublish:hover{background:#2b3648}
+#bfPublish:active{transform:translateY(1px)}
+@media (max-width:900px){ #bfPublish{padding:0 10px;height:34px;font-size:12.5px} }
 .zBtn{min-width:32px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:7px;
   cursor:pointer;font-size:15px;color:#5b6472;transition:.12s}
 .zBtn:hover{background:#eef2f8;color:var(--ink)}
@@ -187,11 +195,10 @@ body.mob #props,body.mob #widgets{max-height:26vh}
 body.mob #hint{display:none}
 body.mob #zoomBox{bottom:68px;right:8px}
 body.mob #msg h1{font-size:38px}
-#tools,#insp,#modes,#scene,#stats,#bPlay,#exitBtn,
-#zoomBox,#hint,#hud,#file{display:none !important}
-body{background:#eef2f8;overflow:hidden}
 </style>
 	<script src="device.js"></script>
+	<script src="lzma.js"></script>
+	<script src="bfImport.js"></script>
 	<script src="skinRender.js"></script>
 	<script src="skinCanvas.js"></script>
 	<script src="coin.js"></script>
@@ -228,6 +235,7 @@ body{background:#eef2f8;overflow:hidden}
   <div id="exitBtn">Выйти</div>
   <div class="stat"><i>⏱</i><span id="sTime">0.0</span></div>
   <div class="stat" title="монет в карте (максимум 3)"><i>Монеты</i><span id="sCoin">0</span></div>
+      <div class="stat" title="объектов в карте (максимум 2000)"><i>▦</i><span id="sObj">0</span></div>
   <div class="stat" title="смертей"><i>Смерти</i><span id="sDeath">0</span></div>
 </div>
 <div id="msg"><h1 id="msgT"></h1><p id="msgS"></p></div>
@@ -321,11 +329,14 @@ function figure(w,h,col,accent,skin){
       ctx.drawImage(pic, (w-pw)/2, h-ph, pw, ph);
       return;
     }
+    // пока картинка грузится — рисуем обычный силуэт
   }
+  // «за спиной» уходит под силуэт
   if(skin && window.BFSkinCanvas) BFSkinCanvas.behind(ctx, w, h, skin);
   ctx.fillStyle = col;
   ctx.beginPath(); ctx.arc(w/2, d/2, d/2, 0, 6.2832); ctx.fill();
   if(bodyH > 0){ rr(0, top, w, bodyH, Math.min(w*0.22, bodyH/2)); ctx.fill(); }
+  // одежда, лицо и головной убор — поверх
   if(skin && window.BFSkinCanvas) BFSkinCanvas.front(ctx, w, h, skin);
 }
 
@@ -567,6 +578,12 @@ var LINKED = ["rect","circle","triangle","button","lever"];
 /* ══════════════════════════════════════════════════
    STATE
    ══════════════════════════════════════════════════ */
+var COIN_LIMIT = 3;   // больше трёх монет в карту не положить — защита от накрутки
+function countCoins(){ return objects.filter(function(o){ return o.type === "coin"; }).length; }
+function coinWarn(){
+  showMsg("Максимум " + COIN_LIMIT + " монеты", "Больше монет в карту положить нельзя.");
+  setTimeout(hideMsg, 1800);
+}
 var mode = "hideAndSeek", tool = "select", objects = [], sel = null, uid = 1;
 
 /* ══════════════════════════════════════════════════
@@ -727,7 +744,7 @@ function drawParts(){
 }
 
 /* ══════════════════════════════════════════════════
-   PHYSICS  — gravity driven by the slider, exactly like the original editor
+   PHYSICS  — гравитация постоянная (9), как в оригинальном редакторе
    ══════════════════════════════════════════════════ */
 /* FRIC = 0 — на земле игрок останавливается сразу, без скольжения.
    В воздухе инерция остаётся, иначе управление в прыжке ломается. */
@@ -749,14 +766,6 @@ var W_SPEED = 0.72,  // предел скорости под водой от с�
     W_DIVE  = 0.42,  // гребок вниз
     W_MAXV  = 4.6;
 var WATER_DEF = "#3b82f6";
-var ACID_DEF  = "#38d430";   // яд всегда узнаётся по этому зелёному
-/* Вода в игре — рой мелких частиц с обычной физикой. Слипаются они не
-   физически, а на рисовании: мягкие пятна складываются и обрезаются по
-   плотности, поэтому рой читается как единая жидкость, а не как мячики. */
-var P_R    = 7;              // радиус частицы
-var P_STEP = 13;             // шаг раскладки при заполнении объёма
-var P_MAX  = 700;            // потолок: больше браузер не тянет на телефоне
-var SINK_DEF = 1.8;          // с какой скоростью затягивает вниз
 
 var JUMP_H = 122, MOVE_A = 0.9, MAX_VX = 5.2, FRIC = 0, AIR = 0.94,
     COYOTE = 6, BUFFER = 7, WALL_SLIDE = 2.6, WALL_VX = 6.2, STEP_UP = 16;
@@ -771,8 +780,7 @@ function wallVX(){ return WALL_VX * gk(); }
 function maxFall(){ return 12 + gravityScale * 0.8; }
 
 var pl = {x:0,y:0,w:20,h:60,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,selfJump:false,hidden:false,
-    inWater:false,headUnder:false,inAcid:false,sinking:false,
-    air:AIR_MAX,hp:HP_MAX};
+    inWater:false,headUnder:false,inAcid:false,air:AIR_MAX,hp:HP_MAX};
 var keys = {l:false,r:false,u:false,d:false};
 var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false;
 var deaths = 0, coins = 0, coinsTotal = 0, timeMs = 0, shake = 0, acc = 0, last = 0;
@@ -780,7 +788,7 @@ var deaths = 0, coins = 0, coinsTotal = 0, timeMs = 0, shake = 0, acc = 0, last 
 /* Где игрок относительно воды: верхняя кромка, под водой ли голова
    и не кислота ли это. Считается по тем же объектам, что и коллизии. */
 function waterState(near){
-  var top = Infinity, inW = false, acid = false, sink = false, sv = SINK_DEF;
+  var top = Infinity, inW = false, acid = false;
   for(var i=0;i<near.length;i++){
     var o = near[i];
     if(o.type !== "water") continue;
@@ -789,14 +797,12 @@ function waterState(near){
     inW = true;
     if(o.y < top) top = o.y;
     if(o.acid) acid = true;
-    if(o.sink){ sink = true; sv = o.sinkSpeed || SINK_DEF; }
   }
   pl.inWater = inW;
   pl.inAcid = acid;
-  pl.sinking = inW && sink;
   // голова считается под водой, когда кромка выше макушки
   pl.headUnder = inW && (pl.y + 8 >= top);
-  return { top: inW ? top : 0, sink: sink, sinkSpeed: sv };
+  return { top: inW ? top : 0 };
 }
 
 /* Воздух и урон. Под водой запас тратится, на воздухе восстанавливается;
@@ -833,7 +839,6 @@ function play(){
     o._hx = o.x; o._hy = o.y; o._t = 0; o._act = !!o.startsOpen;
     o._got = false; o._reached = false; o._spin = 0; o._squash = 0;
   });
-  buildWater();
   respawn();
   document.body.classList.add("play");
   sel = null; inspect(); hideMsg(); last = 0; acc = 0; stat();
@@ -842,7 +847,6 @@ function stop(){
   playing = false; document.body.classList.remove("play"); hideMsg(); parts.length = 0;
   objects.forEach(function(o){ if(o._hx !== undefined){ o.x = o._hx; o.y = o._hy; }
     o._act = false; o._reached = false; o._spin = 0; o._got = false; });
-  wp.length = 0; wcell = null;
   resetView();
 }
 function respawn(){
@@ -858,6 +862,8 @@ function die(){
 function stat(){
   document.getElementById("sDeath").textContent = deaths;
   document.getElementById("sCoin").textContent = coins + "/" + coinsTotal;
+  var so = document.getElementById("sObj");
+  if(so) so.textContent = objects.length + "/" + OBJ_LIMIT;
 }
 function showMsg(t,s){
   document.getElementById("msgT").textContent = t;
@@ -1004,7 +1010,6 @@ function step(){
     if(o._squash) o._squash *= 0.82;
   });
   if(shake > 0) shake *= 0.86;
-  stepWater();
   stepParts();
   if(done || pl.dead) return;
 
@@ -1042,16 +1047,8 @@ function step(){
        наружу; кнопка вверх — гребок вверх, вниз — погружение. */
     var depth = Math.max(0, Math.min(1, ((pl.y + pl.h) - wat.top) / pl.h));
     pl.vy += G() * W_GRAV;
-    if(wat.sink){
-      /* Затягивающая вода: выталкивания нет, вместо него тяга вниз до
-         заданной скорости. Барахтаться можно, но выплыть — нет: гребок
-         втрое слабее тяги, поэтому из яда уже не выбраться. */
-      if(pl.vy < wat.sinkSpeed) pl.vy += (wat.sinkSpeed - pl.vy) * 0.22;
-      if(pl.vy < 0) pl.vy = 0;          // вверх не сдвинуться вообще
-    } else {
-      pl.vy -= G() * W_BUOY * depth * 1.6;
-      if(keys.u) pl.vy -= W_SWIM;
-    }
+    pl.vy -= G() * W_BUOY * depth * 1.6;
+    if(keys.u) pl.vy -= W_SWIM;
     if(keys.d) pl.vy += W_DIVE;
     pl.vy *= W_DRAG;
     pl.vy = Math.max(-W_MAXV, Math.min(W_MAXV, pl.vy));
@@ -1061,18 +1058,18 @@ function step(){
        он прыгает снова, без повторного нажатия. */
     if(keys.u && !pl.selfJump && (pl.ground || coy > 0)) buf = BUFFER;
     if(buf > 0){
-      /* Карабканья по стенам нет: от стены не оттолкнуться и по ней
-         не забраться. Остаётся только скольжение — см. WALL_SLIDE ниже. */
       if(coy > 0 || pl.ground){
         pl.vy = jumpV(); buf = 0; coy = 0; pl.ground = false; pl.selfJump = true;
         puff(pl.x+pl.w/2, pl.y+pl.h, 5);
+      } else if(pl.wall !== 0){
+        pl.vy = jumpV()*0.95; pl.vx = -pl.wall*wallVX(); buf = 0; pl.selfJump = true;
+        puff(pl.x+pl.w/2, pl.y+pl.h*0.6, 4);
       }
     }
     if(!keys.u && pl.vy < 0 && pl.selfJump) pl.vy += G()*0.68;  // short hop on early release
 
     pl.vy += G();
-    // трение о стену: не остановка, а замедленное сползание вниз
-    if(pl.wall !== 0 && pl.vy > WALL_SLIDE) pl.vy -= (pl.vy - WALL_SLIDE) * 0.55;
+    if(pl.wall !== 0 && pl.vy > WALL_SLIDE) pl.vy = WALL_SLIDE;
     if(pl.vy > maxFall()) pl.vy = maxFall();
   }
 
@@ -1220,7 +1217,7 @@ function paint(o, isSel){
     ctx.setLineDash([3,3]); ctx.strokeRect(-2,-2,o.w+4,o.h+4); ctx.setLineDash([]);
   }
   ctx.restore();
-  if(isSel && o.type !== "spawn"){
+  if(isSel){
     var k = 1/view.s;
     ctx.save();
     ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 1.6*k; ctx.setLineDash([5*k,4*k]);
@@ -1232,222 +1229,10 @@ function paint(o, isSel){
     ctx.restore();
   }
 }
-/* ══════════════════════════════════════════════════
-   ВОДА НА ЧАСТИЦАХ
-   В редакторе вода — залитые клетки: так автор видит объём. В игре из
-   этих клеток рождается рой частиц с обычной физикой — тяжесть,
-   отталкивание соседей, столкновения. Частицы не выливаются за
-   пределы налитого объёма: он работает как ёмкость, иначе бассейн,
-   нарисованный в воздухе, утёк бы и карта сломалась.
-   ══════════════════════════════════════════════════ */
-var wp = [];            // частицы
-var wcell = null;       // клетки, где вода разрешена (ключ "cx,cy")
-var wcolor = WATER_DEF, wacid = false;
-
-function wkey(x, y){ return Math.floor(x/WCELL) + "," + Math.floor(y/WCELL); }
-function cellOK(x, y){ return wcell ? wcell[wkey(x, y)] === 1 : false; }
-
-/* Раскладываем частицы по объёму. Если воды налито много, шаг
-   увеличивается, чтобы не выйти за потолок в P_MAX частиц. */
-function buildWater(){
-  wp.length = 0; wcell = {};
-  var vols = [], i, o, area = 0;
-  for(i=0;i<objects.length;i++){
-    o = objects[i];
-    if(o.type !== "water") continue;
-    vols.push(o); area += o.w * o.h;
-    if(o.fill) wcolor = o.fill;
-    wacid = !!o.acid;
-  }
-  if(!vols.length){ wcell = null; return; }
-
-  // клетки объёма минус те, что заняты твёрдым: иначе частицы застрянут в стене
-  var solids = [];
-  for(i=0;i<objects.length;i++) if(solid(objects[i])) solids.push(bbox(objects[i]));
-  for(i=0;i<vols.length;i++){
-    o = vols[i];
-    for(var cy = o.y; cy < o.y + o.h; cy += WCELL)
-      for(var cx = o.x; cx < o.x + o.w; cx += WCELL){
-        var mx = cx + WCELL/2, my = cy + WCELL/2, hit = false;
-        for(var s=0;s<solids.length;s++){
-          var b = solids[s];
-          if(mx > b[0] && mx < b[2] && my > b[1] && my < b[3]){ hit = true; break; }
-        }
-        if(!hit) wcell[wkey(cx, cy)] = 1;
-      }
-  }
-
-  var step = P_STEP;
-  while(area / (step*step) > P_MAX) step += 2;
-  for(i=0;i<vols.length && wp.length < P_MAX;i++){
-    o = vols[i];
-    for(var y = o.y + step/2; y < o.y + o.h && wp.length < P_MAX; y += step)
-      for(var x = o.x + step/2; x < o.x + o.w && wp.length < P_MAX; x += step){
-        if(!cellOK(x, y)) continue;
-        wp.push({ x: x + (Math.random()-0.5)*2, y: y + (Math.random()-0.5)*2, vx: 0, vy: 0 });
-      }
-  }
-}
-
-/* Шаг физики роя. Соседей ищем по хеш-сетке, иначе на 700 частицах
-   получается четверть миллиона пар за кадр. */
-function stepWater(){
-  var n = wp.length;
-  if(!n || !wcell) return;
-  var i, j, p, q, g = G() * 0.5, D = P_R * 2, cell = D;
-  var grid = {}, key, cx, cy, k;
-
-  for(i=0;i<n;i++){
-    p = wp[i];
-    p.vy += g;
-    key = Math.floor(p.x/cell) + "," + Math.floor(p.y/cell);
-    (grid[key] = grid[key] || []).push(i);
-  }
-
-  for(i=0;i<n;i++){
-    p = wp[i];
-    cx = Math.floor(p.x/cell); cy = Math.floor(p.y/cell);
-    for(var ox=-1; ox<=1; ox++) for(var oy=-1; oy<=1; oy++){
-      var b = grid[(cx+ox) + "," + (cy+oy)];
-      if(!b) continue;
-      for(k=0;k<b.length;k++){
-        j = b[k];
-        if(j <= i) continue;
-        q = wp[j];
-        var dx = q.x - p.x, dy = q.y - p.y;
-        var d2 = dx*dx + dy*dy;
-        if(d2 > D*D || d2 < 0.0001) continue;
-        var d = Math.sqrt(d2), f = (D - d) / D * 0.42;
-        dx /= d; dy /= d;
-        p.vx -= dx*f; p.vy -= dy*f;
-        q.vx += dx*f; q.vy += dy*f;
-      }
-    }
-  }
-
-  // игрок расталкивает воду вокруг себя
-  if(playing && !pl.dead && pl.inWater){
-    var px = pl.x + pl.w/2, py = pl.y + pl.h/2, rr = Math.max(pl.w, pl.h)*0.6;
-    for(i=0;i<n;i++){
-      p = wp[i];
-      var ddx = p.x - px, ddy = p.y - py, dd = Math.sqrt(ddx*ddx + ddy*ddy);
-      if(dd > rr || dd < 0.001) continue;
-      p.vx += ddx/dd * 0.5; p.vy += ddy/dd * 0.5;
-    }
-  }
-
-  for(i=0;i<n;i++){
-    p = wp[i];
-    p.vx *= 0.93; p.vy *= 0.985;
-    if(p.vx >  6) p.vx =  6; if(p.vx < -6) p.vx = -6;
-    if(p.vy >  8) p.vy =  8; if(p.vy < -8) p.vy = -8;
-    // по осям отдельно: так частица скользит вдоль стенки, а не залипает
-    var nx = p.x + p.vx;
-    if(cellOK(nx, p.y)) p.x = nx; else p.vx *= -0.3;
-    var ny = p.y + p.vy;
-    if(cellOK(p.x, ny)) p.y = ny; else p.vy *= -0.3;
-  }
-}
-
-/* Метабол-рендер. Каждая частица — мягкое пятно; пятна складываются,
-   потом плотность прогоняется через порог, и края слипаются в общий
-   контур. Никаких спрайтов, всё считается на холсте. */
-/* Заготовка пятна: перерисовывается только когда заметно поменялся
-   масштаб, а не каждый кадр. */
-var bcv = null, bcx = null, bR = -1;
-function blobSprite(r){
-  var size = Math.max(4, Math.min(160, Math.round(r*2)));
-  if(bcv && Math.abs(bR - size) < 2) return bcv;
-  if(!bcv){
-    bcv = document.createElement("canvas");
-    bcx = bcv.getContext ? bcv.getContext("2d") : null;
-  }
-  if(!bcx) return null;
-  bcv.width = size; bcv.height = size; bR = size;
-  bcx.clearRect(0,0,size,size);
-  var h = size/2;
-  var g = bcx.createRadialGradient(h, h, 0, h, h, h);
-  g.addColorStop(0,   "rgba(255,255,255,0.62)");
-  g.addColorStop(0.5, "rgba(255,255,255,0.28)");
-  g.addColorStop(1,   "rgba(255,255,255,0)");
-  bcx.fillStyle = g;
-  bcx.fillRect(0,0,size,size);
-  return bcv;
-}
-
-var wcv = null, wcx = null;
-function drawParticles(){
-  var n = wp.length;
-  if(!n) return;
-  if(!wcv){
-    wcv = document.createElement("canvas");
-    wcx = wcv.getContext ? wcv.getContext("2d") : null;
-  }
-  if(!wcx) return;
-  var W = Math.max(1, Math.round(VW())), H = Math.max(1, Math.round(VH()));
-  if(wcv.width !== W || wcv.height !== H){ wcv.width = W; wcv.height = H; }
-  wcx.setTransform(1,0,0,1,0,0);
-  wcx.clearRect(0,0,W,H);
-
-  var s = view.s, ox = view.x, oy = view.y;
-  var r = P_R * s * 2.1;
-  if(r < 1) return;
-
-  // 1. плотность: одно мягкое пятно рисуется заранее и потом штампуется.
-  //    Считать градиент на каждую частицу каждый кадр слишком дорого.
-  var blob = blobSprite(r);
-  if(!blob) return;
-  wcx.globalCompositeOperation = "lighter";
-  for(var i=0;i<n;i++){
-    var p = wp[i];
-    var sx = p.x*s + ox, sy = p.y*s + oy;
-    if(sx < -r || sy < -r || sx > W+r || sy > H+r) continue;
-    wcx.drawImage(blob, sx-r, sy-r, r*2, r*2);
-  }
-  // 2. порог: складывая картинку саму с собой, поднимаем плотные места
-  //    почти до единицы, а редкие брызги оставляем прозрачными
-  wcx.drawImage(wcv, 0, 0);
-  wcx.drawImage(wcv, 0, 0);
-
-  // 3. красим получившийся объём
-  wcx.globalCompositeOperation = "source-in";
-  var body = wcx.createLinearGradient(0, 0, 0, H);
-  body.addColorStop(0, shade(wcolor, 30));
-  body.addColorStop(1, shade(wcolor, -28));
-  wcx.fillStyle = body;
-  wcx.fillRect(0, 0, W, H);
-  wcx.globalCompositeOperation = "source-over";
-
-  ctx.save();
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  ctx.globalAlpha = 0.88;
-  ctx.drawImage(wcv, 0, 0, W, H);
-  ctx.restore();
-}
-
-/* ── ВОДА В РЕДАКТОРЕ: рисуется скриптом, никаких картинок ──
+/* ── ВОДА: рисуется скриптом, никаких картинок ──
    Тело — вертикальный градиент выбранного цвета, поверхность — живая
    синусоида, и только там, где сверху нет другой воды. */
-var _wsig = "";
-/* Рой пересобирается, когда объём воды в карте изменился. Подпись
-   считаем по клеткам: этого достаточно и это дёшево. */
-function syncWater(){
-  var sig = "", n = 0;
-  for(var i=0;i<objects.length;i++){
-    var o = objects[i];
-    if(o.type !== "water") continue;
-    sig += o.x + "," + o.y + "," + o.w + "," + o.h + ";"; n++;
-  }
-  if(sig === _wsig) return;
-  _wsig = sig;
-  buildWater();
-}
 function drawWater(vx0, vy0, vx1, vy1){
-  // и в редакторе, и в игре вода это рой частиц, а не заливка
-  syncWater();
-  if(!playing) stepWater();
-  drawParticles();
-  return;
   var ws = [];
   for(var i=0;i<objects.length;i++){
     var o = objects[i];
@@ -1635,7 +1420,8 @@ var SVG = {
   copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
   trash:'<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
   grid:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>',
-  json:'<path d="M12 3v13"/><path d="M7 11l5 5 5-5"/><path d="M4 17v3h16v-3"/>'
+  json:'<path d="M12 3v13"/><path d="M7 11l5 5 5-5"/><path d="M4 17v3h16v-3"/>',
+  imp:'<path d="M12 20V7"/><path d="M7 12l5-5 5 5"/><path d="M4 4h16"/>'
 };
 function sBtn(id,icon,tip,cls){
   var d = document.createElement("div");
@@ -1713,8 +1499,41 @@ syncTools();
 document.getElementById("modes").addEventListener("click", function(e){
   var b = e.target.closest(".modeBtn"); if(!b || playing) return;
   document.querySelectorAll(".modeBtn").forEach(function(x){ x.classList.remove("on"); });
-  b.classList.add("on"); mode = b.dataset.mode; syncTools();
+  b.classList.add("on"); mode = b.dataset.mode;
+  var drop = objects.filter(function(o){ return !allowedIn(o.type, mode); });
+  if(drop.length){
+    commit();
+    objects = objects.filter(function(o){ return allowedIn(o.type, mode); });
+    // в старых картах галочки не было — восстанавливаем прежнее поведение
+    objects.forEach(function(o){
+      if(o.deadly === undefined && DEADLY_BY_DEFAULT.indexOf(o.type) !== -1) o.deadly = true;
+      // «Ищущий» убран из палитры: в старых картах превращаем его в старт
+      if(o.type === "seeker") o.type = "spawn";
+      // размер игрока больше не настраивается — приводим старые точки старта
+      if(o.type === "spawn"){ o.w = SIZES.spawn[0]; o.h = SIZES.spawn[1]; }
+      // Платформа, ротатор, батут, яд и шипы стали свойствами обычных
+      // объектов — переносим их поведение, чтобы старые карты играли так же
+      if(o.type === "platform"){ o.type = "rect"; o.moves = true;
+        if(!o.moveX && !o.moveY){ o.moveX = 130; o.moveY = 0; }
+        if(!o.speed) o.speed = 1.1; }
+      if(o.type === "rotator"){ o.type = "rect"; o.spins = true;
+        if(!o.spin) o.spin = 2; o.deadly = true; }
+      // Батут заменён полноценным рикошетом
+      if(o.type === "bounce"){ o.type = "rect"; o.ricochet = true; }
+      if(o.bouncy){ o.ricochet = true; delete o.bouncy; delete o.power; }
+      if(o.type === "poison" || o.type === "spike"){ o.type = "rect"; o.deadly = true; }
+      // Ворота, дверь и укрытие убраны — в старых картах становятся блоком,
+      // чтобы геометрия уровня не разъехалась
+      if(o.type === "door" || o.type === "gate" || o.type === "cover"){ o.type = "rect"; }
+    });
+    sel = null; markDirty(); indexMovers();
+    showMsg("Убрано объектов: " + drop.length,
+            "В режиме «" + mode + "» они не работают. Ctrl+Z вернёт их обратно.");
+    setTimeout(hideMsg, 2600);
+  }
+  syncTools();
   if(!toolOK(tool)) setTool("select");
+  inspect();
 });
 toolsEl.addEventListener("click", function(e){
   var t = e.target.closest(".tool"); if(t) setTool(t.dataset.tool);
@@ -1749,18 +1568,92 @@ function gripAt(x,y){
 }
 var snapN = function(v){ return grid ? Math.round(v/GRID)*GRID : v; };
 
+/* ---- ВОДА В РЕДАКТОРЕ ----
+   Вода живёт как обычные объекты типа "water" клетками по 20 пикселей.
+   Цвет и признак кислоты — общие на весь уровень. */
+function waterStyle(){
+  for(var i=0;i<objects.length;i++)
+    if(objects[i].type === "water")
+      return { fill: objects[i].fill || WATER_DEF, acid: !!objects[i].acid };
+  return { fill: WATER_DEF, acid: false };
+}
+function waterAt(cx, cy){
+  for(var i=0;i<objects.length;i++){
+    var o = objects[i];
+    if(o.type !== "water") continue;
+    if(cx + 1 >= o.x && cx + WCELL - 1 <= o.x + o.w &&
+       cy + 1 >= o.y && cy + WCELL - 1 <= o.y + o.h) return o;
+  }
+  return null;
+}
+function pourWater(x, y){
+  var cx = Math.floor(x / WCELL) * WCELL;
+  var cy = Math.floor(y / WCELL) * WCELL;
+  if(waterAt(cx, cy)) return;
+  if(overLimit(1)) return;
+  var st = waterStyle();
+  var o = mk("water", cx, cy, WCELL, WCELL);
+  o.fill = st.fill; o.acid = st.acid;
+  objects.push(o); sel = o;
+}
+/* Клетки одного ряда склеиваем в один объект: иначе большой бассейн
+   съедает лимит в 2000 объектов за пару движений мышью. */
+function mergeWater(){
+  var rows = {}, rest = [];
+  objects.forEach(function(o){
+    if(o.type === "water" && o.h === WCELL){
+      var k = o.y + "|" + (o.fill || WATER_DEF) + "|" + (o.acid ? 1 : 0);
+      (rows[k] = rows[k] || []).push(o);
+    } else rest.push(o);
+  });
+  var out = rest;
+  Object.keys(rows).forEach(function(k){
+    var list = rows[k].sort(function(a,b){ return a.x - b.x; });
+    var cur = null;
+    list.forEach(function(o){
+      if(cur && o.x <= cur.x + cur.w + 0.001){
+        cur.w = Math.max(cur.w, o.x + o.w - cur.x);
+      } else { cur = o; out.push(o); }
+    });
+  });
+  objects = out;
+  if(sel && objects.indexOf(sel) === -1) sel = null;
+  markDirty();
+}
+
 var drag = null;
 function cPt(cx,cy){ var r = cv.getBoundingClientRect(); return {x:cx-r.left, y:cy-r.top}; }
-function down(x,y){
+function down(x,y,alt){
   if(playing) return;
   var g = gripAt(x,y);
   if(g && sel){ commit(); drag = {m:"size", g:g, ox:x, oy:y, o:Object.assign({},sel)}; return; }
   if(tool === "select"){
     var h = at(x,y);
-    if(h){ commit(); sel = h; drag = {m:"move", ox:x, oy:y, o:{x:h.x,y:h.y}}; }
+    if(h){
+      commit();
+      /* Быстрое дублирование: Alt и потащить — копия остаётся под курсором,
+         оригинал на месте. Ctrl+D по-прежнему работает. */
+      if(alt && !overLimit(1)){
+        var c = Object.assign({}, h);
+        c.id = uid++;
+        if(c.customId) c.customId = "w"+c.id;
+        objects.push(c); h = c;
+      }
+      sel = h; drag = {m:"move", ox:x, oy:y, o:{x:h.x,y:h.y}};
+    }
     else sel = null;
     inspect(); return;
   }
+  /* Вода наливается зажатием: пока кнопка держится, клетки 20x20
+     докладываются под курсором. На отпускании ряды склеиваются. */
+  if(tool === "water"){
+    if(!allowedIn("water", mode)){ setTool("select"); return; }
+    commit();
+    drag = {m:"water"};
+    pourWater(x,y);
+    return;
+  }
+  if(tool === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
   if(!allowedIn(tool, mode)){ setTool("select"); return; }
   if(overLimit(1)) return;
   commit();
@@ -1775,6 +1668,7 @@ function down(x,y){
 }
 function move(x,y){
   if(!drag || playing) return;
+  if(drag.m === "water"){ pourWater(x,y); return; }
   if(drag.m === "new"){
     if(Math.abs(x-drag.ox) > 6 || Math.abs(y-drag.oy) > 6) drag.moved = true;
     var o = objects[objects.length-1];
@@ -1792,6 +1686,7 @@ function move(x,y){
   inspect();
 }
 function up(){
+  if(drag && drag.m === "water"){ mergeWater(); drag = null; inspect(); return; }
   if(drag && drag.m === "new" && !drag.moved){
     var o = objects[objects.length-1];
     o.w = drag.w; o.h = drag.h;
@@ -1831,7 +1726,7 @@ cv.addEventListener("mousedown", function(e){
     if(tool === "select" && sel){ sel = null; inspect(); }
     startPan(e.offsetX, e.offsetY); e.preventDefault(); return;
   }
-  down(p.x, p.y);
+  down(p.x, p.y, e.altKey);
 });
 cv.addEventListener("mousemove", function(e){
   if(playing) return;
@@ -1959,6 +1854,7 @@ pad("pDive",  function(v){ keys.d = v; });
 
 function duplicate(){
   if(!sel) return;
+  if(sel.type === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
   if(overLimit(1)) return;
   commit();
   var c = JSON.parse(JSON.stringify(sel));
@@ -2038,7 +1934,8 @@ function inspect(){
 
   num("X", sel.x, function(v){ sel.x = v; });
   num("Y", sel.y, function(v){ sel.y = v; });
-  /* Размер игрока задан движком (20x60) и не редактируется. */
+  /* Размер игрока задан движком (20x60) и не редактируется, иначе одна
+     и та же карта проходится по-разному у разных авторов. */
   if(sel.type !== "spawn"){
     num("Ширина", sel.w, function(v){ sel.w = Math.max(1,v); });
     num("Высота", sel.h, function(v){ sel.h = Math.max(1,v); });
@@ -2064,36 +1961,15 @@ function inspect(){
 
   grp("Игровые свойства");
   if(sel.type === "water"){
-    /* Яд: включаешь — весь объём разом перекрашивается в ядовитый зелёный
-       и начинает затягивать вниз, выключаешь — возвращается обычная синяя
-       вода. Цвет всё равно можно потом поменять вручную. */
-    chk("Яд (опасная вода)", !!sel.acid, function(v){
-      objects.forEach(function(o){
-        if(o.type !== "water") return;
-        o.acid = v;
-        o.fill = v ? ACID_DEF : WATER_DEF;
-        o.sink = v;
-        if(v && !o.sinkSpeed) o.sinkSpeed = SINK_DEF;
-      });
+    /* Опасная вода — кислота: разъедает игрока сразу при касании.
+       Переключатель общий на весь объём, как и цвет. */
+    chk("Опасная вода (кислота)", !!sel.acid, function(v){
+      objects.forEach(function(o){ if(o.type === "water") o.acid = v; });
       inspect();
     });
-    /* Затягивание работает и на обычной воде — получается трясина. */
-    chk("Затягивает вниз", !!sel.sink, function(v){
-      objects.forEach(function(o){
-        if(o.type !== "water") return;
-        o.sink = v;
-        if(v && !o.sinkSpeed) o.sinkSpeed = SINK_DEF;
-      });
-      inspect();
-    });
-    if(sel.sink)
-      num("Скорость затягивания", sel.sinkSpeed || SINK_DEF, function(v){
-        var sp = Math.max(0.2, Math.min(8, v));
-        objects.forEach(function(o){ if(o.type === "water") o.sinkSpeed = sp; });
-      });
     var wn = objects.filter(function(o){ return o.type === "water"; }).length;
     var wr = pr();
-    wr.innerHTML = "<label>Объёмов воды</label><b style='font-size:12px'>" + wn + "</b>";
+    wr.innerHTML = "<label>Всего воды</label><b style='font-size:12px'>" + wn + "</b>";
   }
   if(["spawn","checkpoint","finishline","coin","water"].indexOf(sel.type) === -1)
     chk("Яд (убивает)", sel.deadly, function(v){ sel.deadly = v; });
@@ -2103,8 +1979,11 @@ function inspect(){
      Коллизии у него нет — иначе внутрь не зайти. */
   if(SOLID.indexOf(sel.type) !== -1 && mode === "hideAndSeek")
     chk("Укрытие для пряток", !!sel.hideSpot, function(v){ sel.hideSpot = v; });
-  /* Рикошет, движение и вращение — свойства, а не отдельные объекты. */
+  /* Рикошет, движение и вращение — свойства, а не отдельные объекты.
+     Любой блок можно сделать отражающим, подвижным или крутящимся. */
   if(SOLID.indexOf(sel.type) !== -1){
+    /* Рикошет вместо батута: удар отражается от той грани, в которую
+       попал игрок, а не подбрасывает его всегда вверх. */
     chk("Рикошет", !!sel.ricochet, function(v){ sel.ricochet = v; });
 
     chk("Двигается", !!sel.moves, function(v){
@@ -2222,12 +2101,79 @@ document.getElementById("bSave").addEventListener("click", async function(){
   a.download = "map_"+mode+".txt"; a.click();
 });
 document.getElementById("bOpen").addEventListener("click", function(){ document.getElementById("file").click(); });
+/* ── Импорт карт из оригинального brofist.io ───────────────────────
+   Файл оттуда — список байтов со знаком, внутри LZMA, внутри JSON сцены.
+   Распаковка и перевод в наши объекты: lzma.js + bfImport.js.        */
+function importOriginal(raw){
+  if(!window.BFImport){ dialog("Импорт недоступен","Не загружен bfImport.js.",null); return false; }
+  var scene, want;
+  try{
+    scene = BFImport.parseScene(raw);
+    want = BFImport.suggestMode(scene);
+  }catch(err0){
+    dialog("Не получилось прочитать карту", String(err0.message || err0), null);
+    return false;
+  }
+
+  var switched = "";
+  if(want && want !== mode && allowedIn("rect", want)){
+    switched = mode + " → " + want;
+    mode = want;
+    document.querySelectorAll(".modeBtn").forEach(function(b){ b.classList.toggle("on", b.dataset.mode === mode); });
+    syncTools();
+    if(!toolOK(tool)) setTool("select");
+  }
+
+  var r;
+  try{
+    r = BFImport.convert(scene, {
+      mode: mode,
+      objLimit: OBJ_LIMIT,
+      coinLimit: COIN_LIMIT,
+      allowed: allowedIn
+    });
+  }catch(err){
+    dialog("Не получилось прочитать карту", String(err.message || err), null);
+    return false;
+  }
+  if(!r.objects.length){
+    dialog("Пусто","В файле не нашлось ни одного объекта.",null);
+    return false;
+  }
+
+  commit();
+  objects = r.objects;
+  uid = objects.reduce(function(m2,o){ return Math.max(m2,(o.id||0)+1); },1);
+  sel = null; markDirty(); indexMovers(); inspect(); resetView();
+
+  var st = r.stats, notes = [];
+  notes.push("Перенесено объектов: " + objects.length + " из " + st.total + " фигур.");
+  if(switched) notes.push("Режим переключён: " + switched + " — в карте есть его объекты.");
+  if(st.ghosts)    notes.push("Без столкновений (декорации): " + st.ghosts + ".");
+  if(st.wrongMode) notes.push("Не подходят режиму «" + mode + "»: " + st.wrongMode + ".");
+  if(st.coinsCut)  notes.push("Монет убрано сверх лимита " + COIN_LIMIT + ": " + st.coinsCut + ".");
+  if(st.overLimit) notes.push("Не влезло в лимит " + OBJ_LIMIT + ": " + st.overLimit + ".");
+  if(!st.spawn)    notes.push("Точки старта в файле не было — поставил сам, проверьте её.");
+  notes.push("Размер приведён к нашему игроку (масштаб 0.73).");
+  dialog("Карта из brofist.io загружена", notes.join(" "), null);
+  return true;
+}
+
+// файл из оригинала: только цифры и запятые, без нашей подписи
+function looksOriginal(raw){
+  var s = String(raw).trim();
+  if(s.indexOf("|") !== -1) return false;
+  return s[0] === "[" || /^-?\d+\s*,\s*-?\d+/.test(s);
+}
+
 document.getElementById("file").addEventListener("change", function(e){
   var f = e.target.files[0]; if(!f) return;
   var rd = new FileReader();
   rd.onload = async function(){
     try{
       var raw = String(rd.result).trim(), p = raw.indexOf("|");
+      // карта из оригинального brofist.io — уводим в импорт
+      if(looksOriginal(raw)){ importOriginal(raw); return; }
       if(p === -1){ dialog("Доступ запрещён","Файл не подписан этим редактором.",null); return; }
       var sig = raw.slice(0,p), nums = raw.slice(p+1).split(",").map(function(s){ return parseInt(s,10); });
       var json = await unzip(new Uint8Array(nums.slice(1)), nums[0]);
@@ -2237,7 +2183,9 @@ document.getElementById("file").addEventListener("change", function(e){
       objects = d.objects || [];
       uid = objects.reduce(function(m2,o){ return Math.max(m2,(o.id||0)+1); },1);
       mode = d.mode || "hideAndSeek";
-      // гравитация из карты игнорируется: она всегда 9
+      if(d.gravity !== undefined){
+        // гравитация из старой карты игнорируется: она всегда 9
+      }
       document.querySelectorAll(".modeBtn").forEach(function(b){ b.classList.toggle("on", b.dataset.mode === mode); });
       syncTools(); sel = null; inspect();
     }catch(err){ dialog("Ошибка","Не удалось прочитать файл карты.",null); }
@@ -2272,14 +2220,18 @@ document.getElementById("zLabel").addEventListener("click", resetView);
 window.GAME = {
   figure: figure,
   mySkin: null,
+  allowedIn: allowedIn,
+  dialog: dialog,
+  OBJ_LIMIT: OBJ_LIMIT,
+  COIN_LIMIT: COIN_LIMIT,
+  MODE_OF: MODE_OF,
   play: play, stop: stop, respawn: respawn,
   step: step,                     // один шаг физики — нужен автотестам
+  commit: commit,                 // генератор карт кладёт снимок для Ctrl+Z
   myColor: null, onDraw: null,
   get keys(){ return keys; },          // состояние управления
-  get water(){ return wp; },           // частицы воды
   get playing(){ return playing; },
   get pl(){ return pl; },
-  get hidden(){ return !!pl.hidden; },
   get view(){ return view; },
   get objects(){ return objects; },
   get mode(){ return mode; },
@@ -2345,15 +2297,123 @@ socket.on('connect', () => {
   socket.emit('join', { playerName, gameMode: 'editor', room: roomCode });
 });
 
-
 </script>
+<script src="i18n.js"></script>
+<script src="mapGen.js"></script>
+<script src="editorHelp.js"></script>
+<script src="editorAI.js" defer></script>
 <script src="account.js" defer></script>
+<script src="owner.js" defer></script>
 
+<script>
+/* Публикация карты в Maps Browser */
+(function(){
+  // свой диалог вместо системного: на телефоне пользователь может нажать
+  // «Блокировать диалоговые окна», и тогда alert/prompt перестают работать совсем
+  function say(title, text, onOk){
+    var G = window.GAME;
+    if (G && G.dialog) G.dialog(title, text, onOk || null);
+    else if (onOk) { if (confirm(title + '\n\n' + text)) onOk(); }
+    else alert(title + '\n\n' + text);
+  }
+  function ask(title, text, def, onOk){
+    var G = window.GAME;
+    if (G && G.dialog) G.dialog(title, text, function(v){ onOk(String(v == null ? '' : v)); }, def || '');
+    else { var v = prompt(text, def || ''); if (v !== null) onOk(v); }
+  }
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="game.js"></script>
-	<script src="i18n.js"></script>
-	<script src="owner.js" defer></script>
+  /* Кнопка публикации стоит в общей панели рядом с сохранением и
+     открытием — раньше это был отдельный синий прямоугольник поверх карты. */
+  var btn = document.createElement('button');
+  btn.id = 'bfPublish';
+  btn.type = 'button';
+  btn.title = 'Опубликовать в Maps Browser';
+  btn.textContent = 'Публикация';
+
+  var bar = document.getElementById('scene');
+  if (bar) bar.appendChild(btn);
+  else {
+    btn.style.cssText = 'position:fixed;top:14px;right:14px;z-index:19';
+    document.body.appendChild(btn);
+  }
+
+  function send(name, overwrite){
+    var data;
+    try {
+      var m = window.getEditorMap();
+      data = m.data; window.__mode = m.mode;
+      var parsed = JSON.parse(data);
+      var objs = parsed.objects || [];
+      var G = window.GAME || {};
+      var LIM = G.OBJ_LIMIT || 2000, CL = G.COIN_LIMIT || 3;
+      var ok = G.allowedIn || function(){ return true; };
+
+      if (objs.length > LIM) {
+        say('Слишком много объектов', 'В карте ' + objs.length + '. Разрешено не больше ' + LIM + '.');
+        return;
+      }
+      var coins = objs.filter(function(o){ return o.type === 'coin'; }).length;
+      if (coins > CL) {
+        say('Слишком много монет', 'В карте ' + coins + '. Разрешено не больше ' + CL + ' — уберите лишние.');
+        return;
+      }
+      var bad = objs.filter(function(o){ return !ok(o.type, m.mode); })
+                    .map(function(o){ return o.type; });
+      if (bad.length) {
+        say('Объекты не для этого режима', 'В режиме «' + m.mode + '» не работают: ' +
+            bad.filter(function(v,i,a){ return a.indexOf(v) === i; }).join(', '));
+        return;
+      }
+    } catch(e){
+      console.error('Публикация карты:', e);
+      say('Не удалось собрать карту', String(e && e.message ? e.message : e));
+      return;
+    }
+
+    var body = 'mapName=' + encodeURIComponent(name)
+             + '&mapType=' + encodeURIComponent(window.__mode || 'hideAndSeek')
+             + '&mapData=' + encodeURIComponent(data)
+             + '&mapOverwrite=' + (overwrite ? 'true' : 'false');
+
+    fetch('/uploadMap', {method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body})
+      .then(function(r){ return r.json(); })
+      .then(function(r){
+        if (r.status === 'success') {
+          say('Карта опубликована', r.message + ' Открыть Maps Browser?',
+              function(){ location.href = '/mapsBrowser.html'; });
+        } else if (r.status === 'exists') {
+          say('Карта уже есть', r.message, function(){ send(name, true); });
+        } else {
+          say('Не получилось', r.message || 'Ошибка');
+        }
+      })
+      .catch(function(){ say('Сервер недоступен', 'Не удалось связаться с сервером.'); });
+  }
+
+  btn.onclick = function(){
+    ask('Публикация карты', 'Название карты (2–30 символов):', '', function(name){
+      name = String(name || '').trim();
+      if (name.length < 2) { say('Слишком короткое название', 'Нужно хотя бы 2 символа.'); return; }
+      send(name, false);
+    });
+  };
+})();
+</script>
 	<script src="skinAvatar.js" defer></script>
+<script>
+/* Маленькая кнопка возврата: полноценная шапка на весь экран редактора
+   не помещается, но уйти со страницы должно быть чем. */
+(function(){
+  var a = document.createElement('a');
+  a.id = 'bfHome'; a.href = '/'; a.title = 'На главную';
+  a.textContent = 'AIBROFIST';
+  a.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:12;padding:8px 12px;'
+    + 'border-radius:9px;background:#fff;border:1px solid #e2e8f0;color:#111827;'
+    + 'text-decoration:none;font:700 12.5px/1 sans-serif;box-shadow:0 2px 8px rgba(15,23,42,.10)';
+  if (window.matchMedia('(max-width: 900px)').matches) { a.style.bottom = '76px'; a.style.left = '8px'; }
+  document.body.appendChild(a);
+})();
+</script>
 </body>
 </html>

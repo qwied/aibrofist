@@ -319,7 +319,36 @@ else {
   for (let i = 0; i < 60; i++) { GAME.pl.y = 300; GAME.step(); }
   check('кислота ранит при касании', GAME.pl.hp < 100);
 
-  // 6. рикошет: падение на отражающий блок отбрасывает вверх
+  // 6. частицы воды: рождаются, держатся в объёме и успокаиваются
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
+  GAME.startPlay();
+  clearKeys();
+  const parts = GAME.water;
+  check('частицы появились', parts.length > 20 && parts.length <= 700);
+  for (let i = 0; i < 240; i++) GAME.step();
+  const outside = parts.filter(p =>
+    p.x < 200 - 20 || p.x > 440 + 20 || p.y < 280 - 20 || p.y > 400 + 20).length;
+  check('вода не выливается за объём', outside === 0, outside + ' сбежало');
+  const fast = parts.filter(p => Math.abs(p.vx) > 6.1 || Math.abs(p.vy) > 8.1).length;
+  check('рой не разлетается', fast === 0);
+  const spread = Math.max(...parts.map(p => p.x)) - Math.min(...parts.map(p => p.x));
+  check('частицы расходятся, а не слипаются в точку', spread > 60);
+
+  // 7. затягивание: из яда не выплыть даже с зажатым прыжком
+  const acidPool = pool.map(o => Object.assign({}, o,
+    { acid: true, sink: true, sinkSpeed: 1.8, fill: '#38d430' }));
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...acidPool] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 300; GAME.pl.y = 290; GAME.pl.hp = 100; GAME.pl.vy = 0;
+  const startY = GAME.pl.y;
+  GAME.keys.u = true;
+  for (let i = 0; i < 60; i++) GAME.step();
+  check('затягивает вниз', GAME.pl.sinking && GAME.pl.y > startY + 20);
+  check('с зажатым прыжком не выплыть', GAME.pl.y > startY);
+  clearKeys();
+
+  // 8. рикошет: падение на отражающий блок отбрасывает вверх
   const rico = { id: 3, type: 'rect', x: 0, y: 400, w: 600, h: 40, rot: 0,
                  fill: '#a855f7', ricochet: true };
   GAME.loadMap({ mode: 'hideAndSeek', objects: [rico, spawn] });
@@ -329,8 +358,55 @@ else {
   let bounced = false;
   for (let i = 0; i < 60; i++) { GAME.step(); if (GAME.pl.vy < -3) bounced = true; }
   check('рикошет отбрасывает вверх', bounced);
+
+  // 7. по стене не забраться, но по ней сползают
+  const wall = { id: 4, type: 'rect', x: 320, y: 100, w: 40, h: 300, rot: 0, fill: '#111827' };
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, wall] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 296; GAME.pl.y = 150; GAME.pl.vy = 0;
+  GAME.keys.r = true; GAME.keys.u = true;          // жмём в стену и вверх
+  let topY = GAME.pl.y, freeFall = 0;
+  for (let i = 0; i < 60; i++) { GAME.step(); if (GAME.pl.y < topY) topY = GAME.pl.y; }
+  check('по стене не забраться', topY >= 149);
+  const slideVY = GAME.pl.vy;
+  clearKeys();
+  // то же падение, но в стороне от стены — для сравнения скорости
+  GAME.pl.x = 100; GAME.pl.y = 150; GAME.pl.vy = 0;
+  for (let i = 0; i < 60; i++) { GAME.pl.y = 150; GAME.step(); freeFall = GAME.pl.vy; }
+  check('у стены падение медленнее', slideVY < freeFall, slideVY.toFixed(2) + ' против ' + freeFall.toFixed(2));
+
+  // 8. топление: тянет вниз и вверх не пускает
+  const sink = pool.map(o => Object.assign({}, o, { acid: true, sink: true, sinkSpeed: 2.2 }));
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...sink] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 300; GAME.pl.y = 290; GAME.keys.u = true;   // изо всех сил гребём вверх
+  let sinkY0 = GAME.pl.y, wentUp = false;
+  for (let i = 0; i < 120; i++) { GAME.step(); if (GAME.pl.y < sinkY0 - 1) wentUp = true; }
+  check('из топящей воды не выплыть', !wentUp);
+  check('затягивает вниз', GAME.pl.y > sinkY0 + 20);
+  clearKeys();
   GAME.stop();
 }
+// ---- нагрузка: большой бассейн на полный потолок частиц ----
+if (GAME) {
+  const big = [{ id: 1, type: 'rect', x: 0, y: 900, w: 2000, h: 40, rot: 0, fill: '#111827' },
+               { id: 2, type: 'spawn', x: 60, y: 840, w: 20, h: 60, rot: 0, fill: '#111827' }];
+  for (let r = 0; r < 30; r++)
+    big.push({ id: 100 + r, type: 'water', x: 100, y: 300 + r * 20, w: 1600, h: 20,
+               rot: 0, fill: '#3b82f6' });
+  GAME.loadMap({ mode: 'hideAndSeek', objects: big });
+  GAME.startPlay();
+  clearKeys();
+  const t0 = Date.now();
+  for (let i = 0; i < 300; i++) GAME.step();
+  const ms = (Date.now() - t0) / 300;
+  console.log(`Нагрузка: ${GAME.water.length} частиц, ${ms.toFixed(2)} мс на кадр физики`);
+  check('шаг физики укладывается в кадр', ms < 8, ms.toFixed(2) + ' мс');
+  GAME.stop();
+}
+
 console.log(`Физика: пройдено ${phys}, ошибок ${physFail}`);
 
 process.exit(failed || toolFail || physFail ? 1 : 0);

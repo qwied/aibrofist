@@ -96,6 +96,27 @@ ok('воздух на 10 секунд',   /AIR_MAX = 10 \* 60/.test(src));
 ok('урон после воздуха',    /if\(pl\.air <= 0\) dmg \+= DROWN_DPS/.test(src));
 ok('кислота жжёт сразу',    /if\(pl\.inAcid\)   dmg \+= ACID_DPS/.test(src));
 ok('вода рисуется скриптом',/function drawWater/.test(src) && /function waveAt/.test(src));
+
+// вода на частицах
+console.log('\nчастицы воды:');
+ok('рой строится при старте', /function buildWater/.test(src) && /buildWater\(\);\n  respawn/.test(src));
+ok('шаг физики роя',        /function stepWater/.test(src) && /stepWater\(\);/.test(src));
+ok('соседи через хеш-сетку',/grid\[key\] = grid\[key\] \|\| \[\]/.test(src));
+ok('потолок частиц',        /P_MAX  = 700/.test(src));
+ok('метабол-рендер',        /function drawParticles/.test(src) && /globalCompositeOperation = "lighter"/.test(src));
+ok('порог по плотности',    /wcx\.drawImage\(wcv, 0, 0\);\n  wcx\.drawImage\(wcv, 0, 0\);/.test(src));
+ok('пятно кэшируется',      /function blobSprite/.test(src));
+ok('игрок расталкивает воду', /игрок расталкивает воду вокруг себя/.test(src));
+ok('то же в игре',          /function stepWater/.test(game) && /function drawParticles/.test(game));
+
+// затягивание и яд
+console.log('\nзатягивание и яд:');
+ok('зелёный цвет яда',      /var ACID_DEF  = "#38d430"/.test(src));
+ok('яд красит весь объём',  /o\.fill = v \? ACID_DEF : WATER_DEF/.test(src));
+ok('яд включает затягивание', /o\.sink = v;/.test(src));
+ok('тяга вниз в физике',    /if\(pl\.vy < wat\.sinkSpeed\) pl\.vy \+= 0\.42/.test(src));
+ok('гребок ослаблен',       /keys\.u\) pl\.vy -= W_SWIM \* 0\.32/.test(src));
+ok('скорость настраивается',/Скорость затягивания/.test(src));
 ok('полоски воздуха и HP',  /function drawBreathHud/.test(src));
 ok('то же в игре',          /function drawWater/.test(game) && /function breathe/.test(game));
 
@@ -103,6 +124,33 @@ ok('то же в игре',          /function drawWater/.test(game) && /functio
 console.log('\nдублирование:');
 ok('Ctrl+D на месте',       /mod && e\.code === "KeyD"/.test(src));
 ok('Alt и потащить',        /down\(p\.x, p\.y, e\.altKey\)/.test(src) && /if\(alt && !overLimit\(1\)\)/.test(src));
+
+// стены, топление, буфер обмена
+console.log('\nстены и топление:');
+ok('карабканья нет',        !/pl\.vx = -pl\.wall\*wallVX\(\)/.test(src) && !/pl\.vx = -pl\.wall\*wallVX\(\)/.test(game));
+ok('скольжение осталось',   /pl\.wall !== 0 && pl\.vy > WALL_SLIDE/.test(src));
+ok('топление тянет вниз',   /if\(pl\.vy < wat\.sinkSpeed\)/.test(src));
+ok('вверх заблокировано',   /if\(pl\.vy < 0\) pl\.vy = 0;/.test(src));
+ok('сила затопления',       /Скорость затягивания/.test(src));
+ok('яд красит в зелёный',   /o\.fill = v \? ACID_DEF : WATER_DEF/.test(src));
+ok('яд включает топление',  /o\.acid = v;\s*\n\s*o\.fill = v \? ACID_DEF : WATER_DEF;\s*\n\s*o\.sink = v;/.test(src));
+
+console.log('\nвода частицами:');
+ok('рой частиц есть',       /var wp = \[\];/.test(src) && /function stepWater/.test(src));
+ok('слипаются в тело',      /globalCompositeOperation = "lighter"/.test(src));
+ok('живая и в редакторе',   /if\(!playing\) stepWater\(\);/.test(src));
+ok('налив стекает вниз',    /под нами пусто — падаем/.test(src));
+ok('растекается вбок',      /растекаемся в сторону/.test(src));
+
+console.log('\nбуфер обмена:');
+ok('Ctrl+C копирует',       /mod && e\.code === "KeyC"/.test(src) && /function copySel/.test(src));
+ok('Ctrl+V вставляет',      /mod && e\.code === "KeyV"/.test(src) && /function pasteAt/.test(src));
+ok('копия по центру мыши',  /c\.x = snapN\(x - c\.w\/2\)/.test(src));
+ok('курсор отслеживается',  /mouseW = p;/.test(src));
+
+console.log('\nразмер игрока:');
+ok('ручек у старта нет',    /sel\.type === "spawn"\) return null/.test(src));
+ok('рамка без ручек',       /isSel && o\.type !== "spawn"/.test(src));
 
 // прыжок с удержанием
 console.log('\nпрыжок:');

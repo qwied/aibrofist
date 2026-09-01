@@ -225,7 +225,10 @@
   Builder.prototype.water = function (x, y, w, h, acid) {
     var rows = Math.max(1, Math.round(h / 20));
     for (var i = 0; i < rows; i++)
-      this.add('water', x, y + i * 20, w, 20, { fill: acid ? '#4d7c0f' : '#3b82f6', acid: !!acid });
+      this.add('water', x, y + i * 20, w, 20, {
+        fill: acid ? '#38d430' : '#3b82f6', acid: !!acid,
+        sink: !!acid, sinkSpeed: acid ? 1.8 : 0        // из яда не выплыть
+      });
   };
   Builder.prototype.mover = function (x, y, w, h, dx, dy) {
     return this.add('rect', x, y, w, h, { moves: true, moveX: dx, moveY: dy, speed: 1.1, fill: '#475569' });
