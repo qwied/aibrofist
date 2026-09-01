@@ -118,10 +118,6 @@ canvas{display:block;position:absolute;inset:0;touch-action:none}
 #widgets b{color:var(--ink)}
 
 /* bottom-left cluster */
-#gravBox{position:fixed;left:14px;bottom:14px;padding:9px 13px;z-index:10;display:flex;align-items:center;gap:10px;font-size:12px}
-#gravBox b{font-weight:600;color:#5b6472}
-#gravVal{min-width:20px;text-align:right;font-weight:700;color:var(--accent)}
-#gravBox input{width:104px;accent-color:var(--accent)}
 
 /* zoom */
 #zoomBox{position:fixed;right:14px;bottom:14px;display:flex;padding:3px;z-index:11}
@@ -139,7 +135,7 @@ canvas{display:block;position:absolute;inset:0;touch-action:none}
 #zLabel{font-size:12px;font-weight:600;min-width:48px}
 
 /* play */
-body.play #tools,body.play #insp,body.play #modes,body.play #zoomBox,body.play #hint,body.play #gravBox{display:none!important}
+body.play #tools,body.play #insp,body.play #modes,body.play #zoomBox,body.play #hint{display:none!important}
 #hud{display:none;position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:12;
   padding:8px 10px;align-items:center;gap:6px}
 body.play #hud{display:flex}
@@ -196,7 +192,7 @@ body.mob #insp{left:8px;right:8px;width:auto;top:auto;bottom:64px;transform:none
 body.mob #props,body.mob #widgets{max-height:26vh}
 #inspClose{flex:0 0 34px;color:#dc2626;font-size:14px}
 #inspClose:hover{background:#fee2e2}
-body.mob #hint,body.mob #gravBox{display:none}
+body.mob #hint{display:none}
 body.mob #zoomBox{bottom:68px;right:8px}
 body.mob #msg h1{font-size:38px}
 </style>
@@ -229,12 +225,6 @@ body.mob #msg h1{font-size:38px}
   <div id="widgets" style="display:none"></div>
 </div>
 
-<div id="gravBox" class="panel">
-  <b>Гравитация</b>
-  <input type="range" id="grav" min="0" max="30" step="1" value="10">
-  <span id="gravVal">10</span>
-</div>
-
 <div id="zoomBox" class="panel">
   <div class="zBtn" id="zOut">−</div>
   <div class="zBtn" id="zLabel">100%</div>
@@ -252,7 +242,7 @@ body.mob #msg h1{font-size:38px}
 
 <div id="pad">
   <div class="padG"><div class="pBtn" id="pLeft">◀</div><div class="pBtn" id="pRight">▶</div></div>
-  <div class="padG"><div class="pBtn" id="pJump">JUMP</div></div>
+  <div class="padG"><div class="pBtn" id="pDive">▼</div><div class="pBtn" id="pJump">JUMP</div></div>
 </div>
 
 <div id="dlg">
@@ -365,6 +355,16 @@ var PAINT = {
   triangle: function(o){
     ctx.fillStyle = o.fill || C.ink;
     ctx.beginPath(); ctx.moveTo(o.w/2,0); ctx.lineTo(o.w,o.h); ctx.lineTo(0,o.h); ctx.closePath(); ctx.fill();
+  },
+  water: function(o){
+    var c = o.fill || WATER_DEF;
+    var g = ctx.createLinearGradient(0,0,0,o.h);
+    g.addColorStop(0, shade(c,26)); g.addColorStop(1, shade(c,-30));
+    ctx.globalAlpha = 0.75; ctx.fillStyle = g; ctx.fillRect(0,0,o.w,o.h);
+    ctx.globalAlpha = 1; ctx.strokeStyle = shade(c,60); ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for(var x=0;x<=o.w;x+=4) ctx.lineTo(x, 3 + Math.sin(x*0.4)*2);
+    ctx.stroke();
   },
   text: function(o){
     ctx.fillStyle = o.fill || C.ink;
@@ -534,6 +534,7 @@ var TOOLS = [
   {t:"triangle",   n:"Треугольник", m:ALL},
   {t:"text",       n:"Текст",       m:ALL},
   {t:"coin",       n:"Монета",      m:ALL},
+  {t:"water",      n:"Вода",        m:ALL},
   {t:"spawn",      n:"Точка старта",m:ALL},
   {t:"button",     n:"Кнопка",      m:ALL},
   {t:"lever",      n:"Рычаг",       m:ALL},
@@ -554,13 +555,15 @@ var OBJ_LIMIT = 2000;   // максимум объектов в карте, од
 var INK = "#111827";
 var COLORS = {
   rect:INK, circle:INK, triangle:INK, text:INK,
-  coin:"", button:INK, lever:INK,
+  coin:"", button:INK, lever:INK, water:WATER_DEF,
   checkpoint:"", finishline:"", spawn:INK
 };
+/* Базовая фигура — клетка 20x20: из неё удобно складывать всё остальное.
+   Игрок 20x60, ровно три клетки в высоту. */
 var SIZES = {
-  rect:[90,26], circle:[58,58], triangle:[58,52], text:[70,24], coin:[22,22],
-  button:[34,18], lever:[22,42],
-  checkpoint:[30,64], finishline:[42,86], spawn:[22,74]
+  rect:[20,20], circle:[20,20], triangle:[20,20], text:[70,24], coin:[22,22],
+  button:[34,18], lever:[22,42], water:[20,20],
+  checkpoint:[30,64], finishline:[42,86], spawn:[20,60]
 };
 var SOLID  = ["rect","circle","triangle"];
 /* Раньше яд, шипы и ротатор убивали просто потому, что так называются.
@@ -643,7 +646,9 @@ function overLimit(extra){
   return true;
 }
 var playing = false, anim = 0, grid = true, GRID = 10;
-var gravityScale = 10;
+/* Гравитация одинакова во всех картах: менять её больше нельзя,
+   иначе одна и та же карта играется по-разному у разных авторов. */
+var gravityScale = 9;
 var view = {s:1, x:0, y:0};
 
 function mk(type,x,y,w,h){
@@ -739,13 +744,32 @@ function drawParts(){
 }
 
 /* ══════════════════════════════════════════════════
-   PHYSICS  — gravity driven by the slider, exactly like the original editor
+   PHYSICS  — гравитация постоянная (9), как в оригинальном редакторе
    ══════════════════════════════════════════════════ */
 /* FRIC = 0 — на земле игрок останавливается сразу, без скольжения.
    В воздухе инерция остаётся, иначе управление в прыжке ломается. */
+/* ---- вода ----
+   Вода — это объекты типа "water", а не картинка: и физика, и вид
+   считаются скриптом. Клетка 20x20, ряды склеиваются при рисовании. */
+var WCELL   = 20;
+var AIR_MAX = 10 * 60;      // 10 секунд под водой, в кадрах
+var HP_MAX  = 100;
+var DROWN_DPS = 70;         // урон в секунду, когда воздух кончился
+var ACID_DPS  = 45;         // урон в секунду в опасной воде
+var HEAL_PS   = 30;         // восстановление на суше
+var W_SPEED = 0.72,  // предел скорости под водой от скорости бега
+    W_ACCEL = 0.55,  // разгон
+    W_DRAG  = 0.90,  // сопротивление воды
+    W_GRAV  = 0.30,  // ослабленная тяжесть
+    W_BUOY  = 0.30,  // выталкивание (равновесие держит голову над водой)
+    W_SWIM  = 0.62,  // гребок вверх
+    W_DIVE  = 0.42,  // гребок вниз
+    W_MAXV  = 4.6;
+var WATER_DEF = "#3b82f6";
+
 var JUMP_H = 122, MOVE_A = 0.9, MAX_VX = 5.2, FRIC = 0, AIR = 0.94,
     COYOTE = 6, BUFFER = 7, WALL_SLIDE = 2.6, WALL_VX = 6.2, STEP_UP = 16;
-function G(){ return gravityScale * 0.062; }          // slider 10 → 0.62 px/frame²
+function G(){ return gravityScale * 0.062; }          // 9 → 0.558 px/кадр²
 function jumpV(){ return -Math.sqrt(2 * Math.max(0.02, G()) * JUMP_H); }  // constant hop height
 /* Heavier gravity shortens airtime, so speed scales with it — otherwise a map
    built at gravity 10 becomes physically unjumpable at 30. Reach stays constant. */
@@ -755,10 +779,51 @@ function moveA(){ return MOVE_A * gk(); }
 function wallVX(){ return WALL_VX * gk(); }
 function maxFall(){ return 12 + gravityScale * 0.8; }
 
-var pl = {x:0,y:0,w:22,h:74,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,selfJump:false,hidden:false};
-var keys = {l:false,r:false,u:false};
+var pl = {x:0,y:0,w:20,h:60,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,selfJump:false,hidden:false,
+    inWater:false,headUnder:false,inAcid:false,air:AIR_MAX,hp:HP_MAX};
+var keys = {l:false,r:false,u:false,d:false};
 var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false;
 var deaths = 0, coins = 0, coinsTotal = 0, timeMs = 0, shake = 0, acc = 0, last = 0;
+
+/* Где игрок относительно воды: верхняя кромка, под водой ли голова
+   и не кислота ли это. Считается по тем же объектам, что и коллизии. */
+function waterState(near){
+  var top = Infinity, inW = false, acid = false;
+  for(var i=0;i<near.length;i++){
+    var o = near[i];
+    if(o.type !== "water") continue;
+    if(pl.x + pl.w <= o.x || pl.x >= o.x + o.w) continue;
+    if(pl.y + pl.h <= o.y || pl.y >= o.y + o.h) continue;
+    inW = true;
+    if(o.y < top) top = o.y;
+    if(o.acid) acid = true;
+  }
+  pl.inWater = inW;
+  pl.inAcid = acid;
+  // голова считается под водой, когда кромка выше макушки
+  pl.headUnder = inW && (pl.y + 8 >= top);
+  return { top: inW ? top : 0 };
+}
+
+/* Воздух и урон. Под водой запас тратится, на воздухе восстанавливается;
+   кислота жжёт сразу при касании. */
+function breathe(){
+  if(pl.headUnder){
+    if(pl.air > 0) pl.air--;
+  } else {
+    pl.air = Math.min(AIR_MAX, pl.air + 4);
+  }
+  var dmg = 0;
+  if(pl.air <= 0) dmg += DROWN_DPS / 60;
+  if(pl.inAcid)   dmg += ACID_DPS / 60;
+  if(dmg > 0){
+    pl.hp -= dmg;
+    if(anim % 8 === 0) burst(pl.x+pl.w/2, pl.y+pl.h*0.4, 3, pl.inAcid ? "#84cc16" : "#60a5fa", 1.6, 16);
+  } else if(!pl.inWater && pl.hp < HP_MAX){
+    pl.hp = Math.min(HP_MAX, pl.hp + HEAL_PS / 60);
+  }
+  if(pl.hp <= 0){ pl.hp = 0; die(); }
+}
 
 function findSpawn(){ for(var i=0;i<objects.length;i++) if(objects[i].type === "spawn") return objects[i]; return null; }
 function play(){
@@ -766,7 +831,8 @@ function play(){
   if(!sp){ dialog("Нет точки старта","Поставь инструмент «Точка старта», потом жми ▶.",null); return; }
   playing = true; done = false; deaths = 0; coins = 0; timeMs = 0; parts.length = 0;
   indexMovers(); markDirty();
-  pl.w = sp.w; pl.h = sp.h;
+  // размер игрока задан движком и не редактируется
+  pl.w = SIZES.spawn[0]; pl.h = SIZES.spawn[1];
   spawnPt = {x:sp.x, y:sp.y};
   coinsTotal = objects.filter(function(o){ return o.type === "coin"; }).length;
   objects.forEach(function(o){
@@ -783,7 +849,10 @@ function stop(){
     o._act = false; o._reached = false; o._spin = 0; o._got = false; });
   resetView();
 }
-function respawn(){ pl.x = spawnPt.x; pl.y = spawnPt.y; pl.vx = 0; pl.vy = 0; pl.dead = false; coy = 0; buf = 0; }
+function respawn(){
+  pl.x = spawnPt.x; pl.y = spawnPt.y; pl.vx = 0; pl.vy = 0; pl.dead = false; coy = 0; buf = 0;
+  pl.air = AIR_MAX; pl.hp = HP_MAX; pl.inWater = false; pl.headUnder = false; pl.inAcid = false;
+}
 function die(){
   if(pl.dead || done) return;
   pl.dead = true; deaths++; shake = 13; stat();
@@ -835,6 +904,9 @@ function hit(ax,ay,aw,ah,bx,by,bw,bh){ return ax<bx+bw && ax+aw>bx && ay<by+bh &
    многоугольник, который поворачивается вместе с ним.
    ══════════════════════════════════════════════════ */
 var CIRCLE_SIDES = 32;   // чем больше сторон, тем точнее хитбокс круга
+/* Рикошет — полное отражение импульса от той грани, в которую попал игрок.
+   Коэффициент чуть меньше единицы, иначе отскок копится до бесконечности. */
+var RICO_K = 0.96, RICO_MIN = 2.2;
 
 function rawPoly(o){
   var pts, i, a;
@@ -944,34 +1016,64 @@ function step(){
   timeMs += 16.67;
   document.getElementById("sTime").textContent = (timeMs/1000).toFixed(1);
 
-  var dir = (keys.r?1:0)-(keys.l?1:0);
-  if(dir){ pl.vx += dir*moveA(); pl.vx = Math.max(-maxVX(), Math.min(maxVX(), pl.vx)); pl.face = dir; }
-  else { pl.vx *= pl.ground ? FRIC : AIR; if(Math.abs(pl.vx) < .05) pl.vx = 0; }
-
-  if(coy > 0) coy--;
-  if(buf > 0) buf--;
-  /* Кнопку прыжка можно держать: как только игрок коснулся земли,
-     он прыгает снова, без повторного нажатия. */
-  if(keys.u && !pl.selfJump && (pl.ground || coy > 0)) buf = BUFFER;
-  if(buf > 0){
-    if(coy > 0 || pl.ground){
-      pl.vy = jumpV(); buf = 0; coy = 0; pl.ground = false; pl.selfJump = true;
-      puff(pl.x+pl.w/2, pl.y+pl.h, 5);
-    } else if(pl.wall !== 0){
-      pl.vy = jumpV()*0.95; pl.vx = -pl.wall*wallVX(); buf = 0; pl.selfJump = true;
-      puff(pl.x+pl.w/2, pl.y+pl.h*0.6, 4);
-    }
-  }
-  if(!keys.u && pl.vy < 0 && pl.selfJump) pl.vy += G()*0.68;  // short hop on early release
-
-  pl.vy += G();
-  if(pl.wall !== 0 && pl.vy > WALL_SLIDE) pl.vy = WALL_SLIDE;
-  if(pl.vy > maxFall()) pl.vy = maxFall();
-
   // рядом с игроком объектов мало — дальние даже не проверяем
   var near = nearby(pl.x - 260, pl.y - 260, pl.w + 520, pl.h + 520);
   var sol = [], i;
   for(i=0;i<near.length;i++) if(solid(near[i])) sol.push(near[i]);
+
+  var wat = waterState(near);
+
+  var dir = (keys.r?1:0)-(keys.l?1:0);
+  if(pl.inWater){
+    /* В воде разгон и предел скорости ниже, чем на суше, а торможение
+       сильнее: плыть заметно медленнее, чем бежать. */
+    var wlim = maxVX() * W_SPEED;
+    if(dir){ pl.vx += dir*moveA()*W_ACCEL; pl.face = dir; }
+    else pl.vx *= W_DRAG;
+    pl.vx = Math.max(-wlim, Math.min(wlim, pl.vx));
+    if(Math.abs(pl.vx) < .05) pl.vx = 0;
+  } else if(dir){
+    pl.vx += dir*moveA(); pl.vx = Math.max(-maxVX(), Math.min(maxVX(), pl.vx)); pl.face = dir;
+  } else {
+    pl.vx *= pl.ground ? FRIC : AIR; if(Math.abs(pl.vx) < .05) pl.vx = 0;
+  }
+
+  if(coy > 0) coy--;
+  if(buf > 0) buf--;
+
+  if(pl.inWater){
+    /* Плавание. Выталкивание пропорционально погружению, поэтому без
+       нажатий игрок сам всплывает и держится на поверхности головой
+       наружу; кнопка вверх — гребок вверх, вниз — погружение. */
+    var depth = Math.max(0, Math.min(1, ((pl.y + pl.h) - wat.top) / pl.h));
+    pl.vy += G() * W_GRAV;
+    pl.vy -= G() * W_BUOY * depth * 1.6;
+    if(keys.u) pl.vy -= W_SWIM;
+    if(keys.d) pl.vy += W_DIVE;
+    pl.vy *= W_DRAG;
+    pl.vy = Math.max(-W_MAXV, Math.min(W_MAXV, pl.vy));
+    buf = 0; coy = 0; pl.selfJump = false;
+  } else {
+    /* Кнопку прыжка можно держать: как только игрок коснулся земли,
+       он прыгает снова, без повторного нажатия. */
+    if(keys.u && !pl.selfJump && (pl.ground || coy > 0)) buf = BUFFER;
+    if(buf > 0){
+      if(coy > 0 || pl.ground){
+        pl.vy = jumpV(); buf = 0; coy = 0; pl.ground = false; pl.selfJump = true;
+        puff(pl.x+pl.w/2, pl.y+pl.h, 5);
+      } else if(pl.wall !== 0){
+        pl.vy = jumpV()*0.95; pl.vx = -pl.wall*wallVX(); buf = 0; pl.selfJump = true;
+        puff(pl.x+pl.w/2, pl.y+pl.h*0.6, 4);
+      }
+    }
+    if(!keys.u && pl.vy < 0 && pl.selfJump) pl.vy += G()*0.68;  // short hop on early release
+
+    pl.vy += G();
+    if(pl.wall !== 0 && pl.vy > WALL_SLIDE) pl.vy = WALL_SLIDE;
+    if(pl.vy > maxFall()) pl.vy = maxFall();
+  }
+
+  breathe();
 
   pl.x += pl.vx; pl.wall = 0;
   sol.forEach(function(o){
@@ -994,7 +1096,12 @@ function step(){
     if(pl.vx > 0){ pl.x = sp[0] - pl.w; pl.wall = 1; }
     else if(pl.vx < 0){ pl.x = sp[1]; pl.wall = -1; }
     else { pl.x = (pl.x + pl.w/2 < (sp[0]+sp[1])/2) ? sp[0] - pl.w : sp[1]; }
-    pl.vx = 0;
+    /* Рикошет: удар в боковую грань отражает движение по X, а не гасит его.
+       Медленное касание не отражаем — иначе игрок дрожит, прижавшись к блоку. */
+    if(o.ricochet && Math.abs(pl.vx) > RICO_MIN){
+      pl.vx = -pl.vx * RICO_K; pl.wall = 0; o._squash = 1;
+      puff(pl.x + (pl.vx > 0 ? 0 : pl.w), pl.y + pl.h*0.5, 6);
+    } else pl.vx = 0;
   });
 
   var wasAir = !pl.ground;
@@ -1008,8 +1115,9 @@ function step(){
 
     if(pl.vy >= 0 && pl.y + pl.h - sp[0] <= Math.max(2, pl.vy + 2)){
       pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE;
-      if(o.bouncy){
-        pl.vy = -(o.power||17); pl.ground = false; pl.selfJump = false;
+      // приземление сверху: рикошет швыряет игрока обратно вверх
+      if(o.ricochet && pl.vy > RICO_MIN){
+        pl.vy = -pl.vy * RICO_K; pl.ground = false; pl.selfJump = false;
         o._squash = 1; puff(pl.x+pl.w/2, pl.y+pl.h, 9);
       } else {
         if(wasAir && pl.vy > 6) puff(pl.x+pl.w/2, pl.y+pl.h, 5);
@@ -1017,7 +1125,11 @@ function step(){
       }
       if(o.moves){ pl.x += o._dx||0; pl.y += o._dy||0; }
     } else if(pl.vy < 0){
-      pl.y = sp[1]; pl.vy = 0;
+      // удар головой снизу — отражение вниз
+      if(o.ricochet && Math.abs(pl.vy) > RICO_MIN){
+        pl.y = sp[1]; pl.vy = -pl.vy * RICO_K; o._squash = 1;
+        puff(pl.x+pl.w/2, pl.y, 6);
+      } else { pl.y = sp[1]; pl.vy = 0; }
     } else {
       pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE; pl.vy = 0; pl.selfJump = false;
     }
@@ -1117,6 +1229,135 @@ function paint(o, isSel){
     ctx.restore();
   }
 }
+/* ── ВОДА: рисуется скриптом, никаких картинок ──
+   Тело — вертикальный градиент выбранного цвета, поверхность — живая
+   синусоида, и только там, где сверху нет другой воды. */
+function drawWater(vx0, vy0, vx1, vy1){
+  var ws = [];
+  for(var i=0;i<objects.length;i++){
+    var o = objects[i];
+    if(o.type !== "water") continue;
+    if(o.x+o.w < vx0 || o.x > vx1 || o.y+o.h < vy0 || o.y > vy1) continue;
+    ws.push(o);
+  }
+  if(!ws.length) return;
+
+  ctx.save();
+  for(i=0;i<ws.length;i++){
+    var w = ws[i], c = w.fill || WATER_DEF;
+    ctx.globalAlpha = 0.58;
+    var g = ctx.createLinearGradient(0, w.y, 0, w.y + w.h);
+    g.addColorStop(0, shade(c, 26));
+    g.addColorStop(1, shade(c, -30));
+    ctx.fillStyle = g;
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    // кислота: поверх цвета ложится ядовитый отсвет, чтобы её было видно
+    if(w.acid){
+      ctx.globalAlpha = 0.34 + Math.sin(anim*0.06 + w.x*0.01)*0.06;
+      ctx.fillStyle = "#84cc16";
+      ctx.fillRect(w.x, w.y, w.w, w.h);
+    }
+  }
+
+  // пузырьки — тоже скрипт, положение считается от координат и времени
+  ctx.globalAlpha = 0.30; ctx.fillStyle = "#ffffff";
+  for(i=0;i<ws.length;i++){
+    var b = ws[i];
+    if(b.w < 40) continue;
+    var n = Math.min(5, Math.floor(b.w/70));
+    for(var k=0;k<n;k++){
+      var seed = (b.x*13 + b.y*7 + k*97);
+      var bx = b.x + ((seed*37) % Math.max(1, b.w|0));
+      var by = b.y + b.h - ((anim*0.9 + seed*11) % Math.max(1, b.h|0));
+      var br = 1.4 + ((seed % 5) * 0.4);
+      ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.2832); ctx.fill();
+    }
+  }
+
+  // поверхность: у каждого куска вычитаем то, что накрыто водой сверху
+  for(i=0;i<ws.length;i++){
+    var s = ws[i];
+    var free = [[s.x, s.x + s.w]];
+    for(var j=0;j<ws.length;j++){
+      var a = ws[j];
+      if(a === s) continue;
+      if(Math.abs((a.y + a.h) - s.y) > 2) continue;    // не стоит вплотную сверху
+      free = cutSpan(free, a.x, a.x + a.w);
+    }
+    for(j=0;j<free.length;j++) waveAt(free[j][0], free[j][1], s.y, s.fill || WATER_DEF);
+  }
+  ctx.restore();
+}
+
+// вырезаем из набора отрезков кусок [a,b]
+function cutSpan(list, a, b){
+  var out = [];
+  for(var i=0;i<list.length;i++){
+    var s = list[i][0], e = list[i][1];
+    if(b <= s || a >= e){ out.push([s,e]); continue; }
+    if(a > s) out.push([s, a]);
+    if(b < e) out.push([b, e]);
+  }
+  return out;
+}
+
+function waveAt(a, b, y, color){
+  if(b - a < 3) return;
+  var amp = 2.6, step = 5;
+  ctx.globalAlpha = 0.75;
+  ctx.beginPath();
+  ctx.moveTo(a, y + 9);
+  ctx.lineTo(a, y);
+  for(var x = a; x <= b; x += step)
+    ctx.lineTo(x, y + Math.sin(x*0.055 + anim*0.05) * amp);
+  ctx.lineTo(b, y);
+  ctx.lineTo(b, y + 9);
+  ctx.closePath();
+  ctx.fillStyle = shade(color, 46);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = shade(color, 66); ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for(x = a; x <= b; x += step){
+    var yy = y + Math.sin(x*0.055 + anim*0.05) * amp;
+    x === a ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+  }
+  ctx.stroke();
+}
+
+/* Полоски воздуха и здоровья. Рисуем на холсте, а не в разметке:
+   так они одинаковы и в редакторе, и в игре. */
+function drawBreathHud(){
+  if(!playing || pl.dead) return;
+  var showAir = pl.air < AIR_MAX;
+  var showHp  = pl.hp  < HP_MAX;
+  if(!showAir && !showHp) return;
+
+  var W = 190, H = 9, x = VW()/2 - W/2, y = VH() - 74;
+  ctx.save();
+  ctx.font = "600 11px system-ui, sans-serif";
+  ctx.textBaseline = "middle";
+
+  function bar(label, frac, color, yy){
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "#0f172a";
+    ctx.fillText(label, x - 34, yy + H/2);
+    ctx.fillStyle = "rgba(15,23,42,.16)";
+    ctx.fillRect(x, yy, W, H);
+    ctx.fillStyle = color;
+    ctx.fillRect(x, yy, W * Math.max(0, Math.min(1, frac)), H);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(15,23,42,.35)"; ctx.lineWidth = 1;
+    ctx.strokeRect(x + .5, yy + .5, W - 1, H - 1);
+  }
+  if(showAir) bar("Воздух", pl.air / AIR_MAX,
+                  pl.air < AIR_MAX * 0.3 ? "#ef4444" : "#38bdf8", y);
+  if(showHp)  bar("Здоровье", pl.hp / HP_MAX,
+                  pl.hp < 35 ? "#ef4444" : "#22c55e", y + (showAir ? H + 6 : 0));
+  ctx.restore();
+}
+
 function render(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   /* Холст всегда светлый, независимо от темы сайта: карта — это
@@ -1136,8 +1377,10 @@ function render(){
   for(var ri=0; ri<objects.length; ri++){
     var ro = objects[ri], rb = bbox(ro);
     if(rb[2] < vx0 || rb[0] > vx1 || rb[3] < vy0 || rb[1] > vy1) continue;
+    if(ro.type === "water") continue;      // вода рисуется отдельным слоем поверх
     paint(ro, !playing && ro === sel); drawn++;
   }
+  drawWater(vx0, vy0, vx1, vy1);
   if(playing && !pl.dead){
     ctx.save(); ctx.translate(pl.x, pl.y);
     // себя в укрытии видно бледным — чужие не видят вообще
@@ -1148,6 +1391,8 @@ function render(){
   }
   if(window.GAME && window.GAME.onDraw) window.GAME.onDraw(ctx);
   drawParts();
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  drawBreathHud();
   if(!playing) anim++;
   requestAnimationFrame(render);
 }
@@ -1264,6 +1509,8 @@ document.getElementById("modes").addEventListener("click", function(e){
       if(o.deadly === undefined && DEADLY_BY_DEFAULT.indexOf(o.type) !== -1) o.deadly = true;
       // «Ищущий» убран из палитры: в старых картах превращаем его в старт
       if(o.type === "seeker") o.type = "spawn";
+      // размер игрока больше не настраивается — приводим старые точки старта
+      if(o.type === "spawn"){ o.w = SIZES.spawn[0]; o.h = SIZES.spawn[1]; }
       // Платформа, ротатор, батут, яд и шипы стали свойствами обычных
       // объектов — переносим их поведение, чтобы старые карты играли так же
       if(o.type === "platform"){ o.type = "rect"; o.moves = true;
@@ -1271,7 +1518,9 @@ document.getElementById("modes").addEventListener("click", function(e){
         if(!o.speed) o.speed = 1.1; }
       if(o.type === "rotator"){ o.type = "rect"; o.spins = true;
         if(!o.spin) o.spin = 2; o.deadly = true; }
-      if(o.type === "bounce"){ o.type = "rect"; o.bouncy = true; }
+      // Батут заменён полноценным рикошетом
+      if(o.type === "bounce"){ o.type = "rect"; o.ricochet = true; }
+      if(o.bouncy){ o.ricochet = true; delete o.bouncy; delete o.power; }
       if(o.type === "poison" || o.type === "spike"){ o.type = "rect"; o.deadly = true; }
       // Ворота, дверь и укрытие убраны — в старых картах становятся блоком,
       // чтобы геометрия уровня не разъехалась
@@ -1319,17 +1568,90 @@ function gripAt(x,y){
 }
 var snapN = function(v){ return grid ? Math.round(v/GRID)*GRID : v; };
 
+/* ---- ВОДА В РЕДАКТОРЕ ----
+   Вода живёт как обычные объекты типа "water" клетками по 20 пикселей.
+   Цвет и признак кислоты — общие на весь уровень. */
+function waterStyle(){
+  for(var i=0;i<objects.length;i++)
+    if(objects[i].type === "water")
+      return { fill: objects[i].fill || WATER_DEF, acid: !!objects[i].acid };
+  return { fill: WATER_DEF, acid: false };
+}
+function waterAt(cx, cy){
+  for(var i=0;i<objects.length;i++){
+    var o = objects[i];
+    if(o.type !== "water") continue;
+    if(cx + 1 >= o.x && cx + WCELL - 1 <= o.x + o.w &&
+       cy + 1 >= o.y && cy + WCELL - 1 <= o.y + o.h) return o;
+  }
+  return null;
+}
+function pourWater(x, y){
+  var cx = Math.floor(x / WCELL) * WCELL;
+  var cy = Math.floor(y / WCELL) * WCELL;
+  if(waterAt(cx, cy)) return;
+  if(overLimit(1)) return;
+  var st = waterStyle();
+  var o = mk("water", cx, cy, WCELL, WCELL);
+  o.fill = st.fill; o.acid = st.acid;
+  objects.push(o); sel = o;
+}
+/* Клетки одного ряда склеиваем в один объект: иначе большой бассейн
+   съедает лимит в 2000 объектов за пару движений мышью. */
+function mergeWater(){
+  var rows = {}, rest = [];
+  objects.forEach(function(o){
+    if(o.type === "water" && o.h === WCELL){
+      var k = o.y + "|" + (o.fill || WATER_DEF) + "|" + (o.acid ? 1 : 0);
+      (rows[k] = rows[k] || []).push(o);
+    } else rest.push(o);
+  });
+  var out = rest;
+  Object.keys(rows).forEach(function(k){
+    var list = rows[k].sort(function(a,b){ return a.x - b.x; });
+    var cur = null;
+    list.forEach(function(o){
+      if(cur && o.x <= cur.x + cur.w + 0.001){
+        cur.w = Math.max(cur.w, o.x + o.w - cur.x);
+      } else { cur = o; out.push(o); }
+    });
+  });
+  objects = out;
+  if(sel && objects.indexOf(sel) === -1) sel = null;
+  markDirty();
+}
+
 var drag = null;
 function cPt(cx,cy){ var r = cv.getBoundingClientRect(); return {x:cx-r.left, y:cy-r.top}; }
-function down(x,y){
+function down(x,y,alt){
   if(playing) return;
   var g = gripAt(x,y);
   if(g && sel){ commit(); drag = {m:"size", g:g, ox:x, oy:y, o:Object.assign({},sel)}; return; }
   if(tool === "select"){
     var h = at(x,y);
-    if(h){ commit(); sel = h; drag = {m:"move", ox:x, oy:y, o:{x:h.x,y:h.y}}; }
+    if(h){
+      commit();
+      /* Быстрое дублирование: Alt и потащить — копия остаётся под курсором,
+         оригинал на месте. Ctrl+D по-прежнему работает. */
+      if(alt && !overLimit(1)){
+        var c = Object.assign({}, h);
+        c.id = uid++;
+        if(c.customId) c.customId = "w"+c.id;
+        objects.push(c); h = c;
+      }
+      sel = h; drag = {m:"move", ox:x, oy:y, o:{x:h.x,y:h.y}};
+    }
     else sel = null;
     inspect(); return;
+  }
+  /* Вода наливается зажатием: пока кнопка держится, клетки 20x20
+     докладываются под курсором. На отпускании ряды склеиваются. */
+  if(tool === "water"){
+    if(!allowedIn("water", mode)){ setTool("select"); return; }
+    commit();
+    drag = {m:"water"};
+    pourWater(x,y);
+    return;
   }
   if(tool === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
   if(!allowedIn(tool, mode)){ setTool("select"); return; }
@@ -1346,6 +1668,7 @@ function down(x,y){
 }
 function move(x,y){
   if(!drag || playing) return;
+  if(drag.m === "water"){ pourWater(x,y); return; }
   if(drag.m === "new"){
     if(Math.abs(x-drag.ox) > 6 || Math.abs(y-drag.oy) > 6) drag.moved = true;
     var o = objects[objects.length-1];
@@ -1363,6 +1686,7 @@ function move(x,y){
   inspect();
 }
 function up(){
+  if(drag && drag.m === "water"){ mergeWater(); drag = null; inspect(); return; }
   if(drag && drag.m === "new" && !drag.moved){
     var o = objects[objects.length-1];
     o.w = drag.w; o.h = drag.h;
@@ -1402,7 +1726,7 @@ cv.addEventListener("mousedown", function(e){
     if(tool === "select" && sel){ sel = null; inspect(); }
     startPan(e.offsetX, e.offsetY); e.preventDefault(); return;
   }
-  down(p.x, p.y);
+  down(p.x, p.y, e.altKey);
 });
 cv.addEventListener("mousemove", function(e){
   if(playing) return;
@@ -1476,7 +1800,8 @@ function inSomeField(){
   return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable;
 }
 function movementKey(code){
-  return code === "ArrowLeft" || code === "ArrowRight" || code === "ArrowUp";
+  return code === "ArrowLeft" || code === "ArrowRight"
+      || code === "ArrowUp"   || code === "ArrowDown";
 }
 
 document.addEventListener("keydown", function(e){
@@ -1489,6 +1814,8 @@ document.addEventListener("keydown", function(e){
     if(e.code === "ArrowLeft" || e.code === "KeyA") keys.l = true;
     if(e.code === "ArrowRight"|| e.code === "KeyD") keys.r = true;
     if(e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space"){ keys.u = true; buf = BUFFER; e.preventDefault(); }
+    // вниз нужен только в воде — погружение
+    if(e.code === "ArrowDown" || e.code === "KeyS"){ keys.d = true; e.preventDefault(); }
     if(e.code === "KeyR"){ done = false; hideMsg(); coins = 0;
       objects.forEach(function(o){ o._got = false; }); timeMs = 0; stat(); respawn(); }
     if(e.code === "Escape") stop();
@@ -1512,6 +1839,7 @@ document.addEventListener("keyup", function(e){
     if(e.code === "ArrowLeft" || e.code === "KeyA") keys.l = false;
     if(e.code === "ArrowRight"|| e.code === "KeyD") keys.r = false;
     if(e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") keys.u = false;
+    if(e.code === "ArrowDown" || e.code === "KeyS") keys.d = false;
   }
 });
 function pad(id, fn){
@@ -1522,6 +1850,7 @@ function pad(id, fn){
 pad("pLeft",  function(v){ keys.l = v; });
 pad("pRight", function(v){ keys.r = v; });
 pad("pJump",  function(v){ keys.u = v; if(v) buf = BUFFER; });
+pad("pDive",  function(v){ keys.d = v; });
 
 function duplicate(){
   if(!sel) return;
@@ -1605,20 +1934,44 @@ function inspect(){
 
   num("X", sel.x, function(v){ sel.x = v; });
   num("Y", sel.y, function(v){ sel.y = v; });
-  num("Ширина", sel.w, function(v){ sel.w = Math.max(1,v); });
-  num("Высота", sel.h, function(v){ sel.h = Math.max(1,v); });
-  num("Поворот", sel.rot||0, function(v){ sel.rot = v; });
+  /* Размер игрока задан движком (20x60) и не редактируется, иначе одна
+     и та же карта проходится по-разному у разных авторов. */
+  if(sel.type !== "spawn"){
+    num("Ширина", sel.w, function(v){ sel.w = Math.max(1,v); });
+    num("Высота", sel.h, function(v){ sel.h = Math.max(1,v); });
+    num("Поворот", sel.rot||0, function(v){ sel.rot = v; });
+  } else {
+    var sr = pr();
+    sr.innerHTML = "<label>Размер</label><b style='font-size:12px'>20 x 60</b>";
+  }
 
-  var r = pr(); r.innerHTML = "<label>Цвет</label>";
+  var r = pr();
+  var isWater = sel.type === "water";
+  r.innerHTML = "<label>" + (isWater ? "Цвет всей воды" : "Цвет") + "</label>";
   var ci = document.createElement("input"); ci.type = "color";
   ci.value = (sel.fill && sel.fill[0] === "#" && sel.fill.length === 7) ? sel.fill : "#4b5563";
   ci.addEventListener("focus", commit);
-  ci.addEventListener("input", function(){ sel.fill = ci.value; });
+  ci.addEventListener("input", function(){
+    // вода на уровне всегда одного цвета — красим сразу весь объём
+    if(isWater) objects.forEach(function(o){ if(o.type === "water") o.fill = ci.value; });
+    else sel.fill = ci.value;
+  });
   r.appendChild(ci);
   if(sel.type === "text") txt("Текст", sel.text, function(v){ sel.text = v; });
 
   grp("Игровые свойства");
-  if(["spawn","checkpoint","finishline","coin"].indexOf(sel.type) === -1)
+  if(sel.type === "water"){
+    /* Опасная вода — кислота: разъедает игрока сразу при касании.
+       Переключатель общий на весь объём, как и цвет. */
+    chk("Опасная вода (кислота)", !!sel.acid, function(v){
+      objects.forEach(function(o){ if(o.type === "water") o.acid = v; });
+      inspect();
+    });
+    var wn = objects.filter(function(o){ return o.type === "water"; }).length;
+    var wr = pr();
+    wr.innerHTML = "<label>Всего воды</label><b style='font-size:12px'>" + wn + "</b>";
+  }
+  if(["spawn","checkpoint","finishline","coin","water"].indexOf(sel.type) === -1)
     chk("Яд (убивает)", sel.deadly, function(v){ sel.deadly = v; });
   if(SOLID.indexOf(sel.type) !== -1)
     chk("Проходимый (декорация)", !!sel.ghost, function(v){ sel.ghost = v; });
@@ -1626,11 +1979,12 @@ function inspect(){
      Коллизии у него нет — иначе внутрь не зайти. */
   if(SOLID.indexOf(sel.type) !== -1 && mode === "hideAndSeek")
     chk("Укрытие для пряток", !!sel.hideSpot, function(v){ sel.hideSpot = v; });
-  /* Батут, движение и вращение — теперь свойства, а не отдельные объекты.
-     Любой блок можно сделать прыгучим, подвижным или крутящимся. */
+  /* Рикошет, движение и вращение — свойства, а не отдельные объекты.
+     Любой блок можно сделать отражающим, подвижным или крутящимся. */
   if(SOLID.indexOf(sel.type) !== -1){
-    chk("Батут", !!sel.bouncy, function(v){ sel.bouncy = v; inspect(); });
-    if(sel.bouncy) num("Сила прыжка", sel.power||17, function(v){ sel.power = v; });
+    /* Рикошет вместо батута: удар отражается от той грани, в которую
+       попал игрок, а не подбрасывает его всегда вверх. */
+    chk("Рикошет", !!sel.ricochet, function(v){ sel.ricochet = v; });
 
     chk("Двигается", !!sel.moves, function(v){
       sel.moves = v;
@@ -1830,9 +2184,7 @@ document.getElementById("file").addEventListener("change", function(e){
       uid = objects.reduce(function(m2,o){ return Math.max(m2,(o.id||0)+1); },1);
       mode = d.mode || "hideAndSeek";
       if(d.gravity !== undefined){
-        gravityScale = d.gravity;
-        document.getElementById("grav").value = gravityScale;
-        document.getElementById("gravVal").textContent = gravityScale;
+        // гравитация из старой карты игнорируется: она всегда 9
       }
       document.querySelectorAll(".modeBtn").forEach(function(b){ b.classList.toggle("on", b.dataset.mode === mode); });
       syncTools(); sel = null; inspect();
@@ -1859,10 +2211,6 @@ document.getElementById("bDel").addEventListener("click", removeSel);
 document.getElementById("bGrid").addEventListener("click", function(){
   grid = !grid; this.classList.toggle("on", grid);
 });
-document.getElementById("grav").addEventListener("input", function(){
-  gravityScale = parseFloat(this.value);
-  document.getElementById("gravVal").textContent = gravityScale;
-});
 document.getElementById("zIn").addEventListener("click", function(){ zoomAt(VW()/2,VH()/2,1.2); });
 document.getElementById("zOut").addEventListener("click", function(){ zoomAt(VW()/2,VH()/2,1/1.2); });
 document.getElementById("zLabel").addEventListener("click", resetView);
@@ -1878,7 +2226,10 @@ window.GAME = {
   COIN_LIMIT: COIN_LIMIT,
   MODE_OF: MODE_OF,
   play: play, stop: stop, respawn: respawn,
+  step: step,                     // один шаг физики — нужен автотестам
+  commit: commit,                 // генератор карт кладёт снимок для Ctrl+Z
   myColor: null, onDraw: null,
+  get keys(){ return keys; },          // состояние управления
   get playing(){ return playing; },
   get pl(){ return pl; },
   get view(){ return view; },
@@ -1901,6 +2252,8 @@ window.GAME = {
       if(o.deadly === undefined && DEADLY_BY_DEFAULT.indexOf(o.type) !== -1) o.deadly = true;
       // «Ищущий» убран из палитры: в старых картах превращаем его в старт
       if(o.type === "seeker") o.type = "spawn";
+      // размер игрока больше не настраивается — приводим старые точки старта
+      if(o.type === "spawn"){ o.w = SIZES.spawn[0]; o.h = SIZES.spawn[1]; }
       // Платформа, ротатор, батут, яд и шипы стали свойствами обычных
       // объектов — переносим их поведение, чтобы старые карты играли так же
       if(o.type === "platform"){ o.type = "rect"; o.moves = true;
@@ -1908,7 +2261,9 @@ window.GAME = {
         if(!o.speed) o.speed = 1.1; }
       if(o.type === "rotator"){ o.type = "rect"; o.spins = true;
         if(!o.spin) o.spin = 2; o.deadly = true; }
-      if(o.type === "bounce"){ o.type = "rect"; o.bouncy = true; }
+      // Батут заменён полноценным рикошетом
+      if(o.type === "bounce"){ o.type = "rect"; o.ricochet = true; }
+      if(o.bouncy){ o.ricochet = true; delete o.bouncy; delete o.power; }
       if(o.type === "poison" || o.type === "spike"){ o.type = "rect"; o.deadly = true; }
       // Ворота, дверь и укрытие убраны — в старых картах становятся блоком,
       // чтобы геометрия уровня не разъехалась
@@ -1917,7 +2272,6 @@ window.GAME = {
     if(objects.length > OBJ_LIMIT) objects.length = OBJ_LIMIT;
     objects.forEach(function(o){ if(o.id >= uid) uid = o.id + 1; });
     indexMovers(); markDirty();
-    if(d.gravity != null) gravityScale = d.gravity;
     sel = null;
     resetView();
     return objects.length;
@@ -1945,6 +2299,9 @@ socket.on('connect', () => {
 
 </script>
 <script src="i18n.js"></script>
+<script src="mapGen.js"></script>
+<script src="editorHelp.js"></script>
+<script src="editorAI.js" defer></script>
 <script src="account.js" defer></script>
 <script src="owner.js" defer></script>
 

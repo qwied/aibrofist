@@ -66,6 +66,44 @@ ok('флаг уходит по сети',   /hid: !!GAME\.hidden/.test(gjs));
 ok('чужого не рисуем',      /if \(o\.hid\) return;/.test(gjs));
 ok('спрятанного не ловят',  /o\.caught \|\| o\.hid/.test(gjs));
 
+// размеры и гравитация
+console.log('\nразмеры и гравитация:');
+ok('префаб 20x20',          /rect:\[20,20\], circle:\[20,20\], triangle:\[20,20\]/.test(src));
+ok('игрок 20x60',           /spawn:\[20,60\]/.test(src) && /var pl = \{x:0,y:0,w:20,h:60,/.test(src));
+ok('гравитация 9',          /var gravityScale = 9;/.test(src));
+ok('ползунка нет',          !/id="grav"/.test(src) && !/id="grav"/.test(game));
+ok('размер игрока не правят', /if\(sel\.type !== "spawn"\)/.test(src));
+
+// рикошет вместо батута
+console.log('\nрикошет:');
+ok('батута нет',            !/chk\("Батут"/.test(src) && !/chk\("Батут"/.test(game));
+ok('отражение по X',        /if\(o\.ricochet && Math\.abs\(pl\.vx\) > RICO_MIN\)/.test(src));
+ok('отражение сверху',      /if\(o\.ricochet && pl\.vy > RICO_MIN\)/.test(src));
+ok('отражение снизу',       /if\(o\.ricochet && Math\.abs\(pl\.vy\) > RICO_MIN\)/.test(src));
+ok('старые батуты мигрируют', /o\.ricochet = true; delete o\.bouncy/.test(src));
+
+// вода
+console.log('\nвода:');
+ok('инструмент в палитре',  tools.some(t => t.t === 'water'));
+ok('вода не твёрдая',       /var SOLID  = \["rect","circle","triangle"\];/.test(src));
+ok('заливка зажатием',      /drag = \{m:"water"\}/.test(src) && /function pourWater/.test(src));
+ok('ряды склеиваются',      /function mergeWater/.test(src));
+ok('цвет на весь объём',    /if\(o\.type === "water"\) o\.fill = ci\.value/.test(src));
+ok('переключатель кислоты', /Опасная вода \(кислота\)/.test(src));
+ok('плавание медленнее',    /W_SPEED = 0\.72/.test(src) && /maxVX\(\) \* W_SPEED/.test(src));
+ok('погружение по кнопке',  /if\(keys\.d\) pl\.vy \+= W_DIVE/.test(src));
+ok('воздух на 10 секунд',   /AIR_MAX = 10 \* 60/.test(src));
+ok('урон после воздуха',    /if\(pl\.air <= 0\) dmg \+= DROWN_DPS/.test(src));
+ok('кислота жжёт сразу',    /if\(pl\.inAcid\)   dmg \+= ACID_DPS/.test(src));
+ok('вода рисуется скриптом',/function drawWater/.test(src) && /function waveAt/.test(src));
+ok('полоски воздуха и HP',  /function drawBreathHud/.test(src));
+ok('то же в игре',          /function drawWater/.test(game) && /function breathe/.test(game));
+
+// быстрое дублирование
+console.log('\nдублирование:');
+ok('Ctrl+D на месте',       /mod && e\.code === "KeyD"/.test(src));
+ok('Alt и потащить',        /down\(p\.x, p\.y, e\.altKey\)/.test(src) && /if\(alt && !overLimit\(1\)\)/.test(src));
+
 // прыжок с удержанием
 console.log('\nпрыжок:');
 ok('удержание = повтор',    /if\(keys\.u && !pl\.selfJump && \(pl\.ground \|\| coy > 0\)\) buf = BUFFER;/.test(src));

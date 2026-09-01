@@ -241,4 +241,96 @@ try {
   console.log('  ✗ холст:', e.message); failed++;
 }
 
-process.exit(failed || toolFail ? 1 : 0);
+/* ---- вода и рикошет вживую ----
+   Строим маленькую сцену через мост GAME и крутим настоящий шаг физики:
+   так проверяется не текст исходника, а поведение. */
+const GAME = global.window && global.window.GAME;
+let phys = 0, physFail = 0;
+// harness жал все кнопки подряд, включая пад — снимаем зажатое управление
+function clearKeys() {
+  if (!GAME) return;
+  GAME.keys.l = GAME.keys.r = GAME.keys.u = GAME.keys.d = false;
+  GAME.pl.vx = 0;
+}
+function check(name, cond) {
+  if (cond) phys++;
+  else { physFail++; console.log('  ✗', name); }
+}
+if (!GAME) { console.log('  ✗ мост GAME недоступен'); physFail++; }
+else {
+  const floor = { id: 1, type: 'rect', x: 0, y: 400, w: 600, h: 40, rot: 0, fill: '#111827' };
+  const spawn = { id: 2, type: 'spawn', x: 60, y: 340, w: 20, h: 60, rot: 0, fill: '#111827' };
+  const pool  = [];
+  for (let i = 0; i < 6; i++)
+    pool.push({ id: 10 + i, type: 'water', x: 200, y: 280 + i * 20, w: 240, h: 20,
+                rot: 0, fill: '#3b82f6', acid: false });
+
+  // 1. падение и приземление на пол
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn] });
+  GAME.startPlay();
+  clearKeys();
+  for (let i = 0; i < 120; i++) GAME.step();
+  check('игрок встаёт на пол', GAME.pl.ground && Math.abs(GAME.pl.y + GAME.pl.h - 400) < 2);
+  check('размер игрока 20x60', GAME.pl.w === 20 && GAME.pl.h === 60);
+
+  // 2. вода: всплытие и голова над поверхностью
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 300; GAME.pl.y = 300; GAME.pl.vy = 0;   // в толще воды, над полом
+  for (let i = 0; i < 200; i++) GAME.step();
+  check('игрок в воде', GAME.pl.inWater);
+  check('всплыл к поверхности', Math.abs(GAME.pl.y - 280) < 40);
+  check('голова над водой', !GAME.pl.headUnder);
+  check('воздух восстановился', GAME.pl.air > 0);
+
+  // 3. под водой плыть медленнее, чем бежать по суше
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 60; GAME.pl.y = 340; GAME.keys.r = true;
+  for (let i = 0; i < 90; i++) GAME.step();
+  const landVX = Math.abs(GAME.pl.vx);
+
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 210; GAME.pl.y = 320; GAME.keys.r = true;
+  // держим игрока в бассейне: иначе он выплывет за 90 кадров
+  for (let i = 0; i < 90; i++) { GAME.pl.x = 300; GAME.pl.y = 320; GAME.step(); }
+  const waterVX = Math.abs(GAME.pl.vx);
+  clearKeys();
+  check('в воде медленнее, чем на суше', waterVX < landVX && waterVX > landVX * 0.5);
+
+  // 4. воздух кончается под водой и начинается урон
+  clearKeys();
+  GAME.pl.x = 300; GAME.pl.y = 340; GAME.pl.air = 3; GAME.pl.hp = 100;
+  let under = 0;
+  for (let i = 0; i < 90; i++) { GAME.pl.y = 340; GAME.step(); if (GAME.pl.headUnder) under++; }
+  check('голова под водой считается', under > 60);
+  check('без воздуха идёт урон', GAME.pl.hp < 100);
+
+  // 5. кислота жжёт сразу, даже с полным воздухом
+  const acid = pool.map(o => Object.assign({}, o, { acid: true }));
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...acid] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 300; GAME.pl.y = 300; GAME.pl.air = 600; GAME.pl.hp = 100;
+  for (let i = 0; i < 60; i++) { GAME.pl.y = 300; GAME.step(); }
+  check('кислота ранит при касании', GAME.pl.hp < 100);
+
+  // 6. рикошет: падение на отражающий блок отбрасывает вверх
+  const rico = { id: 3, type: 'rect', x: 0, y: 400, w: 600, h: 40, rot: 0,
+                 fill: '#a855f7', ricochet: true };
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [rico, spawn] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 300; GAME.pl.y = 200; GAME.pl.vy = 8;
+  let bounced = false;
+  for (let i = 0; i < 60; i++) { GAME.step(); if (GAME.pl.vy < -3) bounced = true; }
+  check('рикошет отбрасывает вверх', bounced);
+  GAME.stop();
+}
+console.log(`Физика: пройдено ${phys}, ошибок ${physFail}`);
+
+process.exit(failed || toolFail || physFail ? 1 : 0);

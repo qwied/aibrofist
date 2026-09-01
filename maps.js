@@ -25,7 +25,7 @@ const OBJ_LIMIT   = 2000;              // максимум объектов в �
    принимались: редактор превращает их в свойства при загрузке. */
 const TOOL_MODES = {
   rect:null, circle:null, triangle:null, text:null, coin:null,
-  gate:null, spawn:null, finishline:null,
+  gate:null, spawn:null, finishline:null, water:null,
   button:null, lever:null,
   cover:['hideAndSeek'],
   checkpoint:['race'],
@@ -34,7 +34,7 @@ const TOOL_MODES = {
   door:null, seeker:null
 };
 const TOOL_RU = {
-  cover:'Укрытие', seeker:'Ищущий', door:'Дверь', button:'Кнопка',
+  water:'Вода', cover:'Укрытие', seeker:'Ищущий', door:'Дверь', button:'Кнопка',
   lever:'Рычаг', checkpoint:'Чекпоинт', finishline:'Финиш'
 };
 
