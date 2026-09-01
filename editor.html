@@ -1869,35 +1869,14 @@ function cellSolid(cx, cy){
   }
   return false;
 }
-/* Налив струёй: капля из-под курсора падает вниз, пока под ней пусто,
-   и растекается вбок, если столб уже заполнен. Поэтому вода сама
-   стекает в ямы, а не висит там, где провели мышью. */
+/* Налив: вода ложится ровно там, где ведёшь мышью, и держится на
+   месте — вниз она не стекает и не утекает из нарисованного объёма.
+   Физику плавания это не трогает: она считается как и раньше. */
 function pourWater(x, y){
   var cx = Math.floor(x / WCELL) * WCELL;
   var cy = Math.floor(y / WCELL) * WCELL;
-  if(cellSolid(cx, cy)) return;
-  if(overLimit(1)) return;
-
-  var guard = 0;
-  while(guard++ < 400){
-    if(!waterAt(cx, cy + WCELL) && !cellSolid(cx, cy + WCELL) && cy + WCELL < 6000){
-      cy += WCELL; continue;                       // под нами пусто — падаем
-    }
-    if(!waterAt(cx, cy)) break;                    // встали на своё место
-
-    // клетка занята водой: растекаемся в сторону, где ниже свободно
-    var moved = false;
-    for(var d = 1; d <= 24 && !moved; d++){
-      for(var s = -1; s <= 1; s += 2){
-        var nx = cx + s*d*WCELL;
-        if(cellSolid(nx, cy) || waterAt(nx, cy)) continue;
-        cx = nx; moved = true; break;
-      }
-    }
-    if(!moved){ cy -= WCELL; if(cellSolid(cx, cy)) return; break; }
-  }
   if(waterAt(cx, cy) || cellSolid(cx, cy)) return;
-
+  if(overLimit(1)) return;
   var st = waterStyle();
   var o = mk("water", cx, cy, WCELL, WCELL);
   o.fill = st.fill; o.acid = st.acid; o.sink = st.sink; o.sinkSpeed = st.sinkSpeed;
@@ -2635,6 +2614,7 @@ socket.on('connect', () => {
 
 </script>
 <script src="i18n.js"></script>
+<script src="mapNLU.js"></script>
 <script src="mapGen.js"></script>
 <script src="editorHelp.js"></script>
 <script src="editorAI.js" defer></script>

@@ -21,7 +21,7 @@
   var PW   = 20;
   var HEAD = 110;              // просвет в коридоре, чтобы игрок проходил
 
-  var OBJ_CAP  = 600;          // держим карту лёгкой, потолок движка 2000
+  var OBJ_CAP  = 1900;         // потолок движка 2000, оставляем запас
   var COIN_CAP = 3;            // столько же, сколько принимает сервер
 
   /* ---------- ГСЧ с зерном ----------
@@ -643,6 +643,147 @@
   var DIFF_RU = ['лёгкая', 'средняя', 'сложная'];
   var SIZE_RU = { small: 'маленькая', medium: 'средняя', large: 'большая', huge: 'огромная' };
 
+  /* ---------- размещение заказов из разбора по словам ----------
+     Сюда попадает всё, что игрок перечислил явно: объект, количество,
+     цвет, размер, свойства и место. Ставится поверх базовой карты. */
+  var SIZE_PX = { tiny: 12, small: 20, big: 60, huge: 110 };
+  var ONE = ['spawn', 'finishline', 'button', 'lever'];
+  var SOLIDS = ['rect', 'circle', 'triangle'];
+
+  function zoneOf(name, W, H, groundY) {
+    switch (name) {
+      case 'top':    return { x0: 0.04*W, x1: 0.96*W, y0: 0.05*H, y1: 0.28*H };
+      case 'bottom': return { x0: 0.04*W, x1: 0.96*W, y0: Math.max(0, groundY - 0.22*H), y1: groundY - 30 };
+      case 'left':   return { x0: 0.03*W, x1: 0.30*W, y0: 0.10*H, y1: groundY - 30 };
+      case 'right':  return { x0: 0.70*W, x1: 0.97*W, y0: 0.10*H, y1: groundY - 30 };
+      case 'center': return { x0: 0.34*W, x1: 0.66*W, y0: 0.30*H, y1: 0.70*H };
+      case 'edges':  return { x0: 0.02*W, x1: 0.98*W, y0: 0.05*H, y1: groundY - 30, ring: true };
+      default:       return { x0: 0.05*W, x1: 0.95*W, y0: 0.10*H, y1: groundY - 40 };
+    }
+  }
+
+  function applyProps(o, ord) {
+    var p = ord.props;
+    if (p.deadly)     o.deadly = true;
+    if (p.ghost)      o.ghost = true;
+    if (p.hideSpot)   o.hideSpot = true;
+    if (p.ricochet)   o.ricochet = true;
+    if (p.startsOpen) o.startsOpen = true;
+    if (p.acid)       o.acid = true;
+    if (p.sink)     { o.sink = true; o.sinkSpeed = 2.2; }
+    if (p.spins)    { o.spins = true; o.spin = ord.speed === 'fast' ? 5 : ord.speed === 'slow' ? 1 : 2.5; }
+    if (p.moves) {
+      o.moves = true;
+      o.speed = ord.speed === 'fast' ? 2.2 : ord.speed === 'slow' ? 0.5 : 1.1;
+      if (ord.axis === 'y') { o.moveX = 0; o.moveY = -130; }
+      else                  { o.moveX = 150; o.moveY = 0; }
+    }
+    if (ord.color) o.fill = ord.color;
+    return o;
+  }
+
+  Builder.prototype.orders = function (list, world, res) {
+    var W = world.W, H = world.H, groundY = res.groundY || (H - 80);
+    var placed = 0, coins = 0, linkIds = [];
+
+    for (var oi = 0; oi < list.length; oi++) {
+      var ord = list[oi];
+      var z = zoneOf(ord.pos, W, H, groundY);
+      var side = SIZE_PX[ord.size] || 20;
+
+      // вода наливается объёмом, а не россыпью
+      if (ord.type === 'water') {
+        var wy1 = Math.min(groundY, z.y1), wy0 = Math.max(0, Math.min(z.y0, wy1 - 80));
+        var rows = Math.max(2, Math.min(40, Math.round((wy1 - wy0) / 20)));
+        for (var r = 0; r < rows; r++) {
+          var wo = this.add('water', z.x0, wy1 - (r + 1) * 20, z.x1 - z.x0, 20,
+                            { fill: ord.color || (ord.props.acid ? '#3fd13f' : '#3b82f6') });
+          if (wo) { applyProps(wo, ord); placed++; }
+        }
+        continue;
+      }
+
+      var n = ord.count;
+      if (n === null) n = (ONE.indexOf(ord.type) !== -1) ? 1 : (ord.plural ? 6 : 1);
+      n = Math.max(1, Math.min(400, n));
+      if (ord.type === 'coin') n = Math.min(n, COIN_CAP);
+      if (ONE.indexOf(ord.type) !== -1) n = 1;
+      if (ord.type === 'checkpoint') n = Math.min(n, 8);
+
+      for (var k = 0; k < n; k++) {
+        if (this.objects.length >= OBJ_CAP) break;
+        var w = side, h = side;
+        if (ord.type === 'coin')       { w = 22; h = 22; }
+        if (ord.type === 'spawn')      { w = 20; h = 60; }
+        if (ord.type === 'button')     { w = 34; h = 18; }
+        if (ord.type === 'lever')      { w = 22; h = 42; }
+        if (ord.type === 'checkpoint') { w = 30; h = 64; }
+        if (ord.type === 'finishline') { w = 42; h = 86; }
+        if (ord.type === 'text')       { w = 70; h = 24; }
+
+        var x, y;
+        if (z.ring) {
+          // по краям: раскладываем по периметру
+          var t = (k + 0.5) / n;
+          var sw = z.x1 - z.x0, sh = z.y1 - z.y0, d = t * (2*sw + 2*sh);
+          if (d < sw)                { x = z.x0 + d;                 y = z.y0; }
+          else if (d < sw + sh)      { x = z.x1 - w;                 y = z.y0 + (d - sw); }
+          else if (d < 2*sw + sh)    { x = z.x1 - (d - sw - sh);     y = z.y1 - h; }
+          else                       { x = z.x0;                     y = z.y1 - (d - 2*sw - sh); }
+        } else if (ONE.indexOf(ord.type) !== -1 || ord.type === 'checkpoint') {
+          x = z.x0 + (z.x1 - z.x0) * ((k + 0.5) / n);
+          y = groundY - h;
+        } else if (ord.type === 'coin') {
+          x = z.x0 + (z.x1 - z.x0) * ((k + 0.5) / n);
+          y = z.y0 + (z.y1 - z.y0) * 0.5;
+        } else {
+          // сетка с лёгким разбросом: объекты не садятся друг на друга
+          var span = Math.max(1, z.x1 - z.x0), tall = Math.max(1, z.y1 - z.y0);
+          var cols = Math.max(1, Math.ceil(Math.sqrt(n * span / tall)));
+          var rowsN = Math.max(1, Math.ceil(n / cols));
+          x = z.x0 + span * (((k % cols) + 0.5) / cols) + this.rnd(-8, 8) - w/2;
+          y = z.y0 + tall * ((Math.floor(k / cols) + 0.5) / rowsN) + this.rnd(-8, 8) - h/2;
+        }
+        x = Math.max(0, Math.min(W - w, x));
+        y = Math.max(0, Math.min(H - h, y));
+
+        if (ord.type === 'spawn') {
+          // точка старта в карте одна: прежнюю убираем
+          for (var q = this.objects.length - 1; q >= 0; q--)
+            if (this.objects[q].type === 'spawn') this.objects.splice(q, 1);
+          y = groundY - h;
+        }
+        if (ord.type === 'coin') {
+          // потолок в три монеты держит сервер, обойти его нельзя
+          var have = 0;
+          for (var ci = 0; ci < this.objects.length; ci++)
+            if (this.objects[ci].type === 'coin') have++;
+          if (have >= COIN_CAP) break;
+        }
+
+        var obj = this.add(ord.type, x, y, w, h, {});
+        if (!obj) break;
+        applyProps(obj, ord);
+        if (ord.type === 'text') obj.text = 'текст';
+        // блок, который можно открыть кнопкой, получает адрес
+        if (SOLIDS.indexOf(ord.type) !== -1 && linkIds.length < 6) {
+          obj.customId = 'g' + obj.id;
+          linkIds.push(obj.customId);
+        }
+        placed++;
+      }
+    }
+
+    // кнопки и рычаги без целей бесполезны — привязываем к первым блокам
+    if (linkIds.length)
+      for (var m = 0; m < this.objects.length; m++) {
+        var mo = this.objects[m];
+        if ((mo.type === 'button' || mo.type === 'lever') && !mo.targetIds)
+          mo.targetIds = linkIds.slice(0, 3).join(',');
+      }
+    return placed;
+  };
+
   function generate(text, opts) {
     var spec = parse(text, opts);
     var b = new Builder(spec);
@@ -660,7 +801,17 @@
       var lo = res.groundY, hi = lo + 4 * 20;
       b.water(0, lo + 20, world.W, hi - lo, spec.acid);
     }
-    b.scatterCoins(res.spots);
+    /* Явные пожелания игрока: разбор по словам даёт список заказов,
+       и они ставятся поверх собранной карты. */
+    var nlu = null;
+    try {
+      var N = (typeof window !== 'undefined' && window.BFNLU) ? window.BFNLU
+            : (typeof require === 'function' ? require('./mapNLU.js') : null);
+      if (N) nlu = N.analyze(text);
+    } catch (e) { nlu = null; }
+    var ordered = nlu && nlu.orders.length ? b.orders(nlu.orders, world, res) : 0;
+
+    if (!ordered) b.scatterCoins(res.spots);
 
     // без точки старта редактор не даст сыграть
     if (!b.objects.some(function (o) { return o.type === 'spawn'; }))
@@ -688,6 +839,9 @@
       objects: b.objects,
       spec: spec,
       counts: counts,
+      nlu: nlu,
+      report: nlu ? nlu.report : '',
+      ordered: ordered,
       summary: summary
     };
   }

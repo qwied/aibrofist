@@ -139,8 +139,8 @@ console.log('\nвода частицами:');
 ok('рой частиц есть',       /var wp = \[\];/.test(src) && /function stepWater/.test(src));
 ok('слипаются в тело',      /globalCompositeOperation = "lighter"/.test(src));
 ok('живая и в редакторе',   /if\(!playing\) stepWater\(\);/.test(src));
-ok('налив стекает вниз',    /под нами пусто — падаем/.test(src));
-ok('растекается вбок',      /растекаемся в сторону/.test(src));
+ok('вода держится на месте',/вниз она не стекает/.test(src) && !/под нами пусто/.test(src));
+ok('физика плавания цела',  /W_SPEED = 0\.72/.test(src) && /W_BUOY/.test(src) && /if\(pl\.vy < wat\.sinkSpeed\)/.test(src));
 
 console.log('\nбуфер обмена:');
 ok('Ctrl+C копирует',       /mod && e\.code === "KeyC"/.test(src) && /function copySel/.test(src));
