@@ -564,6 +564,24 @@ if (GAME && GAME.settle) {
   tallest = Math.max(...Object.values(colH));
   check('столб развалился в лужу', tallest <= 3, 'самая высокая колонка ' + tallest);
 
+  // падение плавное: капля живёт между клетками, а не прыгает двадцатками
+  const drops = [];
+  for (let i = 0; i < 6; i++)
+    drops.push({ id: 80 + i, type: 'liquid', liq: 'water', x: 500, y: 100 + i * 20,
+                 w: 20, h: 20, rot: 0 });
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...drops] });
+  let sawSub = false, maxStep = 0, prevY = null;
+  for (let i = 0; i < 60; i++) {
+    GAME.settle();
+    const sim = GAME.lsim || [];
+    sim.forEach(c => { if (c.sub > 0.5 && c.sub < 19.5) sawSub = true; });
+    const low = sim.length ? Math.max(...sim.map(c => c.y + c.sub)) : null;
+    if (prevY !== null && low !== null) maxStep = Math.max(maxStep, low - prevY);
+    prevY = low;
+  }
+  check('падение между клетками', sawSub);
+  check('шаг за кадр как у игрока', maxStep > 0 && maxStep <= 13, 'до ' + maxStep.toFixed(1) + ' px за кадр');
+
   // яма: вода должна её найти и заполнить, а не висеть рядом
   const wallL = { id: 3, type: 'rect', x: 300, y: 500, w: 20, h: 100, rot: 0, fill: '#111827' };
   const wallR = { id: 4, type: 'rect', x: 400, y: 500, w: 20, h: 100, rot: 0, fill: '#111827' };

@@ -138,12 +138,19 @@ ok('оверлей убран',         !/liqBox/.test(src) && !/buildLiqList/.t
 ok('обычный цвет воды',     /c1:"#60a5fa", c2:"#2563eb"/.test(src));
 ok('жидкость стекает вниз', /function settleLiquid/.test(src) && /function liquidToCells/.test(src));
 ok('растекается под давлением', /вбок под давлением/.test(src) && /if\(free\(c\.x, c\.y - WCELL\)\) continue;/.test(src));
-ok('сползает по диагонали',  /по диагонали вниз/.test(src));
+ok('сползает по диагонали',  /сползание по диагонали/.test(src));
 ok('любая правка запускает течение', /function markDirty\(\)\{ gridDirty = true; markLiquid\(\); \}/.test(src));
 ok('лужа удаляется целиком', /liqBody\(sel\) : \[sel\]/.test(src));
 ok('лужа копируется целиком', /clipboard\.type === "liquid" && clipboard\.body/.test(src));
 ok('связное тело считается',  /function liqBody/.test(src));
 ok('пересчёт каждый кадр',  /if\(!playing\) settleLiquid\(\);/.test(src));
+ok('настоящая скорость падения', /c\.v \+= G\(\);/.test(src) && /LIQ_MAXV/.test(src));
+ok('смещение внутри клетки', /c\.sub \+= c\.v;/.test(src));
+ok('боковой сдвиг плавный',  /LIQ_SPREAD/.test(src) && /c\.ox \*= \(1 - LIQ_SPREAD\)/.test(src));
+ok('рисуем из живых капель', /function liqList/.test(src) && /var src = liqList\(\);/.test(src));
+ok('запись назад только в покое', /else if\(\+\+liqRest === 3\)/.test(src));
+ok('устаревшие капли не пишутся', /if\(!lsim \|\| liqDirty\) return;/.test(src));
+ok('уходим только на низкий столб', /free\(nx, c\.y\) && free\(nx, c\.y - WCELL\)/.test(src));
 
 console.log('\nграфика жидкостей:');
 ok('свой цвет у каждой',    /g\.addColorStop\(0, L\.c1\)/.test(src));

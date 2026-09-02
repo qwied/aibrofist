@@ -968,6 +968,7 @@ function breathe(){
 
 function findSpawn(){ for(var i=0;i<objects.length;i++) if(objects[i].type === "spawn") return objects[i]; return null; }
 function play(){
+  liqWriteBack();          // капли обязаны попасть в карту до старта
   var sp = findSpawn();
   if(!sp){ dialog("Нет точки старта","Поставь инструмент «Точка старта», потом жми ▶.",null); return; }
   playing = true; done = false; deaths = 0; coins = 0; timeMs = 0; parts.length = 0;
@@ -1605,9 +1606,9 @@ function freeEdge(o, list, side){
 function drawParticles(){
   // собираем объёмы по видам: каждая жидкость рисуется своим проходом
   var byKind = {}, i, o;
-  for(i=0;i<objects.length;i++){
-    o = objects[i];
-    if(o.type !== "liquid") continue;
+  var src = liqList();
+  for(i=0;i<src.length;i++){
+    o = src[i];
     var k = LIQ[o.liq] ? o.liq : "water";
     (byKind[k] = byKind[k] || []).push(o);
   }
@@ -2114,46 +2115,81 @@ function pourWater(x, y){
   markLiquid();                 // дальше её потянет вниз само
 }
 /* ---- ТЕКУЧЕСТЬ ----
-   Жидкость ведёт себя как жидкость, а не как стопка блоков:
+   Клетка 20x20 — это способ хранения, а не способ движения. Раньше
+   жидкость телепортировалась из клетки в клетку целыми двадцатками, и
+   было видно, как она скачет кубиками.
 
-   1. падает вниз, пока под ней пусто;
-   2. если снизу занято — сползает по диагонали;
-   3. если и там занято — растекается вбок под давлением того, что
-      лежит сверху. Именно третий шаг раньше отсутствовал, поэтому
-      налитый столб так и стоял столбом.
+   Теперь у каждой капли настоящие координаты: своя вертикальная
+   скорость, которая растёт от той же тяжести, что и у игрока, и своё
+   смещение внутри клетки. Клетка меняется только когда капля реально
+   прошла двадцать пикселей, а рисуется она там, где находится на самом
+   деле — поэтому падение сплошное, а не по ступенькам.
 
-   Давление и есть условие остановки: пока над клеткой что-то лежит,
-   её выдавливает в стороны; как только слой стал одинарным — давить
-   нечему, и лужа замирает ровной поверхностью. */
-var liqDirty = false, liqBusy = false;
+   Симуляция живёт постоянно, а не запускается на время: налил каплю —
+   она поехала вниз в тот же кадр. */
+var LIQ_MAXV = 12;                 // предел падения, чуть медленнее игрока
+var LIQ_SPREAD = 0.30;             // как быстро гасится боковой сдвиг
+
+var lsim = null;                   // живые капли, пока идёт движение
+var liqDirty = true;               // карта изменилась — пересобрать капли
+var liqBusy = false;               // защита от самозапуска при записи назад
+var liqRest = 0;                   // сколько кадров ничего не двигалось
+var liqAge = 0;                    // сколько кадров идёт движение без записи
+
 function markLiquid(){ if(!liqBusy) liqDirty = true; }
 
-// объёмы режем обратно на клетки: двигать ряды целиком нельзя
+// объёмы режем на капли: двигать ряды целиком нельзя
 function liquidToCells(){
   var cells = [], rest = [];
   objects.forEach(function(o){
     if(o.type !== "liquid"){ rest.push(o); return; }
     for(var x = o.x; x < o.x + o.w - 0.5; x += WCELL)
       for(var y = o.y; y < o.y + o.h - 0.5; y += WCELL)
-        cells.push({ x: Math.round(x), y: Math.round(y), liq: o.liq || "water",
+        cells.push({ x: Math.round(x), y: Math.round(y), sub: 0, v: 0, ox: 0,
+                     liq: o.liq || "water",
                      sens: o.sens, flow: o.flow, flowPower: o.flowPower });
   });
   return { cells: cells, rest: rest };
 }
 
-var liqTicks = 0;
+function liqSync(){
+  var pack = liquidToCells();
+  lsim = pack.cells;
+  liqDirty = false;
+  liqRest = 0;
+}
+
+/* Запись назад в объекты карты: только когда всё улеглось. Пока капли
+   в движении, объекты не трогаем — иначе каждый кадр пересобиралась бы
+   вся карта и рвалась история отмен. */
+function liqWriteBack(){
+  /* Если карту только что заменили, капли ещё от прежней — записывать их
+     нельзя, иначе play() затирал бы свежезагруженную воду старой. */
+  if(!lsim || liqDirty) return;
+  liqBusy = true;
+  var out = objects.filter(function(o){ return o.type !== "liquid"; });
+  for(var i=0;i<lsim.length;i++){
+    var q = lsim[i];
+    var o = mk("liquid", q.x, q.y, WCELL, WCELL);
+    o.liq = q.liq;
+    if(q.sens) o.sens = q.sens;
+    if(q.flow) o.flow = q.flow;
+    if(q.flowPower) o.flowPower = q.flowPower;
+    out.push(o);
+  }
+  objects = out;
+  mergeWater();
+  gridDirty = true;
+  _liqBody = null;
+  liqBusy = false;
+}
+
 function settleLiquid(){
-  if(!liqDirty || playing) return;
-  /* Страховка от вечного переливания: если за 400 тактов жидкость не
-     улеглась, останавливаем — иначе редактор пересобирал бы карту
-     кадр за кадром без конца. */
-  if(++liqTicks > 400){ liqTicks = 0; liqDirty = false; liqBusy = true; mergeWater(); liqBusy = false; return; }
+  if(playing) return;
+  if(liqDirty || !lsim) liqSync();
+  if(!lsim.length) return;
 
-  var selWas = (sel && sel.type === "liquid") ? { x: sel.x, y: sel.y } : null;
-  var pack = liquidToCells(), cells = pack.cells;
-  if(!cells.length){ liqDirty = false; liqTicks = 0; return; }
-
-  // занятость: твёрдые блоки считаем один раз на проход
+  // твёрдые блоки считаем один раз за кадр
   var solids = [], i;
   for(i=0;i<objects.length;i++) if(solid(objects[i])) solids.push(bbox(objects[i]));
   var busy = {};
@@ -2167,75 +2203,103 @@ function settleLiquid(){
     return false;
   };
   var free = function(x, y){ return !busy[key(x,y)] && !blocked(x,y); };
-  for(i=0;i<cells.length;i++) busy[key(cells[i].x, cells[i].y)] = 1;
+  for(i=0;i<lsim.length;i++) busy[key(lsim[i].x, lsim[i].y)] = 1;
 
-  // снизу вверх, иначе столб проваливается за один кадр целиком
-  cells.sort(function(a,b){ return b.y - a.y; });
-  var moved = 0;
-  var move = function(c, nx, ny){
+  // снизу вверх: нижние уходят первыми и освобождают место верхним
+  lsim.sort(function(a,b){ return b.y - a.y; });
+
+  var busyMove = function(c, nx, ny){
     delete busy[key(c.x, c.y)];
     c.x = nx; c.y = ny;
     busy[key(nx, ny)] = 1;
-    moved++;
   };
 
-  for(i=0;i<cells.length;i++){
-    var c = cells[i], dy = c.y + WCELL;
-    if(c.y > 6000) continue;
+  var moving = 0;
+  for(i=0;i<lsim.length;i++){
+    var c = lsim[i];
+    if(c.y > 8000) continue;
 
-    // 1. прямо вниз
-    if(free(c.x, dy)){ move(c, c.x, dy); continue; }
+    // боковой сдвиг гасим плавно — иначе перескок вбок тоже был бы рывком
+    if(c.ox){
+      c.ox *= (1 - LIQ_SPREAD);
+      if(Math.abs(c.ox) < 0.4) c.ox = 0; else moving++;
+    }
 
-    // сторону чередуем по клетке и времени, иначе лужа растекается косо
+    // ---- падение настоящей скоростью ----
+    if(free(c.x, c.y + WCELL)){
+      c.v += G();
+      if(c.v > LIQ_MAXV) c.v = LIQ_MAXV;
+      c.sub += c.v;
+      moving++;
+      while(c.sub >= WCELL){
+        if(!free(c.x, c.y + WCELL)){ c.sub = 0; c.v = 0; break; }
+        busyMove(c, c.x, c.y + WCELL);
+        c.sub -= WCELL;
+      }
+      continue;
+    }
+
+    // приземлилась — гасим падение и добираем остаток внутри клетки
+    if(c.sub > 0){ c.sub *= 0.5; if(c.sub < 0.5) c.sub = 0; moving++; }
+    c.v = 0;
+
     var dir = (((c.x/WCELL) + (c.y/WCELL) + (anim >> 3)) % 2) ? 1 : -1;
 
-    // 2. по диагонали вниз
+    // ---- сползание по диагонали ----
     var done = false;
     for(var t=0;t<2 && !done;t++){
       var nx = c.x + dir*WCELL;
-      if(free(nx, dy) && free(nx, c.y)){ move(c, nx, dy); done = true; }
+      if(free(nx, c.y + WCELL) && free(nx, c.y)){
+        busyMove(c, nx, c.y + WCELL);
+        c.ox = -dir*WCELL; c.sub = 0;
+        done = true; moving++;
+      }
       dir = -dir;
     }
     if(done) continue;
 
-    /* 3. вбок под давлением. Двигаем только если сверху что-то лежит:
-       одинарный слой уже ровный, толкать его незачем. */
+    /* ---- растекание вбок под давлением ----
+       Двигаем только если сверху что-то лежит: одинарный слой уже
+       ровный, толкать его незачем — на этом лужа и останавливается. */
     if(free(c.x, c.y - WCELL)) continue;
     for(t=0;t<2;t++){
       nx = c.x + dir*WCELL;
-      if(free(nx, c.y)){ move(c, nx, c.y); break; }
+      /* Уходим только туда, где столб ниже: над целью должно быть пусто.
+         Без этого две соседние капли бесконечно менялись местами и лужа
+         никогда не успокаивалась. */
+      if(free(nx, c.y) && free(nx, c.y - WCELL)){
+        busyMove(c, nx, c.y);
+        c.ox = -dir*WCELL;
+        moving++;
+        break;
+      }
       dir = -dir;
     }
   }
 
-  // собираем обратно объектами; когда всё улеглось — склеиваем в ряды
-  liqBusy = true;
-  var out = pack.rest;
-  for(i=0;i<cells.length;i++){
-    var q = cells[i];
-    var o = mk("liquid", q.x, q.y, WCELL, WCELL);
-    o.liq = q.liq;
-    if(q.sens) o.sens = q.sens;
-    if(q.flow) o.flow = q.flow;
-    if(q.flowPower) o.flowPower = q.flowPower;
-    out.push(o);
-  }
-  objects = out;
-  /* Выделение переносим на клетку с тем же местом: без этого панель
-     свойств закрывалась прямо во время правки ползунков. */
-  if(selWas){
-    sel = null;
-    for(i=0;i<objects.length;i++){
-      var q2 = objects[i];
-      if(q2.type !== "liquid") continue;
-      if(selWas.x >= q2.x && selWas.x < q2.x + q2.w &&
-         selWas.y >= q2.y && selWas.y < q2.y + q2.h){ sel = q2; break; }
+  /* Улеглось — записываем в карту и склеиваем в ряды. Ждём несколько
+     спокойных кадров, чтобы не писать назад на каждой мелкой дрожи. */
+  if(moving){
+    liqRest = 0;
+    /* Страховка от бесконечного переливания: если за 900 кадров движение
+       не затихло, всё равно записываем — карта не должна навсегда
+       расходиться с тем, что видно на экране. */
+    if(++liqAge > 900){ liqAge = 0; liqWriteBack(); }
+  } else if(++liqRest === 3){ liqAge = 0; liqWriteBack(); }
+}
+
+/* Что рисовать: пока капли живут — их, иначе объекты карты. Один
+   и тот же список, поэтому вид не прыгает при записи назад. */
+function liqList(){
+  if(!playing && lsim && lsim.length){
+    var out = [];
+    for(var i=0;i<lsim.length;i++){
+      var c = lsim[i];
+      out.push({ x: c.x + c.ox, y: c.y + c.sub, w: WCELL, h: WCELL, liq: c.liq });
     }
+    return out;
   }
-  if(!moved){ liqDirty = false; liqTicks = 0; mergeWater(); }
-  gridDirty = true;
-  _liqBody = null;
-  liqBusy = false;
+  return objects.filter(function(o){ return o.type === "liquid"; });
 }
 
 /* ---- ТЕЛО ЖИДКОСТИ ----
@@ -2245,6 +2309,8 @@ function settleLiquid(){
 var _liqBody = null, _liqBodyOf = null;
 function liqBody(o){
   if(!o || o.type !== "liquid") return [];
+  // капли могли ещё не попасть в карту — сначала записываем их
+  if(lsim && lsim.length && liqRest < 3) liqWriteBack();
   if(_liqBody && _liqBodyOf === o) return _liqBody;
 
   var all = objects.filter(function(q){ return q.type === "liquid"; });
@@ -3026,7 +3092,8 @@ window.GAME = {
   MODE_OF: MODE_OF,
   play: play, stop: stop, respawn: respawn,
   step: step,                     // один шаг физики — нужен автотестам
-  settle: function(){ markLiquid(); settleLiquid(); },   // такт течения — автотестам
+  settle: settleLiquid,           // такт течения — автотестам
+  get lsim(){ return lsim; },     // капли в движении — автотестам
   liqBody: liqBody,               // связное тело жидкости — автотестам
   freeEdge: freeEdge,             // открытые грани объёма — нужен автотестам
   myColor: null, onDraw: null,
