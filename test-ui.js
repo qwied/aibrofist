@@ -570,6 +570,59 @@ if (GAME && GAME.settle) {
   check('уровень ровный', Math.max(...hs) - Math.min(...hs) <= 1,
         'от ' + Math.min(...hs) + ' до ' + Math.max(...hs));
 
+  // налив рамкой: заливается вся область, а не одна клетка
+  if (GAME.fillLiquid) {
+    const pit = [
+      { id: 400, type: 'rect', x: 180, y: 500, w: 20, h: 120, rot: 0, fill: '#111827' },
+      { id: 401, type: 'rect', x: 380, y: 500, w: 20, h: 120, rot: 0, fill: '#111827' }
+    ];
+    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...pit] });
+    GAME.fillLiquid(200, 520, 375, 595, true);
+    let filled = 0;
+    GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
+      filled += Math.round(o.w / 20) * Math.round(o.h / 20);
+    });
+    check('рамка заливает всю область', filled === 9 * 4, filled + ' клеток');
+
+    // сквозь стены заливка не лезет
+    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...pit] });
+    GAME.fillLiquid(170, 520, 410, 595, true);
+    let inWall = 0;
+    GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
+      // считаем только те, что легли прямо в стену
+      if ((o.x >= 180 && o.x < 200) || (o.x >= 380 && o.x < 400)) inWall += 1;
+    });
+    check('в стены не заливается', inWall === 0, inWall + ' клеток внутри стен');
+
+    // короткий тычок кладёт ровно одну клетку
+    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2] });
+    GAME.fillLiquid(300, 300, 302, 301, false);
+    let one = 0;
+    GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
+      one += Math.round(o.w / 20) * Math.round(o.h / 20);
+    });
+    check('тычок кладёт одну клетку', one === 1, one);
+  }
+
+  // неровный налив должен разровняться сам
+  const uneven = [];
+  let uid2 = 300;
+  [[200, 6], [220, 5], [240, 1], [260, 4], [280, 0], [300, 3]].forEach(([x, n]) => {
+    for (let k = 0; k < n; k++)
+      uneven.push({ id: uid2++, type: 'liquid', liq: 'water', x, y: 580 - k * 20,
+                    w: 20, h: 20, rot: 0 });
+  });
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...uneven] });
+  for (let i = 0; i < 600; i++) GAME.settle();
+  const h2 = {};
+  GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
+    for (let x = o.x; x < o.x + o.w - 0.5; x += 20)
+      h2[x] = (h2[x] || 0) + Math.round(o.h / 20);
+  });
+  const vals = Object.values(h2);
+  check('ступеньки разравниваются', Math.max(...vals) - Math.min(...vals) <= 1,
+        'от ' + Math.min(...vals) + ' до ' + Math.max(...vals));
+
   // погружение: с зажатой «вниз» игрок уходит под воду целиком
   const deep = [];
   for (let i = 0; i < 10; i++)

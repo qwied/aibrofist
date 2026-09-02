@@ -811,7 +811,7 @@ var W_MAXV = 4.6;
 var LIQ = {
   water: { n:"Вода", about:"Плавание и выталкивание. Воздуха хватает на 10 секунд.",
     // обычный синий из палитры сайта, а не бирюза
-    c1:"#60a5fa", c2:"#2563eb", a:0.80, glow:0, sheen:0.35, grain:0,
+    c1:"#60a5fa", c2:"#2563eb", a:0.88, glow:0, sheen:0.35, grain:0,
     speed:0.72, accel:0.55, drag:0.90, grav:0.30, buoy:0.30, swim:0.62, dive:0.95,
     dps:0, lethal:false, breathe:true, sink:0, slip:0, jump:1 },
 
@@ -1652,15 +1652,17 @@ function drawParticles(){
     }
 
     /* ---- ФОРМА ----
-       Налитая вода — это ровное тело с гладкой поверхностью, а не
-       россыпь капель: круги годились для струй, но бассейн из них
-       выглядел комками.
+       Разбор образца по слоям, сверху вниз:
+         волна        — гладкая, длинная, малая амплитуда;
+         полоса 1     — самая светлая, сразу под волной;
+         полоса 2     — светлая, чуть насыщеннее;
+         тело         — ровный цвет без градиента, до самого дна;
+         пузырьки     — только над водой; внутри они закрывали то,
+                        что под водой.
 
-       Слоями сверху вниз:
-         полоса поверхности — узкая яркая кромка с волной по верху,
-         тело              — вертикальный градиент, ко дну темнее,
-         пузырьки          — только над водой, как брызги; внутри их
-                             нет, они мешали видеть, что под водой.
+       Раньше тело было градиентом с потемнением ко дну, полоса
+       поверхности одна, и по краю шёл тёмный контур — отсюда и
+       расхождение с образцом.
 
        Всё собирается в отдельном слое непрозрачной краской и кладётся
        на холст один раз: иначе стыки клеток просвечивали бы сквозь
@@ -1677,21 +1679,25 @@ function drawParticles(){
     // тот же взгляд на мир, что и у основного холста
     lcx.setTransform(view.s*DPR,0,0,view.s*DPR, view.x*DPR, view.y*DPR);
 
-    var SURF = 18;                       // высота яркой полосы
-    var cSurf = shade(L.c1, 55);
+    var cBody  = shade(L.c1, 40);
+    var cBand1 = shade(L.c1, 78);
+    var cBand2 = shade(L.c1, 58);
+
+    /* Толщины полос считаются от глубины: у лужи в одну клетку полосы
+       в полсотни пикселей накрыли бы её целиком, и воды не осталось. */
+    var deepH = Math.max(WCELL, y1 - y0);
+    var stack = Math.min(50, deepH * 0.5);
+    var h1 = stack * 0.6, h2 = stack * 0.4;
 
     var body = new Path2D();
     for(i=0;i<list.length;i++){ o = list[i]; body.rect(o.x, o.y, o.w, o.h); }
 
-    // 1. тело: градиент по всей глубине объёма
-    var g = lcx.createLinearGradient(0, y0, 0, y1);
-    g.addColorStop(0, shade(L.c1, 22));
-    g.addColorStop(1, L.c2);
-    lcx.fillStyle = g;
+    // 1. тело: ровный цвет
+    lcx.fillStyle = cBody;
     lcx.fill(body);
 
-    /* 2. поверхность. Волна рисуется только там, где сверху нет своей
-       же жидкости — иначе внутри объёма шли бы лишние полосы. */
+    /* 2. поверхность. Полосы ложатся только там, где сверху нет своей
+       же жидкости — иначе они шли бы и внутри объёма. */
     var tops = [];
     for(i=0;i<list.length;i++){
       o = list[i];
@@ -1699,18 +1705,29 @@ function drawParticles(){
       for(var t2=0;t2<spans.length;t2++)
         if(spans[t2][1] - spans[t2][0] > 1) tops.push([spans[t2][0], spans[t2][1], o.y]);
     }
-    var waveY = function(x, top){ return top + Math.sin(x*0.045 + anim*0.04) * 2.4 - 1.5; };
+    var waveY = function(x, top){ return top + Math.sin(x*0.018 + anim*0.03) * 4.5 - 3; };
 
-    lcx.fillStyle = cSurf;
-    for(i=0;i<tops.length;i++){
-      var a2 = tops[i][0], b2 = tops[i][1], ty = tops[i][2];
+    var band = function(a2, b2, ty, from, to, color){
+      lcx.fillStyle = color;
       lcx.beginPath();
-      lcx.moveTo(a2, waveY(a2, ty));
-      for(var x2 = a2; x2 <= b2; x2 += 4) lcx.lineTo(x2, waveY(x2, ty));
-      lcx.lineTo(b2, ty + SURF);
-      lcx.lineTo(a2, ty + SURF);
+      if(from === 0){
+        // верхний слой обрезан волной, нижние идут ровными полосами
+        lcx.moveTo(a2, waveY(a2, ty));
+        for(var x2 = a2; x2 <= b2; x2 += 4) lcx.lineTo(x2, waveY(x2, ty));
+      } else {
+        lcx.moveTo(a2, ty + from);
+        lcx.lineTo(b2, ty + from);
+      }
+      lcx.lineTo(b2, ty + to);
+      lcx.lineTo(a2, ty + to);
       lcx.closePath();
       lcx.fill();
+    };
+
+    for(i=0;i<tops.length;i++){
+      var a2 = tops[i][0], b2 = tops[i][1], ty = tops[i][2];
+      band(a2, b2, ty, 0, h1, cBand1);
+      band(a2, b2, ty, h1, h1 + h2, cBand2);
     }
 
     // 3. приметы жидкости — внутри тела
@@ -1749,18 +1766,17 @@ function drawParticles(){
     }
     lcx.restore();
 
-    /* 4. пузырьки — над водой, а не в ней. Всплывают из поверхности и
-       тают: внутри объёма они закрывали то, что под водой. */
-    lcx.fillStyle = cSurf;
+    /* 4. пузырьки — над водой. Всплывают из поверхности и тают. */
+    lcx.fillStyle = cBand1;
     for(i=0;i<tops.length;i++){
       var sa = tops[i][0], sb = tops[i][1], sy = tops[i][2];
       for(var bx = sa + 14; bx < sb; bx += 46){
         var seed = (bx*17 + sy*29) % 360;
         var ph = ((anim * 0.55 + seed) % 90) / 90;      // 0 → 1
-        var by = sy - ph * 34;
-        lcx.globalAlpha = (1 - ph) * 0.55;
+        var by = sy - ph * 40;
+        lcx.globalAlpha = (1 - ph) * 0.6;
         lcx.beginPath();
-        lcx.arc(bx + Math.sin(ph*6 + seed)*3, by, 1.6 + (seed % 3) * 0.7, 0, 6.2832);
+        lcx.arc(bx + Math.sin(ph*6 + seed)*3, by, 2 + (seed % 3) * 0.9, 0, 6.2832);
         lcx.fill();
       }
     }
@@ -1862,6 +1878,22 @@ function render(){
            (window.GAME && window.GAME.mySkin) || null);
     ctx.restore();
   }
+  // рамка налива: видно, какую область зальёт
+  if(drag && drag.m === "liqBox" && drag.moved){
+    var L0 = LIQ[curLiq] || LIQ.water;
+    var px = Math.floor(Math.min(drag.ox,drag.cx)/WCELL)*WCELL;
+    var py = Math.floor(Math.min(drag.oy,drag.cy)/WCELL)*WCELL;
+    var pw = Math.floor(Math.max(drag.ox,drag.cx)/WCELL)*WCELL - px + WCELL;
+    var ph = Math.floor(Math.max(drag.oy,drag.cy)/WCELL)*WCELL - py + WCELL;
+    ctx.save();
+    ctx.globalAlpha = 0.45; ctx.fillStyle = L0.c1;
+    ctx.fillRect(px, py, pw, ph);
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = shade(L0.c2, -20);
+    ctx.lineWidth = 2; ctx.setLineDash([6,4]);
+    ctx.strokeRect(px, py, pw, ph);
+    ctx.setLineDash([]); ctx.restore();
+  }
+
   if(window.GAME && window.GAME.onDraw) window.GAME.onDraw(ctx);
   drawParts();
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -2155,19 +2187,52 @@ function cellSolid(cx, cy){
   }
   return false;
 }
-function pourWater(x, y){
-  var cx = Math.floor(x / WCELL) * WCELL;
-  var cy = Math.floor(y / WCELL) * WCELL;
-  var here = liquidAt(cx, cy);
-  if(cellSolid(cx, cy)) return;
-  // по той же клетке другой жидкостью — она вытесняет прежнюю
-  if(here){ if(here.liq === curLiq) return; here.liq = curLiq; sel = here; return; }
-  if(overLimit(1, true)) return;
-  var o = mk("liquid", cx, cy, WCELL, WCELL);
-  o.liq = curLiq;
-  objects.push(o); sel = o;
-  markLiquid();                 // дальше её потянет вниз само
+/* Заливка прямоугольной области клетками 20x20. Одна и та же функция
+   и для рамки, и для одиночного тычка — просто область в одну клетку. */
+function fillLiquidBox(x0, y0, x1, y1, dragged){
+  var ax = Math.floor(Math.min(x0,x1) / WCELL) * WCELL;
+  var ay = Math.floor(Math.min(y0,y1) / WCELL) * WCELL;
+  var bx = Math.floor(Math.max(x0,x1) / WCELL) * WCELL;
+  var by = Math.floor(Math.max(y0,y1) / WCELL) * WCELL;
+  if(!dragged){ bx = ax; by = ay; }
+
+  var cols = (bx - ax)/WCELL + 1, rows = (by - ay)/WCELL + 1;
+  if(overLimit(cols * rows, true)) return;
+
+  /* Занятость считаем один раз на всю область: проверять каждую клетку
+     обходом всех объектов — это квадрат от размера заливки, на большой
+     рамке редактор бы вставал. */
+  var taken = {}, solids = [], i;
+  for(i=0;i<objects.length;i++){
+    var q = objects[i];
+    if(q.type === "liquid"){
+      for(var qx = q.x; qx < q.x + q.w - 0.5; qx += WCELL)
+        for(var qy = q.y; qy < q.y + q.h - 0.5; qy += WCELL)
+          taken[Math.round(qx) + "," + Math.round(qy)] = q;
+    } else if(solid(q)) solids.push(bbox(q));
+  }
+  var hard = function(mx, my){
+    for(var k=0;k<solids.length;k++){
+      var b = solids[k];
+      if(mx > b[0] && mx < b[2] && my > b[1] && my < b[3]) return true;
+    }
+    return false;
+  };
+
+  var made = null;
+  for(var cx = ax; cx <= bx; cx += WCELL)
+    for(var cy = ay; cy <= by; cy += WCELL){
+      if(hard(cx + WCELL/2, cy + WCELL/2)) continue;
+      var here = taken[cx + "," + cy];
+      // по занятой клетке другой жидкостью — она вытесняет прежнюю
+      if(here){ if(here.liq !== curLiq) here.liq = curLiq; continue; }
+      var o = mk("liquid", cx, cy, WCELL, WCELL);
+      o.liq = curLiq;
+      objects.push(o); made = o;
+    }
+  if(made) sel = made;
 }
+
 /* ---- ТЕКУЧЕСТЬ ----
    Клетка 20x20 — это способ хранения, а не способ движения. Раньше
    жидкость телепортировалась из клетки в клетку целыми двадцатками, и
@@ -2331,16 +2396,26 @@ function settleLiquid(){
        поверхностью. Меняться местами при этом невозможно — обратный
        ход всегда делает разницу меньше порога. */
     var hHere = colH[c.x] || 1;
-    var best = 0, bestDx = 0;
+    /* Смотрим не только на соседнюю колонку, но и дальше вдоль ряда:
+       иначе поверхность застывала пологой лесенкой — каждая пара
+       соседей отличалась всего на клетку и по отдельности считалась
+       ровной, а лужа в целом была неровной. Идём в сторону ближайшей
+       колонки, которая ниже хотя бы на две: разница строгая, поэтому
+       обратный ход невозможен и переливание не зацикливается. */
+    var reach = 10, bestDist = 99, bestDx = 0;
     for(t=0;t<2;t++){
-      nx = c.x + dir*WCELL;
-      if(free(nx, c.y)){
-        var gap = hHere - (colH[nx] || 0);
-        if(gap >= 2 && gap > best){ best = gap; bestDx = dir; }
+      for(var d2=1; d2<=reach; d2++){
+        var cx2 = c.x + dir*d2*WCELL;
+        if(blocked(cx2, c.y)) break;                 // стена — дальше не видно
+        if(d2 === 1 && !free(cx2, c.y)) break;        // первый шаг должен быть свободен
+        if(hHere - (colH[cx2] || 0) >= 2){
+          if(d2 < bestDist){ bestDist = d2; bestDx = dir; }
+          break;
+        }
       }
       dir = -dir;
     }
-    if(best){
+    if(bestDx){
       busyMove(c, c.x + bestDx*WCELL, c.y);
       c.ox = -bestDx*WCELL;
       moving++;
@@ -2460,13 +2535,13 @@ function down(x,y,alt){
     else sel = null;
     inspect(); return;
   }
-  /* Вода наливается зажатием: пока кнопка держится, клетки 20x20
-     докладываются под курсором. На отпускании ряды склеиваются. */
+  /* Жидкость наливается так же, как ставится любой объект: тянешь
+     рамку — заливается вся область. Короткий тычок кладёт одну клетку.
+     Раньше приходилось возить мышью по каждой клетке отдельно. */
   if(tool === "liquid"){
     if(!allowedIn("liquid", mode)){ setTool("select"); return; }
     commit();
-    drag = {m:"liquid"};
-    pourWater(x,y);
+    drag = {m:"liqBox", ox:x, oy:y, cx:x, cy:y, moved:false};
     return;
   }
   if(tool === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
@@ -2484,7 +2559,11 @@ function down(x,y,alt){
 }
 function move(x,y){
   if(!drag || playing) return;
-  if(drag.m === "liquid"){ pourWater(x,y); return; }
+  if(drag.m === "liqBox"){
+    if(Math.abs(x-drag.ox) > 6 || Math.abs(y-drag.oy) > 6) drag.moved = true;
+    drag.cx = x; drag.cy = y;
+    return;
+  }
   if(drag.m === "new"){
     if(Math.abs(x-drag.ox) > 6 || Math.abs(y-drag.oy) > 6) drag.moved = true;
     var o = objects[objects.length-1];
@@ -2504,7 +2583,10 @@ function move(x,y){
 function up(){
   // подвинули или изменили блок — жидкость под ним могла получить дорогу
   if(drag && (drag.m === "move" || drag.m === "size" || drag.m === "new")) markLiquid();
-  if(drag && drag.m === "liquid"){ drag = null; markLiquid(); inspect(); return; }
+  if(drag && drag.m === "liqBox"){
+    fillLiquidBox(drag.ox, drag.oy, drag.cx, drag.cy, drag.moved);
+    drag = null; markLiquid(); inspect(); return;
+  }
   if(drag && drag.m === "new" && !drag.moved){
     var o = objects[objects.length-1];
     o.w = drag.w; o.h = drag.h;
@@ -3163,6 +3245,7 @@ window.GAME = {
   play: play, stop: stop, respawn: respawn,
   step: step,                     // один шаг физики — нужен автотестам
   settle: settleLiquid,           // такт течения — автотестам
+  fillLiquid: fillLiquidBox,      // заливка области — автотестам
   get lsim(){ return lsim; },     // капли в движении — автотестам
   liqBody: liqBody,               // связное тело жидкости — автотестам
   freeEdge: freeEdge,             // открытые грани объёма — нужен автотестам

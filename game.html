@@ -764,7 +764,7 @@ var W_MAXV = 4.6;
 var LIQ = {
   water: { n:"Вода", about:"Плавание и выталкивание. Воздуха хватает на 10 секунд.",
     // обычный синий из палитры сайта, а не бирюза
-    c1:"#60a5fa", c2:"#2563eb", a:0.80, glow:0, sheen:0.35, grain:0,
+    c1:"#60a5fa", c2:"#2563eb", a:0.88, glow:0, sheen:0.35, grain:0,
     speed:0.72, accel:0.55, drag:0.90, grav:0.30, buoy:0.30, swim:0.62, dive:0.95,
     dps:0, lethal:false, breathe:true, sink:0, slip:0, jump:1 },
 
@@ -1601,15 +1601,17 @@ function drawParticles(){
     }
 
     /* ---- ФОРМА ----
-       Налитая вода — это ровное тело с гладкой поверхностью, а не
-       россыпь капель: круги годились для струй, но бассейн из них
-       выглядел комками.
+       Разбор образца по слоям, сверху вниз:
+         волна        — гладкая, длинная, малая амплитуда;
+         полоса 1     — самая светлая, сразу под волной;
+         полоса 2     — светлая, чуть насыщеннее;
+         тело         — ровный цвет без градиента, до самого дна;
+         пузырьки     — только над водой; внутри они закрывали то,
+                        что под водой.
 
-       Слоями сверху вниз:
-         полоса поверхности — узкая яркая кромка с волной по верху,
-         тело              — вертикальный градиент, ко дну темнее,
-         пузырьки          — только над водой, как брызги; внутри их
-                             нет, они мешали видеть, что под водой.
+       Раньше тело было градиентом с потемнением ко дну, полоса
+       поверхности одна, и по краю шёл тёмный контур — отсюда и
+       расхождение с образцом.
 
        Всё собирается в отдельном слое непрозрачной краской и кладётся
        на холст один раз: иначе стыки клеток просвечивали бы сквозь
@@ -1626,21 +1628,25 @@ function drawParticles(){
     // тот же взгляд на мир, что и у основного холста
     lcx.setTransform(view.s*DPR,0,0,view.s*DPR, view.x*DPR, view.y*DPR);
 
-    var SURF = 18;                       // высота яркой полосы
-    var cSurf = shade(L.c1, 55);
+    var cBody  = shade(L.c1, 40);
+    var cBand1 = shade(L.c1, 78);
+    var cBand2 = shade(L.c1, 58);
+
+    /* Толщины полос считаются от глубины: у лужи в одну клетку полосы
+       в полсотни пикселей накрыли бы её целиком, и воды не осталось. */
+    var deepH = Math.max(WCELL, y1 - y0);
+    var stack = Math.min(50, deepH * 0.5);
+    var h1 = stack * 0.6, h2 = stack * 0.4;
 
     var body = new Path2D();
     for(i=0;i<list.length;i++){ o = list[i]; body.rect(o.x, o.y, o.w, o.h); }
 
-    // 1. тело: градиент по всей глубине объёма
-    var g = lcx.createLinearGradient(0, y0, 0, y1);
-    g.addColorStop(0, shade(L.c1, 22));
-    g.addColorStop(1, L.c2);
-    lcx.fillStyle = g;
+    // 1. тело: ровный цвет
+    lcx.fillStyle = cBody;
     lcx.fill(body);
 
-    /* 2. поверхность. Волна рисуется только там, где сверху нет своей
-       же жидкости — иначе внутри объёма шли бы лишние полосы. */
+    /* 2. поверхность. Полосы ложатся только там, где сверху нет своей
+       же жидкости — иначе они шли бы и внутри объёма. */
     var tops = [];
     for(i=0;i<list.length;i++){
       o = list[i];
@@ -1648,18 +1654,29 @@ function drawParticles(){
       for(var t2=0;t2<spans.length;t2++)
         if(spans[t2][1] - spans[t2][0] > 1) tops.push([spans[t2][0], spans[t2][1], o.y]);
     }
-    var waveY = function(x, top){ return top + Math.sin(x*0.045 + anim*0.04) * 2.4 - 1.5; };
+    var waveY = function(x, top){ return top + Math.sin(x*0.018 + anim*0.03) * 4.5 - 3; };
 
-    lcx.fillStyle = cSurf;
-    for(i=0;i<tops.length;i++){
-      var a2 = tops[i][0], b2 = tops[i][1], ty = tops[i][2];
+    var band = function(a2, b2, ty, from, to, color){
+      lcx.fillStyle = color;
       lcx.beginPath();
-      lcx.moveTo(a2, waveY(a2, ty));
-      for(var x2 = a2; x2 <= b2; x2 += 4) lcx.lineTo(x2, waveY(x2, ty));
-      lcx.lineTo(b2, ty + SURF);
-      lcx.lineTo(a2, ty + SURF);
+      if(from === 0){
+        // верхний слой обрезан волной, нижние идут ровными полосами
+        lcx.moveTo(a2, waveY(a2, ty));
+        for(var x2 = a2; x2 <= b2; x2 += 4) lcx.lineTo(x2, waveY(x2, ty));
+      } else {
+        lcx.moveTo(a2, ty + from);
+        lcx.lineTo(b2, ty + from);
+      }
+      lcx.lineTo(b2, ty + to);
+      lcx.lineTo(a2, ty + to);
       lcx.closePath();
       lcx.fill();
+    };
+
+    for(i=0;i<tops.length;i++){
+      var a2 = tops[i][0], b2 = tops[i][1], ty = tops[i][2];
+      band(a2, b2, ty, 0, h1, cBand1);
+      band(a2, b2, ty, h1, h1 + h2, cBand2);
     }
 
     // 3. приметы жидкости — внутри тела
@@ -1698,18 +1715,17 @@ function drawParticles(){
     }
     lcx.restore();
 
-    /* 4. пузырьки — над водой, а не в ней. Всплывают из поверхности и
-       тают: внутри объёма они закрывали то, что под водой. */
-    lcx.fillStyle = cSurf;
+    /* 4. пузырьки — над водой. Всплывают из поверхности и тают. */
+    lcx.fillStyle = cBand1;
     for(i=0;i<tops.length;i++){
       var sa = tops[i][0], sb = tops[i][1], sy = tops[i][2];
       for(var bx = sa + 14; bx < sb; bx += 46){
         var seed = (bx*17 + sy*29) % 360;
         var ph = ((anim * 0.55 + seed) % 90) / 90;      // 0 → 1
-        var by = sy - ph * 34;
-        lcx.globalAlpha = (1 - ph) * 0.55;
+        var by = sy - ph * 40;
+        lcx.globalAlpha = (1 - ph) * 0.6;
         lcx.beginPath();
-        lcx.arc(bx + Math.sin(ph*6 + seed)*3, by, 1.6 + (seed % 3) * 0.7, 0, 6.2832);
+        lcx.arc(bx + Math.sin(ph*6 + seed)*3, by, 2 + (seed % 3) * 0.9, 0, 6.2832);
         lcx.fill();
       }
     }

@@ -134,7 +134,7 @@ ok('то же в игре',          /function splash/.test(game) && /wat\.flow 
 console.log('\nвид жидкости:');
 ok('контура нет',           !/ctx\.strokeStyle = rim/.test(src) && !/ctx\.strokeStyle = rim/.test(game));
 ok('падающих кружков нет',  !/течения: те самые частицы/.test(src));
-ok('оверлей убран',         !/liqBox/.test(src) && !/buildLiqList/.test(src));
+ok('оверлей убран',         !/id="liqBox"/.test(src) && !/buildLiqList/.test(src));
 ok('обычный цвет воды',     /c1:"#60a5fa", c2:"#2563eb"/.test(src));
 ok('жидкость стекает вниз', /function settleLiquid/.test(src) && /function liquidToCells/.test(src));
 ok('растекается по уровню',  /выравнивание уровня/.test(src));
@@ -150,20 +150,23 @@ ok('боковой сдвиг плавный',  /LIQ_SPREAD/.test(src) && /c\.ox
 ok('рисуем из живых капель', /function liqList/.test(src) && /var src = liqList\(\);/.test(src));
 ok('запись назад только в покое', /else if\(\+\+liqRest === 3\)/.test(src));
 ok('устаревшие капли не пишутся', /if\(!lsim \|\| liqDirty\) return;/.test(src));
-ok('уровень выравнивается',  /var hHere = colH\[c\.x\] \|\| 1;/.test(src) && /gap >= 2/.test(src));
+ok('уровень выравнивается',  /var hHere = colH\[c\.x\] \|\| 1;/.test(src) && /reach = 10/.test(src));
+ok('полосы по глубине',      /stack = Math\.min\(50, deepH \* 0\.5\)/.test(src));
+ok('контура нет, как в образце', !/cRim/.test(src) && !/cRim/.test(game));
 ok('погружение сильнее всплытия', /dive:0\.95/.test(src));
 
 console.log('\nформа и лимит жидкости:');
-ok('ровное тело с волной',  /var SURF = 18;/.test(src) && /waveY = function/.test(src));
-ok('яркая полоса поверхности', /var cSurf = shade\(L\.c1, 55\)/.test(src));
-ok('градиент по глубине',   /g\.addColorStop\(1, L\.c2\)/.test(src));
+ok('пологая длинная волна', /Math\.sin\(x\*0\.018 \+ anim\*0\.03\) \* 4\.5/.test(src));
+ok('две полосы под волной', /cBand1 = shade\(L\.c1, 78\)/.test(src) && /cBand2 = shade\(L\.c1, 58\)/.test(src));
+ok('синей линии нет',       !/cLine/.test(src) && !/cLine/.test(game));
+ok('тело ровным цветом',    /lcx\.fillStyle = cBody;\s*\n\s*lcx\.fill\(body\);/.test(src) && !/createLinearGradient\(0, y0, 0, y1\)/.test(src));
 ok('обрезка по силуэту',     /lcx\.clip\(body\)/.test(src));
 ok('слой непрозрачный',      /var lcv = null, lcx = null;/.test(src));
 ok('кладётся один раз',      /ctx\.drawImage\(lcv, 0, 0, CW\/DPR, CH\/DPR\)/.test(src));
-ok('то же в игре',           /var SURF = 18;/.test(game) && /lcx\.clip\(body\)/.test(game));
+ok('то же в игре',           /cBand1 = shade\(L\.c1, 78\)/.test(game) && /lcx\.clip\(body\)/.test(game));
 ok('жидкость вне лимита',    /function overLimit\(extra, liquid\)/.test(src) && /LIQ_LIMIT/.test(src));
 ok('счётчик без жидкости',   /countHard\(\) \+ "\/" \+ OBJ_LIMIT/.test(src));
-ok('налив по своему потолку', /overLimit\(1, true\)/.test(src));
+ok('налив по своему потолку', /overLimit\(cols \* rows, true\)/.test(src));
 
 console.log('\nграфика жидкостей:');
 ok('свой цвет у каждой',    /g\.addColorStop\(0, L\.c1\)/.test(src));
