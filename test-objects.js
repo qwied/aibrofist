@@ -81,7 +81,6 @@ ok('батута нет',            !/chk\("Батут"/.test(src) && !/chk\("�
 ok('отражение по X',        /if\(o\.ricochet && Math\.abs\(pl\.vx\) > RICO_MIN\)/.test(src));
 ok('отражение сверху',      /if\(o\.ricochet && pl\.vy > RICO_MIN\)/.test(src));
 ok('отражение снизу',       /if\(o\.ricochet && Math\.abs\(pl\.vy\) > RICO_MIN\)/.test(src));
-ok('старые батуты мигрируют', /o\.ricochet = true; delete o\.bouncy/.test(src));
 
 // вода
 console.log('\nдублирование:');
@@ -100,21 +99,44 @@ LIQS.forEach(k => ok('есть ' + k, new RegExp('\\n  ' + k + ': \\{').test(liq
 ok('старой воды нет',       !tools.some(t => t.t === 'water'));
 ok('инструмент в палитре',  tools.some(t => t.t === 'liquid'));
 ok('во всех режимах',       /\{t:"liquid",\s*n:"Жидкости",\s*m:ALL\}/.test(src));
-ok('панель раздела',        /id="liqBox"/.test(src) && /function buildLiqList/.test(src));
-ok('панель открывается',    /classList\.toggle\("on", n === "liquid"\)/.test(src));
 ok('выбор в свойствах',     /sel\.liq = lsel\.value/.test(src));
+ok('раздел во всех режимах',/\{t:"liquid",\s*n:"Жидкости",\s*m:ALL\}/.test(src));
 ok('залить всё этой',       /Залить всё этой/.test(src));
 
 console.log('\nмеханики жидкостей:');
 ok('лава убивает',          /if\(L && L\.lethal\)\{ die\(\); return; \}/.test(src));
 ok('урон по профилю',       /if\(L && L\.dps > 0\) dmg \+= L\.dps \/ 60;/.test(src));
-ok('затягивание по профилю',/if\(L\.sink > 0\)/.test(src));
 ok('вверх заблокировано',   /if\(pl\.vy < 0\) pl\.vy = 0;/.test(src));
 ok('слизь подкидывает',     /L\.jump > 1/.test(src));
 ok('нефть скользкая',       /L\.slip \? 0\.995 : L\.drag/.test(src));
 ok('самая опасная главнее', /function liqRank/.test(src));
 ok('жидкости не смешиваются', /cellOK\(x, y, k\)|cellOK\(nx, p\.y, p\.k\)/.test(src));
 ok('старые карты переводятся', /o\.liq = o\.acid \? "acid" : \(o\.sink \? "quicksand" : "water"\)/.test(src));
+
+console.log('\nбатут:');
+ok('сила настраивается',    /rng\("Сила отскока"/.test(src));
+ok('отскок по нормали',     /function faceNormal/.test(src) && /function ricochet\(o\)/.test(src));
+ok('наклон учитывается',    /var pts = polyOf\(o\)/.test(src));
+ok('сила из свойства',      /o\.power === undefined \? 1 : o\.power/.test(src));
+ok('старые батуты мигрируют', src.indexOf('o.power = Math.max(0.2, Math.min(3, (o.power || 17) / 12.3));') !== -1);
+
+console.log('\nвода: настройки и взаимодействие:');
+ok('ползунок чувствительности', /rng\("Чувствительность"/.test(src));
+ok('чувствительность в физике', /maxVX\(\) \* L\.speed \* wat\.sens/.test(src));
+ok('три режима течения',    /\["none","Обычное"\],\["down","Затягивает на дно"\],\["up","Выталкивает наверх"\]/.test(src));
+ok('затягивание вниз',      /wat\.flow === "down"/.test(src));
+ok('выталкивание вверх',    /wat\.flow === "up"/.test(src));
+ok('всплески при входе',    /function splash/.test(src) && /pl\.inWater && !pl\._wasWet/.test(src));
+ok('блинчики по воде',      /SKIP_MIN_VX/.test(src) && /pl\._skips \|\| 0\) >= 3/.test(src));
+ok('то же в игре',          /function splash/.test(game) && /wat\.flow === "up"/.test(game));
+
+console.log('\nвид жидкости:');
+ok('контура нет',           !/ctx\.strokeStyle = rim/.test(src) && !/ctx\.strokeStyle = rim/.test(game));
+ok('падающих кружков нет',  !/течения: те самые частицы/.test(src));
+ok('оверлей убран',         !/liqBox/.test(src) && !/buildLiqList/.test(src));
+ok('обычный цвет воды',     /c1:"#60a5fa", c2:"#2563eb"/.test(src));
+ok('жидкость стекает вниз', /function settleLiquid/.test(src) && /function liquidToCells/.test(src));
+ok('текучесть в кадре',     /if\(!playing && anim % 4 === 0\) settleLiquid\(\);/.test(src));
 
 console.log('\nграфика жидкостей:');
 ok('свой цвет у каждой',    /g\.addColorStop\(0, L\.c1\)/.test(src));
@@ -123,7 +145,6 @@ ok('блик',                  /if\(L\.sheen\)/.test(src));
 ok('зерно песка',           /if\(L\.grain\)/.test(src));
 ok('заливка по клеткам',   /for\(i=0;i<list\.length;i\+\+\)\{ o = list\[i\]; ctx\.rect/.test(src));
 ok('волна на поверхности',  /function freeEdge/.test(src) && /tops = freeEdge\(o, list, "top"\)/.test(src));
-ok('контур по краю',        /sides = \[\["bottom"/.test(src));
 ok('течения внутри объёма', /ctx\.clip\(\);/.test(src));
 ok('то же в игре',          /var LIQ = \{/.test(game) && /function drawParticles/.test(game));
 

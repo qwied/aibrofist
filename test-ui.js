@@ -461,6 +461,67 @@ else {
   check('низ стопки открыт', GAME.freeEdge(stack[1], stack, 'bottom').length === 1);
   check('бок открыт', GAME.freeEdge(stack[0], stack, 'left').length === 1);
 
+  // 11. сила батута и наклонный отскок
+  function bounceTop(power, rot) {
+    // батут поднят над полом: иначе игрок гасит скорость о пол, а не о него
+    const pad = { id: 3, type: 'rect', x: 200, y: 340, w: 200, h: 40, rot: rot || 0,
+                  fill: '#a855f7', ricochet: true, power: power };
+    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, pad] });
+    GAME.startPlay();
+    clearKeys();
+    GAME.pl.x = 290; GAME.pl.y = 180; GAME.pl.vx = 0; GAME.pl.vy = 9;
+    let best = 0, sideways = 0;
+    for (let i = 0; i < 90; i++) {
+      GAME.step();
+      if (-GAME.pl.vy > best) best = -GAME.pl.vy;
+      if (Math.abs(GAME.pl.vx) > sideways) sideways = Math.abs(GAME.pl.vx);
+    }
+    clearKeys();
+    return { up: best, side: sideways };
+  }
+  const weak = bounceTop(0.5), strong = bounceTop(2.5);
+  check('сила батута работает', strong.up > weak.up * 1.6,
+        'слабый ' + weak.up.toFixed(1) + ', сильный ' + strong.up.toFixed(1));
+  const tilted = bounceTop(1.6, 35);
+  check('наклонный батут кидает вбок', tilted.side > 2, tilted.side.toFixed(1));
+
+  // 12. режимы течения
+  function flowY(mode, power) {
+    const pool = [];
+    for (let i = 0; i < 6; i++)
+      pool.push({ id: 20 + i, type: 'liquid', liq: 'water', x: 200, y: 280 + i * 20,
+                  w: 240, h: 20, rot: 0, flow: mode, flowPower: power });
+    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
+    GAME.startPlay();
+    clearKeys();
+    GAME.pl.x = 300; GAME.pl.y = 340; GAME.pl.vx = 0; GAME.pl.vy = 0;
+    GAME.keys.u = true;                       // изо всех сил гребём вверх
+    for (let i = 0; i < 150; i++) GAME.step();
+    const y = GAME.pl.y;
+    clearKeys();
+    return y;
+  }
+  const yDown = flowY('down', 3), yNone = flowY('none', 0), yUp = flowY('up', 3);
+  check('затягивание тянет вниз', yDown > yNone + 10, yDown.toFixed(0) + ' против ' + yNone.toFixed(0));
+  check('выталкивание гонит вверх', yUp < yNone - 5, yUp.toFixed(0) + ' против ' + yNone.toFixed(0));
+
+  // 13. чувствительность
+  function sensVX(sens) {
+    const pool = [];
+    for (let i = 0; i < 6; i++)
+      pool.push({ id: 30 + i, type: 'liquid', liq: 'water', x: 200, y: 280 + i * 20,
+                  w: 240, h: 20, rot: 0, sens: sens });
+    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
+    GAME.startPlay();
+    clearKeys();
+    GAME.pl.x = 300; GAME.pl.y = 320; GAME.keys.r = true;
+    for (let i = 0; i < 90; i++) { GAME.pl.x = 300; GAME.pl.y = 320; GAME.step(); }
+    const v = Math.abs(GAME.pl.vx);
+    clearKeys();
+    return v;
+  }
+  check('чувствительность ускоряет', sensVX(2) > sensVX(0.5) * 1.5);
+
   GAME.stop();
 }
 // ---- нагрузка: большой бассейн на полный потолок частиц ----

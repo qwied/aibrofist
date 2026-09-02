@@ -175,10 +175,16 @@
   }
 
   var SAY_FADE = 2600;
+  var SAY_MAX = 4;
+  /* Реплики копятся стопкой: новая не стирает предыдущую, а встаёт под
+     ней. Раньше здесь лежала одна запись на игрока, поэтому второе
+     сообщение затирало первое ещё до того, как его успевали прочитать. */
   var spoken = {};
   function speak(who, text) {
     if (!text) return;
-    spoken[who] = { text: text, born: Date.now() };
+    var list = spoken[who] || (spoken[who] = []);
+    list.push({ text: text, born: Date.now() });
+    while (list.length > SAY_MAX) list.shift();
   }
 
   function banner(title, text, show) {
@@ -225,6 +231,17 @@
     GAME.myColor = (me.role === 'seeker') ? COLOR_SEEKER
                  : (me.caught ? COLOR_CAUGHT : COLOR_NORMAL);
   }
+  /* Пойманность живёт ровно один раунд. Раньше её снимали только у себя
+     и только при уходе в лобби, поэтому чужие фигуры оставались серыми
+     навсегда, а искатель не мог поймать их снова. */
+  function clearCaught() {
+    me.caught = false;
+    Object.keys(others).forEach(function (id) { others[id].caught = false; });
+    caughtNames = {};
+    applyColor();
+  }
+  var caughtNames = {};
+
   function setRole(role) {
     me.role = role; me.caught = false;
     $('gRoleBox').style.display = 'inline';
@@ -249,12 +266,13 @@
     if (MODE === 'hideAndSeek') {
       if (phase === 'lobby') {
         phase = 'round'; phaseEnds = Date.now() + ROUND_MS;
+        clearCaught();               // новый раунд — все снова не пойманы
         banner('', '', false);
         log('Раунд начался! 2 минуты', 's');
         if (socket) socket.emit('sendChat', { text: 'Раунд начался' });
       } else {
         phase = 'lobby'; phaseEnds = Date.now() + LOBBY_MS;
-        me.caught = false; applyColor();
+        clearCaught();
         nextMap();
         banner('Раунд окончен', 'Новая карта. До старта 30 секунд.', true);
         setTimeout(function () { banner('', '', false); }, 3000);
@@ -409,18 +427,38 @@
         if (o.caught || o.hid) return;     // в укрытии игрока не поймать
         if (Math.abs(o.x - p.x) < 34 && Math.abs(o.y - p.y) < 60) {
           o.caught = true;
+          caughtNames[o.name] = 1;
           socket.emit('sendChat', { text: o.name + ' пойман!' });
         }
       });
+      checkAllCaught();
     }
   }, 60);
+
+  /* Раунд заканчивается, как только пойманы все. Таймер после этого
+     дотикивал впустую: искать было уже некого. */
+  function checkAllCaught() {
+    if (switching || phase !== 'round' || VIEW) return;
+    var ids = Object.keys(others);
+    if (!ids.length) return;                  // один в комнате — ловить некого
+    for (var i = 0; i < ids.length; i++) if (!others[ids[i]].caught) return;
+
+    switching = true;
+    log('Все пойманы — раунд окончен!');
+    if (socket) socket.emit('sendChat', { text: 'Все пойманы' });
+    setTimeout(function () { switching = false; advance(); }, 1200);
+  }
 
   // пойманным считает тот, кого назвали в чате
   function watchCaught(text) {
     if (MODE !== 'hideAndSeek' || me.role === 'seeker') return;
-    if (text.indexOf('пойман') !== -1 && text.indexOf(me.name) !== -1) {
-      me.caught = true; applyColor();
-    }
+    if (text.indexOf('пойман') === -1) return;
+    if (text.indexOf(me.name) !== -1) { me.caught = true; applyColor(); }
+    // чужие поимки тоже слышны: у прячущихся фигуры красятся синхронно
+    Object.keys(others).forEach(function (id) {
+      var o = others[id];
+      if (o.name && text.indexOf(o.name) !== -1) o.caught = true;
+    });
   }
 
   // все дошли до финиша — не ждём таймер, ставим новую карту
@@ -477,18 +515,22 @@
 
     // отправленная реплика плавно уплывает вверх и тает —
     // и не пропадает от того, что игрок уже набирает следующую
-    var sp = spoken[name];
-    if (sp) {
-      var age = Date.now() - sp.born;
-      if (age >= SAY_FADE) {
-        delete spoken[name];
-      } else {
-        var k = age / SAY_FADE;                   // 0 → 1
+    var list = spoken[name];
+    if (list && list.length) {
+      var now = Date.now();
+      // отжившие убираем с головы: они самые старые
+      while (list.length && now - list[0].born >= SAY_FADE) list.shift();
+      if (!list.length) delete spoken[name];
+      for (var si = 0; si < list.length; si++) {
+        var sp = list[si];
+        var k = (now - sp.born) / SAY_FADE;        // 0 → 1
+        // каждая следующая реплика висит ниже предыдущей и не наезжает
+        var lift = (list.length - 1 - si) * 15;
         ctx.globalAlpha = k < 0.75 ? 1 : (1 - (k - 0.75) / 0.25);
         ctx.fillStyle = '#3a3a3a';
-        ctx.fillText(sp.text, cx, topY - 16 - k * 46);
-        ctx.globalAlpha = 1;
+        ctx.fillText(sp.text, cx, topY - 16 - lift - k * 46);
       }
+      ctx.globalAlpha = 1;
     }
 
     // то, что печатают прямо сейчас — ниже уплывающей реплики, чтобы не наложились
