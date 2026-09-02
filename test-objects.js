@@ -137,7 +137,7 @@ ok('падающих кружков нет',  !/течения: те самые 
 ok('оверлей убран',         !/liqBox/.test(src) && !/buildLiqList/.test(src));
 ok('обычный цвет воды',     /c1:"#60a5fa", c2:"#2563eb"/.test(src));
 ok('жидкость стекает вниз', /function settleLiquid/.test(src) && /function liquidToCells/.test(src));
-ok('растекается под давлением', /вбок под давлением/.test(src) && /if\(free\(c\.x, c\.y - WCELL\)\) continue;/.test(src));
+ok('растекается по уровню',  /выравнивание уровня/.test(src));
 ok('сползает по диагонали',  /сползание по диагонали/.test(src));
 ok('любая правка запускает течение', /function markDirty\(\)\{ gridDirty = true; markLiquid\(\); \}/.test(src));
 ok('лужа удаляется целиком', /liqBody\(sel\) : \[sel\]/.test(src));
@@ -150,16 +150,17 @@ ok('боковой сдвиг плавный',  /LIQ_SPREAD/.test(src) && /c\.ox
 ok('рисуем из живых капель', /function liqList/.test(src) && /var src = liqList\(\);/.test(src));
 ok('запись назад только в покое', /else if\(\+\+liqRest === 3\)/.test(src));
 ok('устаревшие капли не пишутся', /if\(!lsim \|\| liqDirty\) return;/.test(src));
-ok('уходим только на низкий столб', /free\(nx, c\.y\) && free\(nx, c\.y - WCELL\)/.test(src));
+ok('уровень выравнивается',  /var hHere = colH\[c\.x\] \|\| 1;/.test(src) && /gap >= 2/.test(src));
+ok('погружение сильнее всплытия', /dive:0\.95/.test(src));
 
 console.log('\nформа и лимит жидкости:');
-ok('силуэт скругляется пером', /lcx\.lineJoin = "round"/.test(src) && /lcx\.lineWidth = 11/.test(src));
-ok('светлый ореол по краю',  /lcx\.strokeStyle = shade\(L\.c1, 30\)/.test(src));
-ok('тело узким пером',       /lcx\.lineWidth = 5;/.test(src));
+ok('ровное тело с волной',  /var SURF = 18;/.test(src) && /waveY = function/.test(src));
+ok('яркая полоса поверхности', /var cSurf = shade\(L\.c1, 55\)/.test(src));
+ok('градиент по глубине',   /g\.addColorStop\(1, L\.c2\)/.test(src));
 ok('обрезка по силуэту',     /lcx\.clip\(body\)/.test(src));
 ok('слой непрозрачный',      /var lcv = null, lcx = null;/.test(src));
 ok('кладётся один раз',      /ctx\.drawImage\(lcv, 0, 0, CW\/DPR, CH\/DPR\)/.test(src));
-ok('то же в игре',           /lcx\.lineJoin = "round"/.test(game) && /lcx\.clip\(body\)/.test(game));
+ok('то же в игре',           /var SURF = 18;/.test(game) && /lcx\.clip\(body\)/.test(game));
 ok('жидкость вне лимита',    /function overLimit\(extra, liquid\)/.test(src) && /LIQ_LIMIT/.test(src));
 ok('счётчик без жидкости',   /countHard\(\) \+ "\/" \+ OBJ_LIMIT/.test(src));
 ok('налив по своему потолку', /overLimit\(1, true\)/.test(src));
@@ -169,8 +170,8 @@ ok('свой цвет у каждой',    /g\.addColorStop\(0, L\.c1\)/.test(sr
 ok('свечение',              /if\(L\.glow\)/.test(src));
 ok('блик',                  /if\(L\.sheen\)/.test(src));
 ok('зерно песка',           /if\(L\.grain\)/.test(src));
-ok('силуэт из клеток',     /body\.rect\(o\.x, o\.y, o\.w, o\.h\)/.test(src));
-ok('форма без прямых углов', !/tops = freeEdge\(o, list, "top"\)/.test(src));
+ok('пузырьков внутри нет', /пузырьки — над водой/.test(src));
+ok('волна только на поверхности', /freeEdge\(o, list, "top"\)/.test(src));
 ok('внутреннее по силуэту', /lcx\.clip\(body\);/.test(src));
 ok('то же в игре',          /var LIQ = \{/.test(game) && /function drawParticles/.test(game));
 

@@ -811,13 +811,13 @@ var W_MAXV = 4.6;
 var LIQ = {
   water: { n:"Вода", about:"Плавание и выталкивание. Воздуха хватает на 10 секунд.",
     // обычный синий из палитры сайта, а не бирюза
-    c1:"#60a5fa", c2:"#2563eb", a:0.72, glow:0, sheen:0.35, grain:0,
-    speed:0.72, accel:0.55, drag:0.90, grav:0.30, buoy:0.30, swim:0.62, dive:0.42,
+    c1:"#60a5fa", c2:"#2563eb", a:0.80, glow:0, sheen:0.35, grain:0,
+    speed:0.72, accel:0.55, drag:0.90, grav:0.30, buoy:0.30, swim:0.62, dive:0.95,
     dps:0, lethal:false, breathe:true, sink:0, slip:0, jump:1 },
 
   acid: { n:"Кислота", about:"Разъедает сразу при касании: 45 урона в секунду.",
     c1:"#a3e635", c2:"#15803d", a:0.80, glow:0.45, sheen:0.30, grain:0,
-    speed:0.70, accel:0.55, drag:0.90, grav:0.30, buoy:0.30, swim:0.60, dive:0.42,
+    speed:0.70, accel:0.55, drag:0.90, grav:0.30, buoy:0.30, swim:0.60, dive:0.95,
     dps:45, lethal:false, breathe:true, sink:0, slip:0, jump:1 },
 
   lava: { n:"Лава", about:"Мгновенная смерть от одного касания.",
@@ -1652,15 +1652,19 @@ function drawParticles(){
     }
 
     /* ---- ФОРМА ----
-       Раньше светлый ореол и тело рисовались прямо на холсте, оба
-       полупрозрачные. Обводка идёт по всем рёбрам пути, включая стыки
-       между клетками, и эти стыки просвечивали сквозь тело — на экране
-       было видно россыпь светлых прямоугольников внутри лужи.
+       Налитая вода — это ровное тело с гладкой поверхностью, а не
+       россыпь капель: круги годились для струй, но бассейн из них
+       выглядел комками.
 
-       Теперь вся жидкость собирается в отдельном слое непрозрачной
-       краской и только потом кладётся на холст один раз со своей
-       прозрачностью. Внутренние стыки закрашиваются той же краской и
-       исчезают, а прозрачность нигде не складывается сама с собой. */
+       Слоями сверху вниз:
+         полоса поверхности — узкая яркая кромка с волной по верху,
+         тело              — вертикальный градиент, ко дну темнее,
+         пузырьки          — только над водой, как брызги; внутри их
+                             нет, они мешали видеть, что под водой.
+
+       Всё собирается в отдельном слое непрозрачной краской и кладётся
+       на холст один раз: иначе стыки клеток просвечивали бы сквозь
+       тело и вода шла бы пятнами. */
     if(!lcv){
       lcv = document.createElement("canvas");
       lcx = lcv.getContext ? lcv.getContext("2d") : null;
@@ -1673,51 +1677,56 @@ function drawParticles(){
     // тот же взгляд на мир, что и у основного холста
     lcx.setTransform(view.s*DPR,0,0,view.s*DPR, view.x*DPR, view.y*DPR);
 
+    var SURF = 18;                       // высота яркой полосы
+    var cSurf = shade(L.c1, 55);
+
     var body = new Path2D();
     for(i=0;i<list.length;i++){ o = list[i]; body.rect(o.x, o.y, o.w, o.h); }
 
-    lcx.lineJoin = "round";
-    lcx.lineCap = "round";
-
-    // широкое перо скругляет углы и даёт светлую кайму
-    lcx.strokeStyle = shade(L.c1, 30);
-    lcx.fillStyle = shade(L.c1, 30);
-    lcx.lineWidth = 11;
-    lcx.stroke(body);
-    lcx.fill(body);
-
-    // узкое перо той же формой — это тело
-    var g = lcx.createLinearGradient(0, y0 - 10, 0, y1 + 10);
-    g.addColorStop(0, L.c1);
+    // 1. тело: градиент по всей глубине объёма
+    var g = lcx.createLinearGradient(0, y0, 0, y1);
+    g.addColorStop(0, shade(L.c1, 22));
     g.addColorStop(1, L.c2);
-    lcx.strokeStyle = g;
     lcx.fillStyle = g;
-    lcx.lineWidth = 5;
-    lcx.stroke(body);
     lcx.fill(body);
 
-    // всё внутреннее обрезаем по этому же силуэту
+    /* 2. поверхность. Волна рисуется только там, где сверху нет своей
+       же жидкости — иначе внутри объёма шли бы лишние полосы. */
+    var tops = [];
+    for(i=0;i<list.length;i++){
+      o = list[i];
+      var spans = freeEdge(o, list, "top");
+      for(var t2=0;t2<spans.length;t2++)
+        if(spans[t2][1] - spans[t2][0] > 1) tops.push([spans[t2][0], spans[t2][1], o.y]);
+    }
+    var waveY = function(x, top){ return top + Math.sin(x*0.045 + anim*0.04) * 2.4 - 1.5; };
+
+    lcx.fillStyle = cSurf;
+    for(i=0;i<tops.length;i++){
+      var a2 = tops[i][0], b2 = tops[i][1], ty = tops[i][2];
+      lcx.beginPath();
+      lcx.moveTo(a2, waveY(a2, ty));
+      for(var x2 = a2; x2 <= b2; x2 += 4) lcx.lineTo(x2, waveY(x2, ty));
+      lcx.lineTo(b2, ty + SURF);
+      lcx.lineTo(a2, ty + SURF);
+      lcx.closePath();
+      lcx.fill();
+    }
+
+    // 3. приметы жидкости — внутри тела
     lcx.save();
     lcx.clip(body);
-    if(L.sheen){
-      // блик у поверхности
-      var sh = lcx.createLinearGradient(0, y0, 0, y0 + Math.min(90, (y1-y0)*0.6));
-      sh.addColorStop(0, "rgba(255,255,255," + (0.40*L.sheen).toFixed(3) + ")");
-      sh.addColorStop(1, "rgba(255,255,255,0)");
-      lcx.fillStyle = sh;
-      lcx.fillRect(x0-30, y0-30, x1-x0+60, y1-y0+60);
-    }
     if(L.glow){
       // прожилки: у лавы раскалённые жилы, у кислоты пена
-      lcx.globalAlpha = 0.22 * L.glow;
-      lcx.fillStyle = shade(L.c1, 30);
+      lcx.globalAlpha = 0.24 * L.glow;
+      lcx.fillStyle = shade(L.c1, 34);
       for(i=0;i<list.length;i++){
         o = list[i];
         for(var vx = o.x + 4; vx < o.x + o.w; vx += 26){
           var vy = o.y + 4 + ((vx*13 + o.y*7) % Math.max(1, o.h));
           var vw = 10 + 8*Math.sin(anim*0.045 + vx*0.06);
           lcx.beginPath();
-          lcx.rect(vx, vy, Math.max(3, vw), 4);
+          lcx.arc(vx + vw/2, vy + 2, Math.max(2, vw/2), 0, 6.2832);
           lcx.fill();
         }
       }
@@ -1725,7 +1734,7 @@ function drawParticles(){
     }
     if(L.grain){
       // зерно песка
-      lcx.globalAlpha = 0.20;
+      lcx.globalAlpha = 0.22;
       lcx.fillStyle = "#4a3410";
       for(i=0;i<list.length;i++){
         o = list[i];
@@ -1739,6 +1748,23 @@ function drawParticles(){
       lcx.globalAlpha = 1;
     }
     lcx.restore();
+
+    /* 4. пузырьки — над водой, а не в ней. Всплывают из поверхности и
+       тают: внутри объёма они закрывали то, что под водой. */
+    lcx.fillStyle = cSurf;
+    for(i=0;i<tops.length;i++){
+      var sa = tops[i][0], sb = tops[i][1], sy = tops[i][2];
+      for(var bx = sa + 14; bx < sb; bx += 46){
+        var seed = (bx*17 + sy*29) % 360;
+        var ph = ((anim * 0.55 + seed) % 90) / 90;      // 0 → 1
+        var by = sy - ph * 34;
+        lcx.globalAlpha = (1 - ph) * 0.55;
+        lcx.beginPath();
+        lcx.arc(bx + Math.sin(ph*6 + seed)*3, by, 1.6 + (seed % 3) * 0.7, 0, 6.2832);
+        lcx.fill();
+      }
+    }
+    lcx.globalAlpha = 1;
 
     // готовый слой кладём на холст один раз
     ctx.save();
@@ -2231,13 +2257,25 @@ function settleLiquid(){
     return false;
   };
   var free = function(x, y){ return !busy[key(x,y)] && !blocked(x,y); };
-  for(i=0;i<lsim.length;i++) busy[key(lsim[i].x, lsim[i].y)] = 1;
+  /* Высота столба в каждой колонке. По ней вода выравнивает уровень:
+     капля уходит туда, где воды меньше, а не просто в свободную клетку.
+     Раньше растекание шло только под давлением сверху, поэтому лужа
+     застывала горкой вместо ровной поверхности. */
+  var colH = {};
+  for(i=0;i<lsim.length;i++){
+    busy[key(lsim[i].x, lsim[i].y)] = 1;
+    colH[lsim[i].x] = (colH[lsim[i].x] || 0) + 1;
+  }
 
   // снизу вверх: нижние уходят первыми и освобождают место верхним
   lsim.sort(function(a,b){ return b.y - a.y; });
 
   var busyMove = function(c, nx, ny){
     delete busy[key(c.x, c.y)];
+    if(nx !== c.x){
+      colH[c.x] = (colH[c.x] || 1) - 1;
+      colH[nx] = (colH[nx] || 0) + 1;
+    }
     c.x = nx; c.y = ny;
     busy[key(nx, ny)] = 1;
   };
@@ -2286,22 +2324,26 @@ function settleLiquid(){
     }
     if(done) continue;
 
-    /* ---- растекание вбок под давлением ----
-       Двигаем только если сверху что-то лежит: одинарный слой уже
-       ровный, толкать его незачем — на этом лужа и останавливается. */
-    if(free(c.x, c.y - WCELL)) continue;
+    /* ---- выравнивание уровня ----
+       Двигаем каплю в ту сторону, где столб воды ниже хотя бы на две
+       клетки. Строгая разница и есть условие остановки: как только
+       соседние столбы сравнялись, двигать нечего и лужа замирает ровной
+       поверхностью. Меняться местами при этом невозможно — обратный
+       ход всегда делает разницу меньше порога. */
+    var hHere = colH[c.x] || 1;
+    var best = 0, bestDx = 0;
     for(t=0;t<2;t++){
       nx = c.x + dir*WCELL;
-      /* Уходим только туда, где столб ниже: над целью должно быть пусто.
-         Без этого две соседние капли бесконечно менялись местами и лужа
-         никогда не успокаивалась. */
-      if(free(nx, c.y) && free(nx, c.y - WCELL)){
-        busyMove(c, nx, c.y);
-        c.ox = -dir*WCELL;
-        moving++;
-        break;
+      if(free(nx, c.y)){
+        var gap = hHere - (colH[nx] || 0);
+        if(gap >= 2 && gap > best){ best = gap; bestDx = dir; }
       }
       dir = -dir;
+    }
+    if(best){
+      busyMove(c, c.x + bestDx*WCELL, c.y);
+      c.ox = -bestDx*WCELL;
+      moving++;
     }
   }
 

@@ -150,7 +150,7 @@ global.window = {
   fetch: () => Promise.reject(new Error('offline')),
   navigator: { language: 'ru', languages: ['ru'] },
   // Path2D в заглушке умеет копить прямоугольники: жидкость рисует через него
-  Path2D: function () { this.rect = () => {}; }, TextDecoder: function () { this.decode = () => ''; }
+  Path2D: function () { this.rect = () => {}; this.arc = () => {}; this.moveTo = () => {}; }, TextDecoder: function () { this.decode = () => ''; }
 };
 const G = {
   addEventListener: global.window.addEventListener,
@@ -564,6 +564,27 @@ if (GAME && GAME.settle) {
   });
   tallest = Math.max(...Object.values(colH));
   check('столб развалился в лужу', tallest <= 3, 'самая высокая колонка ' + tallest);
+
+  // уровень выравнивается: столбы не отличаются больше чем на клетку
+  const hs = Object.values(colH);
+  check('уровень ровный', Math.max(...hs) - Math.min(...hs) <= 1,
+        'от ' + Math.min(...hs) + ' до ' + Math.max(...hs));
+
+  // погружение: с зажатой «вниз» игрок уходит под воду целиком
+  const deep = [];
+  for (let i = 0; i < 10; i++)
+    deep.push({ id: 95 + i, type: 'liquid', liq: 'water', x: 200, y: 400 + i * 20,
+                w: 240, h: 20, rot: 0 });
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...deep] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 300; GAME.pl.y = 380; GAME.pl.vy = 0;
+  GAME.keys.d = true;
+  for (let i = 0; i < 120; i++) GAME.step();
+  check('можно уйти под воду целиком', GAME.pl.y > 400 + 8, 'макушка на ' + GAME.pl.y.toFixed(0));
+  check('голова считается погружённой', GAME.pl.headUnder);
+  clearKeys();
+  GAME.stop();
 
   // падение плавное: капля живёт между клетками, а не прыгает двадцатками
   const drops = [];
