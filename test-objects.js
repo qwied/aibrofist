@@ -153,11 +153,13 @@ ok('устаревшие капли не пишутся', /if\(!lsim \|\| liqDir
 ok('уходим только на низкий столб', /free\(nx, c\.y\) && free\(nx, c\.y - WCELL\)/.test(src));
 
 console.log('\nформа и лимит жидкости:');
-ok('силуэт скругляется пером', /ctx\.lineJoin = "round"/.test(src) && /ctx\.lineWidth = 17/.test(src));
-ok('светлый ореол по краю',  /ctx\.strokeStyle = shade\(L\.c1, 34\)/.test(src));
-ok('тело узким пером',       /ctx\.lineWidth = 9;/.test(src));
-ok('обрезка по силуэту',     /ctx\.clip\(body\)/.test(src));
-ok('то же в игре',           /ctx\.lineJoin = "round"/.test(game) && /ctx\.clip\(body\)/.test(game));
+ok('силуэт скругляется пером', /lcx\.lineJoin = "round"/.test(src) && /lcx\.lineWidth = 11/.test(src));
+ok('светлый ореол по краю',  /lcx\.strokeStyle = shade\(L\.c1, 30\)/.test(src));
+ok('тело узким пером',       /lcx\.lineWidth = 5;/.test(src));
+ok('обрезка по силуэту',     /lcx\.clip\(body\)/.test(src));
+ok('слой непрозрачный',      /var lcv = null, lcx = null;/.test(src));
+ok('кладётся один раз',      /ctx\.drawImage\(lcv, 0, 0, CW\/DPR, CH\/DPR\)/.test(src));
+ok('то же в игре',           /lcx\.lineJoin = "round"/.test(game) && /lcx\.clip\(body\)/.test(game));
 ok('жидкость вне лимита',    /function overLimit\(extra, liquid\)/.test(src) && /LIQ_LIMIT/.test(src));
 ok('счётчик без жидкости',   /countHard\(\) \+ "\/" \+ OBJ_LIMIT/.test(src));
 ok('налив по своему потолку', /overLimit\(1, true\)/.test(src));
@@ -169,7 +171,7 @@ ok('блик',                  /if\(L\.sheen\)/.test(src));
 ok('зерно песка',           /if\(L\.grain\)/.test(src));
 ok('силуэт из клеток',     /body\.rect\(o\.x, o\.y, o\.w, o\.h\)/.test(src));
 ok('форма без прямых углов', !/tops = freeEdge\(o, list, "top"\)/.test(src));
-ok('внутреннее по силуэту', /ctx\.clip\(body\);/.test(src));
+ok('внутреннее по силуэту', /lcx\.clip\(body\);/.test(src));
 ok('то же в игре',          /var LIQ = \{/.test(game) && /function drawParticles/.test(game));
 
 console.log('\nгенератора в редакторе нет:');

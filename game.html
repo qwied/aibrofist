@@ -1576,6 +1576,9 @@ function freeEdge(o, list, side){
   return span;
 }
 
+/* Отдельный холст под жидкость: на нём она собирается непрозрачной,
+   чтобы стыки клеток не просвечивали сквозь тело. */
+var lcv = null, lcx = null;
 function drawParticles(){
   // собираем объёмы по видам: каждая жидкость рисуется своим проходом
   var byKind = {}, i, o;
@@ -1598,78 +1601,99 @@ function drawParticles(){
     }
 
     /* ---- ФОРМА ----
-       Клетки сами по себе дают куб с прямыми углами. Чтобы получилась
-       капля, контур объёма обводится толстым пером с круглыми стыками:
-       перо раздувает силуэт и скругляет каждый угол. Сначала широкое
-       светлое перо — от него остаётся ореол по краю, потом узкое
-       тёмное — оно и есть тело. Внутренние стыки клеток закрашиваются
-       той же краской и не видны. */
+       Раньше светлый ореол и тело рисовались прямо на холсте, оба
+       полупрозрачные. Обводка идёт по всем рёбрам пути, включая стыки
+       между клетками, и эти стыки просвечивали сквозь тело — на экране
+       было видно россыпь светлых прямоугольников внутри лужи.
+
+       Теперь вся жидкость собирается в отдельном слое непрозрачной
+       краской и только потом кладётся на холст один раз со своей
+       прозрачностью. Внутренние стыки закрашиваются той же краской и
+       исчезают, а прозрачность нигде не складывается сама с собой. */
+    if(!lcv){
+      lcv = document.createElement("canvas");
+      lcx = lcv.getContext ? lcv.getContext("2d") : null;
+    }
+    if(!lcx) continue;
+    var CW = cv.width, CH = cv.height;
+    if(lcv.width !== CW || lcv.height !== CH){ lcv.width = CW; lcv.height = CH; }
+    lcx.setTransform(1,0,0,1,0,0);
+    lcx.clearRect(0,0,CW,CH);
+    // тот же взгляд на мир, что и у основного холста
+    lcx.setTransform(view.s*DPR,0,0,view.s*DPR, view.x*DPR, view.y*DPR);
+
     var body = new Path2D();
     for(i=0;i<list.length;i++){ o = list[i]; body.rect(o.x, o.y, o.w, o.h); }
 
-    ctx.save();
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
+    lcx.lineJoin = "round";
+    lcx.lineCap = "round";
 
-    ctx.globalAlpha = L.a * 0.85;
-    ctx.strokeStyle = shade(L.c1, 34);
-    ctx.fillStyle = shade(L.c1, 34);
-    ctx.lineWidth = 17;
-    ctx.stroke(body);
-    ctx.fill(body);
+    // широкое перо скругляет углы и даёт светлую кайму
+    lcx.strokeStyle = shade(L.c1, 30);
+    lcx.fillStyle = shade(L.c1, 30);
+    lcx.lineWidth = 11;
+    lcx.stroke(body);
+    lcx.fill(body);
 
-    ctx.globalAlpha = L.a;
-    var g = ctx.createLinearGradient(0, y0 - 10, 0, y1 + 10);
+    // узкое перо той же формой — это тело
+    var g = lcx.createLinearGradient(0, y0 - 10, 0, y1 + 10);
     g.addColorStop(0, L.c1);
     g.addColorStop(1, L.c2);
-    ctx.strokeStyle = g;
-    ctx.fillStyle = g;
-    ctx.lineWidth = 9;
-    ctx.stroke(body);
-    ctx.fill(body);
+    lcx.strokeStyle = g;
+    lcx.fillStyle = g;
+    lcx.lineWidth = 5;
+    lcx.stroke(body);
+    lcx.fill(body);
 
-    // всё, что внутри, обрезаем по этому же силуэту
-    ctx.save();
-    ctx.clip(body);
-
+    // всё внутреннее обрезаем по этому же силуэту
+    lcx.save();
+    lcx.clip(body);
     if(L.sheen){
-      // блик: светлая полоса у поверхности, как отсвет на глади
-      var sh = ctx.createLinearGradient(0, y0, 0, y0 + Math.min(90, (y1-y0)*0.6));
+      // блик у поверхности
+      var sh = lcx.createLinearGradient(0, y0, 0, y0 + Math.min(90, (y1-y0)*0.6));
       sh.addColorStop(0, "rgba(255,255,255," + (0.40*L.sheen).toFixed(3) + ")");
       sh.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = sh;
-      ctx.fillRect(x0-20, y0-20, x1-x0+40, y1-y0+40);
+      lcx.fillStyle = sh;
+      lcx.fillRect(x0-30, y0-30, x1-x0+60, y1-y0+60);
     }
     if(L.glow){
       // прожилки: у лавы раскалённые жилы, у кислоты пена
-      ctx.globalAlpha = 0.22 * L.glow;
-      ctx.fillStyle = shade(L.c1, 30);
+      lcx.globalAlpha = 0.22 * L.glow;
+      lcx.fillStyle = shade(L.c1, 30);
       for(i=0;i<list.length;i++){
         o = list[i];
         for(var vx = o.x + 4; vx < o.x + o.w; vx += 26){
           var vy = o.y + 4 + ((vx*13 + o.y*7) % Math.max(1, o.h));
           var vw = 10 + 8*Math.sin(anim*0.045 + vx*0.06);
-          rr(vx, vy, Math.max(3, vw), 4, 2); ctx.fill();
+          lcx.beginPath();
+          lcx.rect(vx, vy, Math.max(3, vw), 4);
+          lcx.fill();
         }
       }
-      ctx.globalAlpha = L.a;
+      lcx.globalAlpha = 1;
     }
     if(L.grain){
       // зерно песка
-      ctx.globalAlpha = 0.20;
-      ctx.fillStyle = "#4a3410";
+      lcx.globalAlpha = 0.20;
+      lcx.fillStyle = "#4a3410";
       for(i=0;i<list.length;i++){
         o = list[i];
         for(var gx = o.x + 3; gx < o.x + o.w; gx += 7)
           for(var gy = o.y + 3; gy < o.y + o.h; gy += 7){
             var d = ((gx*7 + gy*13) % 4);
             if(d > 1) continue;
-            ctx.fillRect(gx + d, gy - d, 2, 2);
+            lcx.fillRect(gx + d, gy - d, 2, 2);
           }
       }
-      ctx.globalAlpha = L.a;
+      lcx.globalAlpha = 1;
     }
-    ctx.restore();   // снимаем обрезку
+    lcx.restore();
+
+    // готовый слой кладём на холст один раз
+    ctx.save();
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.globalAlpha = L.a;
+    ctx.drawImage(lcv, 0, 0, CW/DPR, CH/DPR);
     ctx.restore();
   }
 }
