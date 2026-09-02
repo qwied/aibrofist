@@ -78,7 +78,6 @@ skinsApi.register(app, accounts);
 require('./userSkins.js').register(app, accounts, skinsApi);
 require('./lang.js').register(app, accounts);
 require('./themes.js').register(app, accounts);
-require('./mapAi.js').register(app, accounts);
 require('./extras.js').register(app, accounts);
 
 // адреса, на которые ссылается шапка сайта
