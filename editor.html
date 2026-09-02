@@ -724,6 +724,10 @@ function snap(){ return JSON.stringify(objects.map(function(o){
   var c = {}; for(var k in o) if(k[0] !== "_") c[k] = o[k]; return c;
 })); }
 function commit(){
+  /* Перед любой правкой фиксируем, где вода СЕЙЧАС: иначе снимок для
+     отмены и сама правка лягут поверх устаревших координат, и уже
+     упавшая вода прыгнет обратно наверх. */
+  liqFlush();
   undoStack.push(snap()); if(undoStack.length > 80) undoStack.shift();
   redoStack.length = 0;
 }
@@ -1736,9 +1740,34 @@ function drawParticles(){
     var body = new Path2D();
     for(i=0;i<list.length;i++){ o = list[i]; body.rect(o.x, o.y, o.w, o.h); }
 
-    // 1. тело: ровный цвет
-    lcx.fillStyle = cBody;
+    /* Тело: на фото оно не плоское — у поверхности светлее, ко дну
+       заметно глубже, но без резкой границы. */
+    var bg = lcx.createLinearGradient(0, y0, 0, y1);
+    bg.addColorStop(0, shade(L.c1, 46));
+    bg.addColorStop(1, shade(L.c1, 6));
+    lcx.fillStyle = bg;
     lcx.fill(body);
+
+    /* Пузыри внутри воды: на фото они крупные, мягкие и почти
+       незаметные — не мешают видеть, что под водой. */
+    lcx.save();
+    lcx.clip(body);
+    lcx.fillStyle = shade(L.c1, 70);
+    for(i=0;i<list.length;i++){
+      o = list[i];
+      for(var ux = o.x + 12; ux < o.x + o.w; ux += 58){
+        var us = (ux*29 + o.y*17) % 200;
+        var uph = ((anim * 0.25 + us) % 200) / 200;
+        var uy = o.y + o.h - uph * (o.h + 40);
+        var ur = 9 + (us % 5) * 3;
+        lcx.globalAlpha = 0.16 * (1 - Math.abs(uph - 0.5) * 0.9);
+        lcx.beginPath();
+        lcx.arc(ux + Math.sin(uph*4 + us)*5, uy, ur, 0, 6.2832);
+        lcx.fill();
+      }
+    }
+    lcx.globalAlpha = 1;
+    lcx.restore();
 
     /* 2. поверхность. Полосы ложатся только там, где сверху нет своей
        же жидкости — иначе они шли бы и внутри объёма. */
@@ -2234,6 +2263,8 @@ function cellSolid(cx, cy){
 /* Заливка прямоугольной области клетками 20x20. Одна и та же функция
    и для рамки, и для одиночного тычка — просто область в одну клетку. */
 function fillLiquidBox(x0, y0, x1, y1, dragged){
+  liqFlush();                 // сначала фиксируем уже налитое
+
   var ax = Math.floor(Math.min(x0,x1) / WCELL) * WCELL;
   var ay = Math.floor(Math.min(y0,y1) / WCELL) * WCELL;
   var bx = Math.floor(Math.max(x0,x1) / WCELL) * WCELL;
@@ -2275,6 +2306,9 @@ function fillLiquidBox(x0, y0, x1, y1, dragged){
       objects.push(o); made = o;
     }
   if(made) sel = made;
+  // просим пересобрать капли прямо здесь: полагаться на вызывающего
+  // нельзя, иначе новая вода не попадёт в расчёт и потеряется
+  markLiquid();
 }
 
 /* ---- ТЕКУЧЕСТЬ ----
@@ -2299,6 +2333,36 @@ var liqBusy = false;               // защита от самозапуска �
 var liqRest = 0;                   // сколько кадров ничего не двигалось
 var liqAge = 0;                    // сколько кадров идёт движение без записи
 
+/* ГЛАВНОЕ ПРО ПРИЗРАЧНУЮ ВОДУ.
+   Пока капли летят, они живут в lsim, а объекты карты хранят их старые
+   места — запись назад идёт только когда всё уляжется. Если налить
+   новую воду в этот момент, пересборка брала объекты, то есть СТАРЫЕ
+   координаты, и уже упавшая вода прыгала обратно наверх и падала
+   заново. Выглядело так, будто рядом с новой лужей появляется призрак
+   прежней.
+
+   Поэтому перед каждой пересборкой капли сбрасываются в карту как есть,
+   даже если ещё в движении. */
+function liqFlush(){
+  if(!lsim || !lsim.length || liqBusy) return;
+  liqBusy = true;
+  var out = objects.filter(function(o){ return o.type !== "liquid"; });
+  for(var i=0;i<lsim.length;i++){
+    var q = lsim[i];
+    var o = mk("liquid", q.x, q.y, WCELL, WCELL);
+    o.liq = q.liq;
+    if(q.sens) o.sens = q.sens;
+    if(q.flow) o.flow = q.flow;
+    if(q.flowPower) o.flowPower = q.flowPower;
+    out.push(o);
+  }
+  objects = out;
+  _liqBody = null;
+  liqBusy = false;
+}
+/* Просьба пересобрать капли. Сбрасывать их в карту здесь нельзя: к
+   этому моменту правка уже внесена, и запись затёрла бы её. Фиксация
+   идёт раньше, в commit(). */
 function markLiquid(){ if(!liqBusy) liqDirty = true; }
 
 // объёмы режем на капли: двигать ряды целиком нельзя
@@ -2498,8 +2562,7 @@ function liqList(){
 var _liqBody = null, _liqBodyOf = null;
 function liqBody(o){
   if(!o || o.type !== "liquid") return [];
-  // капли могли ещё не попасть в карту — сначала записываем их
-  if(lsim && lsim.length && liqRest < 3) liqWriteBack();
+  liqFlush();                 // капли могли ещё не попасть в карту
   if(_liqBody && _liqBodyOf === o) return _liqBody;
 
   var all = objects.filter(function(q){ return q.type === "liquid"; });
@@ -3308,6 +3371,8 @@ window.GAME = {
   loadMap: function(json){
     var d = (typeof json === "string") ? JSON.parse(json) : json;
     if(playing) stop();
+    // капли от прежней карты выбрасываем, иначе они дольют новую
+    lsim = null; liqDirty = true;
     objects = (d.objects || []).map(function(o){ return Object.assign({}, o); });
     if(d.mode) mode = d.mode;
     // режимы sandbox и twoPlayer убраны — старые карты открываем как прятки

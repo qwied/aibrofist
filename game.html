@@ -1661,9 +1661,34 @@ function drawParticles(){
     var body = new Path2D();
     for(i=0;i<list.length;i++){ o = list[i]; body.rect(o.x, o.y, o.w, o.h); }
 
-    // 1. тело: ровный цвет
-    lcx.fillStyle = cBody;
+    /* Тело: на фото оно не плоское — у поверхности светлее, ко дну
+       заметно глубже, но без резкой границы. */
+    var bg = lcx.createLinearGradient(0, y0, 0, y1);
+    bg.addColorStop(0, shade(L.c1, 46));
+    bg.addColorStop(1, shade(L.c1, 6));
+    lcx.fillStyle = bg;
     lcx.fill(body);
+
+    /* Пузыри внутри воды: на фото они крупные, мягкие и почти
+       незаметные — не мешают видеть, что под водой. */
+    lcx.save();
+    lcx.clip(body);
+    lcx.fillStyle = shade(L.c1, 70);
+    for(i=0;i<list.length;i++){
+      o = list[i];
+      for(var ux = o.x + 12; ux < o.x + o.w; ux += 58){
+        var us = (ux*29 + o.y*17) % 200;
+        var uph = ((anim * 0.25 + us) % 200) / 200;
+        var uy = o.y + o.h - uph * (o.h + 40);
+        var ur = 9 + (us % 5) * 3;
+        lcx.globalAlpha = 0.16 * (1 - Math.abs(uph - 0.5) * 0.9);
+        lcx.beginPath();
+        lcx.arc(ux + Math.sin(uph*4 + us)*5, uy, ur, 0, 6.2832);
+        lcx.fill();
+      }
+    }
+    lcx.globalAlpha = 1;
+    lcx.restore();
 
     /* 2. поверхность. Полосы ложатся только там, где сверху нет своей
        же жидкости — иначе они шли бы и внутри объёма. */

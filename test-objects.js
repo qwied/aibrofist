@@ -159,7 +159,7 @@ console.log('\nформа и лимит жидкости:');
 ok('пологая длинная волна', /Math\.sin\(x\*0\.018 \+ anim\*0\.03\) \* 4\.5/.test(src));
 ok('две полосы под волной', /cBand1 = shade\(L\.c1, 78\)/.test(src) && /cBand2 = shade\(L\.c1, 58\)/.test(src));
 ok('синей линии нет',       !/cLine/.test(src) && !/cLine/.test(game));
-ok('тело ровным цветом',    /lcx\.fillStyle = cBody;\s*\n\s*lcx\.fill\(body\);/.test(src) && !/createLinearGradient\(0, y0, 0, y1\)/.test(src));
+ok('тело мягким градиентом', /lcx\.fillStyle = bg;\s*\n\s*lcx\.fill\(body\);/.test(src));
 ok('обрезка по силуэту',     /lcx\.clip\(body\)/.test(src));
 ok('слой непрозрачный',      /var lcv = null, lcx = null;/.test(src));
 ok('кладётся один раз',      /ctx\.drawImage\(lcv, 0, 0, CW\/DPR, CH\/DPR\)/.test(src));
@@ -181,6 +181,18 @@ ok('то же в игре',          /var LIQ = \{/.test(game) && /function draw
 console.log('\nгенератора в редакторе нет:');
 ok('скриптов нет',          !/mapGen\.js/.test(src) && !/mapNLU\.js/.test(src));
 ok('помощник остался',      /editorHelp\.js/.test(src) && /editorAI\.js/.test(src));
+
+console.log('\nпризрачная вода:');
+ok('фиксация перед правкой',  /function liqFlush/.test(src) && /liqFlush\(\);\s*\n\s*undoStack\.push/.test(src));
+ok('налив фиксирует и просит пересбор', /liqFlush\(\);\s*\/\/ сначала фиксируем/.test(src) && /markLiquid\(\);\s*\n\}/.test(src));
+ok('смена карты сбрасывает капли', /lsim = null; liqDirty = true;/.test(src));
+ok('запись назад не при пересборке', /if\(!lsim \|\| liqDirty\) return;/.test(src));
+
+console.log('\nвид воды:');
+ok('градиент тела',          /bg\.addColorStop\(0, shade\(L\.c1, 46\)\)/.test(src) && /bg\.addColorStop\(1, shade\(L\.c1, 6\)\)/.test(src));
+ok('крупные мягкие пузыри',  /ur = 9 \+ \(us % 5\) \* 3/.test(src));
+ok('пузыри обрезаны по воде', /lcx\.clip\(body\);/.test(src));
+ok('то же в игре',           /bg\.addColorStop\(0, shade\(L\.c1, 46\)\)/.test(game));
 
 console.log('\nфиниш и старт:');
 ok('перезапуск одной функцией', /function restartRun\(\)/.test(src) && /function restartRun\(\)/.test(game));

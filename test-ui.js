@@ -695,6 +695,38 @@ if (GAME && GAME.liqBody) {
   check('дальняя лужа отдельно', body.indexOf(all.find(o => o.x >= 600)) === -1);
 }
 
+// ---- призрачная вода при повторном наливе ----
+if (GAME && GAME.fillLiquid && GAME.settle) {
+  const floorG = { id: 1, type: 'rect', x: 0, y: 600, w: 900, h: 40, rot: 0, fill: '#111827' };
+  const spawnG = { id: 2, type: 'spawn', x: 40, y: 540, w: 20, h: 60, rot: 0, fill: '#111827' };
+  const cellsOf = () => {
+    let n = 0;
+    GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
+      n += Math.round(o.w / 20) * Math.round(o.h / 20);
+    });
+    return n;
+  };
+
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorG, spawnG] });
+  // первая порция — высоко, пусть летит
+  GAME.fillLiquid(200, 100, 260, 160, true);
+  const first = 4 * 4;
+  for (let i = 0; i < 8; i++) GAME.settle();          // ещё в полёте
+  // вторая порция, пока первая не улеглась
+  GAME.fillLiquid(500, 100, 560, 160, true);
+  for (let i = 0; i < 600; i++) GAME.settle();
+
+  check('объём не удваивается', cellsOf() === first * 2, cellsOf() + ' вместо ' + first * 2);
+  let highest = 1e9;
+  GAME.objects.filter(o => o.type === 'liquid').forEach(o => { if (o.y < highest) highest = o.y; });
+  check('старая вода не всплыла назад', highest > 300, 'верх на ' + highest);
+
+  // смена карты не притаскивает воду из прежней
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorG, spawnG] });
+  for (let i = 0; i < 20; i++) GAME.settle();
+  check('новая карта без чужой воды', cellsOf() === 0, cellsOf() + ' клеток');
+}
+
 // ---- финиш и точка старта ----
 if (GAME && GAME.restartRun) {
   const floorF = { id: 1, type: 'rect', x: 0, y: 400, w: 1400, h: 40, rot: 0, fill: '#111827' };
