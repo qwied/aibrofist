@@ -444,6 +444,23 @@ else {
   check('в смоле медленнее всего', vTar < vSlime && vSlime < vWater,
         'смола ' + vTar.toFixed(2) + ', слизь ' + vSlime.toFixed(2) + ', вода ' + vWater.toFixed(2));
 
+  // 10. поверхность жидкости без швов внутри объёма
+  const row = [
+    { x: 100, y: 200, w: 60, h: 20 },
+    { x: 160, y: 200, w: 60, h: 20 },
+    { x: 220, y: 200, w: 60, h: 20 }
+  ];
+  const tops = row.map(o => GAME.freeEdge(o, row, 'top'));
+  const flat = tops.flat();
+  check('верх ряда сплошной', flat.length === 3 && flat.every(([a, b]) => b - a === 60));
+  const stack = [
+    { x: 100, y: 200, w: 60, h: 20 },
+    { x: 100, y: 220, w: 60, h: 20 }
+  ];
+  check('внутренняя грань закрыта', GAME.freeEdge(stack[1], stack, 'top').length === 0);
+  check('низ стопки открыт', GAME.freeEdge(stack[1], stack, 'bottom').length === 1);
+  check('бок открыт', GAME.freeEdge(stack[0], stack, 'left').length === 1);
+
   GAME.stop();
 }
 // ---- нагрузка: большой бассейн на полный потолок частиц ----

@@ -1423,144 +1423,200 @@ function stepWater(){
 /* Заготовка пятна: перерисовывается только когда заметно поменялся
    масштаб, а не каждый кадр. */
 var bcv = null, bcx = null, bR = -1;
-function blobSprite(r){
-  var size = Math.max(4, Math.min(160, Math.round(r*2)));
-  if(bcv && Math.abs(bR - size) < 2) return bcv;
-  if(!bcv){
-    bcv = document.createElement("canvas");
-    bcx = bcv.getContext ? bcv.getContext("2d") : null;
+
+/* ---- КАК РИСУЮТСЯ ЖИДКОСТИ ----
+   Раньше рой частиц размывался в пятна и висел кляксами в воздухе. Теперь
+   тело жидкости — это ровно те клетки, которые налил игрок: чёткий край,
+   ровная поверхность, заливка градиентом. Частицы никуда не делись, но
+   ушли внутрь: их видно как медленные течения под поверхностью, обрезанные
+   по объёму. Приёмы те же, что у остальных объектов — плоская заливка,
+   мягкий градиент, тонкий контур. */
+
+// свободные участки грани: те, что не закрыты соседней клеткой той же жидкости
+function freeEdge(o, list, side){
+  var a, b, i, n, span = [];
+  if(side === "top" || side === "bottom"){ a = o.x; b = o.x + o.w; }
+  else { a = o.y; b = o.y + o.h; }
+  span.push([a, b]);
+  for(i=0;i<list.length;i++){
+    n = list[i];
+    if(n === o) continue;
+    var touch = false, na, nb;
+    if(side === "top")         touch = Math.abs((n.y + n.h) - o.y) < 0.5;
+    else if(side === "bottom") touch = Math.abs(n.y - (o.y + o.h)) < 0.5;
+    else if(side === "left")   touch = Math.abs((n.x + n.w) - o.x) < 0.5;
+    else                       touch = Math.abs(n.x - (o.x + o.w)) < 0.5;
+    if(!touch) continue;
+    if(side === "top" || side === "bottom"){ na = n.x; nb = n.x + n.w; }
+    else { na = n.y; nb = n.y + n.h; }
+    var out = [];
+    for(var s=0;s<span.length;s++){
+      var p0 = span[s][0], p1 = span[s][1];
+      if(nb <= p0 || na >= p1){ out.push([p0, p1]); continue; }
+      if(na > p0) out.push([p0, na]);
+      if(nb < p1) out.push([nb, p1]);
+    }
+    span = out;
+    if(!span.length) break;
   }
-  if(!bcx) return null;
-  bcv.width = size; bcv.height = size; bR = size;
-  bcx.clearRect(0,0,size,size);
-  var h = size/2;
-  var g = bcx.createRadialGradient(h, h, 0, h, h, h);
-  g.addColorStop(0,   "rgba(255,255,255,0.62)");
-  g.addColorStop(0.5, "rgba(255,255,255,0.28)");
-  g.addColorStop(1,   "rgba(255,255,255,0)");
-  bcx.fillStyle = g;
-  bcx.fillRect(0,0,size,size);
-  return bcv;
+  return span;
 }
 
-var wcv = null, wcx = null;
-/* Каждая жидкость рисуется своим проходом: рой одного вида штампуется
-   мягкими пятнами, обрезается по плотности и заливается своей парой
-   цветов. Поверх ложатся её приметы — свечение у лавы и кислоты, блик у
-   ртути и нефти, зерно у песка. Приёмы те же, что у остальных объектов:
-   плоская заливка и мягкий градиент, поэтому жидкости не выпадают из
-   общего вида карты. */
 function drawParticles(){
-  var n = wp.length;
-  if(!n) return;
-  if(!wcv){
-    wcv = document.createElement("canvas");
-    wcx = wcv.getContext ? wcv.getContext("2d") : null;
+  // собираем объёмы по видам: каждая жидкость рисуется своим проходом
+  var byKind = {}, i, o;
+  for(i=0;i<objects.length;i++){
+    o = objects[i];
+    if(o.type !== "liquid") continue;
+    var k = LIQ[o.liq] ? o.liq : "water";
+    (byKind[k] = byKind[k] || []).push(o);
   }
-  if(!wcx) return;
-  var W = Math.max(1, Math.round(VW())), H = Math.max(1, Math.round(VH()));
-  if(wcv.width !== W || wcv.height !== H){ wcv.width = W; wcv.height = H; }
 
-  var s = view.s, ox = view.x, oy = view.y;
-  var r = P_R * s * 2.1;
-  if(r < 1) return;
-  var blob = blobSprite(r);
-  if(!blob) return;
-
-  // какие жидкости вообще есть в кадре
-  var kinds = {};
-  for(var i=0;i<n;i++) kinds[wp[i].k || 1] = 1;
-
-  for(var kk in kinds){
-    var key = LIQ_ORDER[(kk|0) - 1] || "water";
-    var L = LIQ[key] || LIQ.water;
-
-    wcx.setTransform(1,0,0,1,0,0);
-    wcx.clearRect(0,0,W,H);
-
-    // 1. плотность: мягкое пятно готовится заранее и штампуется
-    wcx.globalCompositeOperation = "lighter";
-    var drew = 0;
-    for(i=0;i<n;i++){
-      var p = wp[i];
-      if((p.k||1) !== (kk|0)) continue;
-      var sx = p.x*s + ox, sy = p.y*s + oy;
-      if(sx < -r || sy < -r || sx > W+r || sy > H+r) continue;
-      wcx.drawImage(blob, sx-r, sy-r, r*2, r*2);
-      drew++;
+  for(var kind in byKind){
+    var list = byKind[kind], L = LIQ[kind];
+    var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for(i=0;i<list.length;i++){
+      o = list[i];
+      if(o.x < x0) x0 = o.x;
+      if(o.y < y0) y0 = o.y;
+      if(o.x + o.w > x1) x1 = o.x + o.w;
+      if(o.y + o.h > y1) y1 = o.y + o.h;
     }
-    if(!drew) continue;
-    // 2. порог: складываем картинку саму с собой, плотное становится телом
-    wcx.drawImage(wcv, 0, 0);
-    wcx.drawImage(wcv, 0, 0);
-
-    // 3. заливка своими цветами
-    wcx.globalCompositeOperation = "source-in";
-    var body = wcx.createLinearGradient(0, 0, 0, H);
-    body.addColorStop(0, L.c1);
-    body.addColorStop(1, L.c2);
-    wcx.fillStyle = body;
-    wcx.fillRect(0, 0, W, H);
-
-    // 4. приметы поверх тела
-    wcx.globalCompositeOperation = "source-atop";
-    if(L.sheen){
-      // блик: узкая светлая полоса сверху, как отсвет на поверхности
-      var sh = wcx.createLinearGradient(0, 0, 0, H*0.55);
-      sh.addColorStop(0, "rgba(255,255,255," + (0.42*L.sheen).toFixed(3) + ")");
-      sh.addColorStop(1, "rgba(255,255,255,0)");
-      wcx.fillStyle = sh; wcx.fillRect(0, 0, W, H);
-    }
-    if(L.glow){
-      // живые прожилки: у лавы это раскалённые жилы, у кислоты — пена
-      wcx.globalAlpha = 0.30 * L.glow;
-      wcx.fillStyle = L.c1;
-      for(i=0;i<n;i+=3){
-        p = wp[i];
-        if((p.k||1) !== (kk|0)) continue;
-        var gx = p.x*s + ox, gy = p.y*s + oy;
-        if(gx < 0 || gy < 0 || gx > W || gy > H) continue;
-        var gr = r * (0.28 + 0.16*Math.sin(anim*0.05 + p.x*0.05 + p.y*0.03));
-        wcx.beginPath(); wcx.arc(gx, gy, Math.max(1, gr), 0, 6.2832); wcx.fill();
-      }
-      wcx.globalAlpha = 1;
-    }
-    if(L.grain){
-      // зерно песка: мелкие точки, положение считается от координат
-      wcx.globalAlpha = 0.22;
-      wcx.fillStyle = "#3f2d10";
-      for(i=0;i<n;i+=2){
-        p = wp[i];
-        if((p.k||1) !== (kk|0)) continue;
-        var qx = p.x*s + ox, qy = p.y*s + oy;
-        if(qx < 0 || qy < 0 || qx > W || qy > H) continue;
-        var d = ((p.x*7 + p.y*13) % 5) - 2;
-        wcx.fillRect(qx + d, qy - d, Math.max(1, s*1.6), Math.max(1, s*1.6));
-      }
-      wcx.globalAlpha = 1;
-    }
-    wcx.globalCompositeOperation = "source-over";
 
     ctx.save();
-    ctx.setTransform(DPR,0,0,DPR,0,0);
     ctx.globalAlpha = L.a;
-    ctx.drawImage(wcv, 0, 0, W, H);
-    // свечение: та же картинка поверх на сложение, отсюда жар лавы
-    if(L.glow){
-      ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = 0.22 * L.glow;
-      ctx.drawImage(wcv, 0, 0, W, H);
-      ctx.globalCompositeOperation = "source-over";
+
+    // 1. тело: заливка ровно по налитым клеткам
+    var g = ctx.createLinearGradient(0, y0, 0, y1);
+    g.addColorStop(0, L.c1);
+    g.addColorStop(1, L.c2);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    for(i=0;i<list.length;i++){ o = list[i]; ctx.rect(o.x, o.y, o.w, o.h); }
+    ctx.fill();
+
+    // 2. всё, что внутри, обрезаем по объёму — наружу ничего не вылезет
+    ctx.save();
+    ctx.clip();
+
+    // течения: те самые частицы, только теперь под поверхностью
+    if(wp.length){
+      var kk = (LIQ_ORDER.indexOf(kind) + 1) || 1;
+      ctx.globalAlpha = L.a * 0.16;
+      ctx.fillStyle = shade(L.c1, 40);
+      for(i=0;i<wp.length;i++){
+        var p = wp[i];
+        if((p.k||1) !== kk) continue;
+        if(p.x < x0-20 || p.x > x1+20 || p.y < y0-20 || p.y > y1+20) continue;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, P_R * 1.5, 0, 6.2832);
+        ctx.fill();
+      }
+      ctx.globalAlpha = L.a;
     }
+
+    if(L.sheen){
+      // блик: светлая полоса у поверхности, как отсвет на глади
+      var sh = ctx.createLinearGradient(0, y0, 0, y0 + Math.min(90, (y1-y0)*0.6));
+      sh.addColorStop(0, "rgba(255,255,255," + (0.40*L.sheen).toFixed(3) + ")");
+      sh.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = sh;
+      ctx.fillRect(x0, y0, x1-x0, y1-y0);
+    }
+    if(L.glow){
+      // прожилки: у лавы раскалённые жилы, у кислоты пена
+      ctx.globalAlpha = 0.22 * L.glow;
+      ctx.fillStyle = shade(L.c1, 30);
+      for(i=0;i<list.length;i++){
+        o = list[i];
+        for(var vx = o.x + 6; vx < o.x + o.w - 4; vx += 26){
+          var vy = o.y + 4 + ((vx*13 + o.y*7) % Math.max(1, o.h - 8));
+          var vw = 10 + 8*Math.sin(anim*0.045 + vx*0.06);
+          rr(vx, vy, Math.max(3, vw), 4, 2); ctx.fill();
+        }
+      }
+      ctx.globalAlpha = L.a;
+    }
+    if(L.grain){
+      // зерно песка
+      ctx.globalAlpha = 0.20;
+      ctx.fillStyle = "#4a3410";
+      for(i=0;i<list.length;i++){
+        o = list[i];
+        for(var gx = o.x + 3; gx < o.x + o.w; gx += 7)
+          for(var gy = o.y + 3; gy < o.y + o.h; gy += 7){
+            var d = ((gx*7 + gy*13) % 4);
+            if(d > 1) continue;
+            ctx.fillRect(gx + d, gy - d, 2, 2);
+          }
+      }
+      ctx.globalAlpha = L.a;
+    }
+    // пузырьки у прозрачных жидкостей
+    if(L.a < 0.9){
+      ctx.globalAlpha = 0.26;
+      ctx.fillStyle = "#ffffff";
+      for(i=0;i<list.length;i++){
+        o = list[i];
+        for(var bx = o.x + 11; bx < o.x + o.w; bx += 34){
+          var seed = (bx*17 + o.y*29);
+          var by = o.y + o.h - ((anim*0.7 + seed) % Math.max(1, o.h));
+          ctx.beginPath();
+          ctx.arc(bx, by, 1.6 + (seed % 3) * 0.5, 0, 6.2832);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = L.a;
+    }
+    ctx.restore();   // снимаем обрезку
+
+    // 3. поверхность: волна поверх открытых сверху граней
+    var crest = shade(L.c1, 42), rim = shade(L.c2, -26);
+    ctx.globalAlpha = Math.min(1, L.a + 0.12);
+    for(i=0;i<list.length;i++){
+      o = list[i];
+      var tops = freeEdge(o, list, "top");
+      for(var t=0;t<tops.length;t++){
+        var a = tops[t][0], b = tops[t][1];
+        if(b - a < 1) continue;
+        ctx.beginPath();
+        ctx.moveTo(a, o.y + 7);
+        for(var x = a; x <= b; x += 4)
+          ctx.lineTo(x, o.y + Math.sin(x*0.06 + anim*0.045) * 2.2);
+        ctx.lineTo(b, o.y + 7);
+        ctx.closePath();
+        ctx.fillStyle = crest;
+        ctx.fill();
+      }
+    }
+
+    // 4. контур: тонкая линия только по открытым граням
+    ctx.globalAlpha = Math.min(1, L.a + 0.15);
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for(i=0;i<list.length;i++){
+      o = list[i];
+      var sides = [["bottom", o.y + o.h], ["left", o.x], ["right", o.x + o.w]];
+      for(var s=0;s<sides.length;s++){
+        var free = freeEdge(o, list, sides[s][0]);
+        for(var f=0;f<free.length;f++){
+          if(free[f][1] - free[f][0] < 1) continue;
+          if(sides[s][0] === "bottom"){
+            ctx.moveTo(free[f][0], sides[s][1]); ctx.lineTo(free[f][1], sides[s][1]);
+          } else {
+            ctx.moveTo(sides[s][1], free[f][0]); ctx.lineTo(sides[s][1], free[f][1]);
+          }
+        }
+      }
+    }
+    ctx.stroke();
     ctx.restore();
   }
 }
 
-/* ── ВОДА В РЕДАКТОРЕ: рисуется скриптом, никаких картинок ──
-   Тело — вертикальный градиент выбранного цвета, поверхность — живая
-   синусоида, и только там, где сверху нет другой воды. */
 var _wsig = "";
-/* Рой пересобирается, когда объём воды в карте изменился. Подпись
+/* Рой пересобирается, когда объём жидкости в карте изменился. Подпись
    считаем по клеткам: этого достаточно и это дёшево. */
 function syncWater(){
   var sig = "", n = 0;
@@ -2282,6 +2338,7 @@ window.GAME = {
   mySkin: null,
   play: play, stop: stop, respawn: respawn,
   step: step,                     // один шаг физики — нужен автотестам
+  freeEdge: freeEdge,             // открытые грани объёма — нужен автотестам
   myColor: null, onDraw: null,
   get keys(){ return keys; },          // состояние управления
   get water(){ return wp; },           // частицы воды

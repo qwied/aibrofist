@@ -117,11 +117,14 @@ ok('жидкости не смешиваются', /cellOK\(x, y, k\)|cellOK\(nx
 ok('старые карты переводятся', /o\.liq = o\.acid \? "acid" : \(o\.sink \? "quicksand" : "water"\)/.test(src));
 
 console.log('\nграфика жидкостей:');
-ok('свой цвет у каждой',    /body\.addColorStop\(0, L\.c1\)/.test(src));
+ok('свой цвет у каждой',    /g\.addColorStop\(0, L\.c1\)/.test(src));
 ok('свечение',              /if\(L\.glow\)/.test(src));
 ok('блик',                  /if\(L\.sheen\)/.test(src));
 ok('зерно песка',           /if\(L\.grain\)/.test(src));
-ok('слипаются в тело',      /globalCompositeOperation = "lighter"/.test(src));
+ok('заливка по клеткам',   /for\(i=0;i<list\.length;i\+\+\)\{ o = list\[i\]; ctx\.rect/.test(src));
+ok('волна на поверхности',  /function freeEdge/.test(src) && /tops = freeEdge\(o, list, "top"\)/.test(src));
+ok('контур по краю',        /sides = \[\["bottom"/.test(src));
+ok('течения внутри объёма', /ctx\.clip\(\);/.test(src));
 ok('то же в игре',          /var LIQ = \{/.test(game) && /function drawParticles/.test(game));
 
 console.log('\nгенератора в редакторе нет:');
