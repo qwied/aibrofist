@@ -182,6 +182,14 @@ console.log('\nгенератора в редакторе нет:');
 ok('скриптов нет',          !/mapGen\.js/.test(src) && !/mapNLU\.js/.test(src));
 ok('помощник остался',      /editorHelp\.js/.test(src) && /editorAI\.js/.test(src));
 
+console.log('\nфиниш и старт:');
+ok('перезапуск одной функцией', /function restartRun\(\)/.test(src) && /function restartRun\(\)/.test(game));
+ok('сам стартует после финиша', /finishTimer = setTimeout/.test(src) && /finishTimer = setTimeout/.test(game));
+ok('R использует тот же путь',  /clearTimeout\(finishTimer\); restartRun\(\);/.test(src));
+ok('старт рядом с финишем',     /function spawnTooClose/.test(src) && /SPAWN_GAP = 320/.test(src));
+ok('проверка при запуске',      /var near = spawnTooClose\(\);/.test(src));
+ok('проверка при публикации',   /Старт слишком близко к финишу/.test(src));
+
 console.log('\nбуфер обмена:');
 ok('Ctrl+C копирует',       /mod && e\.code === "KeyC"/.test(src) && /function copySel/.test(src));
 ok('Ctrl+V вставляет',      /mod && e\.code === "KeyV"/.test(src) && /function pasteAt/.test(src));

@@ -695,6 +695,43 @@ if (GAME && GAME.liqBody) {
   check('дальняя лужа отдельно', body.indexOf(all.find(o => o.x >= 600)) === -1);
 }
 
+// ---- финиш и точка старта ----
+if (GAME && GAME.restartRun) {
+  const floorF = { id: 1, type: 'rect', x: 0, y: 400, w: 1400, h: 40, rot: 0, fill: '#111827' };
+  const spawnF = { id: 2, type: 'spawn', x: 60, y: 340, w: 20, h: 60, rot: 0, fill: '#111827' };
+  const finF = { id: 3, type: 'finishline', x: 1200, y: 314, w: 42, h: 86, rot: 0, fill: '' };
+  const coinF = { id: 4, type: 'coin', x: 300, y: 360, w: 22, h: 22, rot: 0, fill: '' };
+
+  GAME.loadMap({ mode: 'race', objects: [floorF, spawnF, finF, coinF] });
+  check('старт далеко от финиша — можно играть', GAME.spawnTooClose() === null);
+  GAME.startPlay();
+  clearKeys();
+  // добираемся до финиша
+  GAME.pl.x = 1190; GAME.pl.y = 340;
+  for (let i = 0; i < 10; i++) GAME.step();
+  check('финиш засчитан', GAME.done);
+
+  // новый забег без перезагрузки и без кнопок
+  GAME.pl.x = 300; GAME.pl.y = 340;
+  for (let i = 0; i < 5; i++) GAME.step();
+  const gotCoin = GAME.coins;
+  GAME.restartRun();
+  check('после перезапуска можно играть снова', !GAME.done);
+  check('монеты обнулены', GAME.coins === 0, 'было ' + gotCoin);
+  check('игрок вернулся на старт', Math.abs(GAME.pl.x - 60) < 2, GAME.pl.x.toFixed(0));
+  // собранная монета вернулась на карту
+  GAME.pl.x = 300; GAME.pl.y = 340;
+  for (let i = 0; i < 5; i++) GAME.step();
+  check('монеты собираются заново', GAME.coins === 1, GAME.coins);
+  GAME.stop();
+
+  // старт вплотную к финишу карту не пускает
+  const finNear = { id: 5, type: 'finishline', x: 140, y: 314, w: 42, h: 86, rot: 0, fill: '' };
+  GAME.loadMap({ mode: 'race', objects: [floorF, spawnF, finNear] });
+  check('старт рядом с финишем ловится', GAME.spawnTooClose() !== null,
+        'расстояние ' + GAME.spawnTooClose());
+}
+
 // ---- нагрузка: большой бассейн на полный потолок частиц ----
 if (GAME) {
   const big = [{ id: 1, type: 'rect', x: 0, y: 900, w: 2000, h: 40, rot: 0, fill: '#111827' },

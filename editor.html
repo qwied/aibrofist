@@ -876,7 +876,7 @@ var pl = {x:0,y:0,w:20,h:60,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,self
     inWater:false,headUnder:false,inAcid:false,sinking:false,_wasWet:false,_skips:0,
     air:AIR_MAX,hp:HP_MAX};
 var keys = {l:false,r:false,u:false,d:false};
-var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false;
+var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false, finishTimer = 0;
 var deaths = 0, coins = 0, coinsTotal = 0, timeMs = 0, shake = 0, acc = 0, last = 0;
 
 /* Где игрок относительно воды: верхняя кромка, под водой ли голова
@@ -990,10 +990,34 @@ function breathe(){
 }
 
 function findSpawn(){ for(var i=0;i<objects.length;i++) if(objects[i].type === "spawn") return objects[i]; return null; }
+/* Старт вплотную к финишу — не карта, а кнопка: шаг вправо и уровень
+   пройден. Держим их на расстоянии, иначе так накручивают прохождения. */
+var SPAWN_GAP = 320;
+function spawnTooClose(){
+  var sp = findSpawn();
+  if(!sp) return null;
+  for(var i=0;i<objects.length;i++){
+    var o = objects[i];
+    if(o.type !== "finishline") continue;
+    var dx = (o.x + o.w/2) - (sp.x + sp.w/2);
+    var dy = (o.y + o.h/2) - (sp.y + sp.h/2);
+    var d = Math.sqrt(dx*dx + dy*dy);
+    if(d < SPAWN_GAP) return Math.round(d);
+  }
+  return null;
+}
+
 function play(){
   liqWriteBack();          // капли обязаны попасть в карту до старта
   var sp = findSpawn();
   if(!sp){ dialog("Нет точки старта","Поставь инструмент «Точка старта», потом жми ▶.",null); return; }
+  var near = spawnTooClose();
+  if(near !== null){
+    dialog("Старт слишком близко к финишу",
+           "Между ними " + near + " точек, нужно хотя бы " + SPAWN_GAP +
+           ". Отодвинь старт или финиш.", null);
+    return;
+  }
   playing = true; done = false; deaths = 0; coins = 0; timeMs = 0; parts.length = 0;
   indexMovers(); markDirty();
   // размер игрока задан движком и не редактируется
@@ -1016,6 +1040,22 @@ function stop(){
   wp.length = 0; wcell = null;
   resetView();
 }
+/* Перезапуск забега без перезагрузки страницы: монеты, время, смерти
+   и все собранные предметы возвращаются на место, карта не трогается.
+   Раньше это было размазано по обработчику клавиши R, поэтому после
+   финиша пройти карту заново можно было только с клавиатуры. */
+function restartRun(){
+  done = false; hideMsg();
+  coins = 0; timeMs = 0; deaths = 0;
+  objects.forEach(function(o){
+    o._got = false; o._reached = false;
+    o._act = !!o.startsOpen; o._latch = false;
+  });
+  var sp = findSpawn();
+  if(sp) spawnPt = {x:sp.x, y:sp.y};
+  stat(); respawn();
+}
+
 function respawn(){
   pl.x = spawnPt.x; pl.y = spawnPt.y; pl.vx = 0; pl.vy = 0; pl.dead = false; coy = 0; buf = 0;
   pl.air = AIR_MAX; pl.hp = HP_MAX;
@@ -1398,7 +1438,11 @@ function step(){
       burst(o.x+o.w/2, o.y+o.h/2, 40, "#fbbf24", 5, 60);
       showMsg("ФИНИШ!",
               "Время " + (timeMs/1000).toFixed(1) + "с · монет " + coins + "/" + coinsTotal +
-              " · смертей " + deaths + "   —   R заново, Esc выход");
+              " · смертей " + deaths + "   —   новый забег через мгновение");
+      /* Карта запускается заново сама: ни кнопок, ни перезагрузки. Пара
+         секунд — чтобы успеть увидеть время и салют, дальше снова старт. */
+      clearTimeout(finishTimer);
+      finishTimer = setTimeout(function(){ if(playing && done) restartRun(); }, 2200);
     }
     if(o.type === "button" && !o._act){ o._act = true; drive(o); }
     if(o.type === "lever" && !o._latch){ o._act = !o._act; o._latch = true; drive(o); }
@@ -2718,8 +2762,7 @@ document.addEventListener("keydown", function(e){
     if(e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space"){ keys.u = true; buf = BUFFER; e.preventDefault(); }
     // вниз нужен только в воде — погружение
     if(e.code === "ArrowDown" || e.code === "KeyS"){ keys.d = true; e.preventDefault(); }
-    if(e.code === "KeyR"){ done = false; hideMsg(); coins = 0;
-      objects.forEach(function(o){ o._got = false; }); timeMs = 0; stat(); respawn(); }
+    if(e.code === "KeyR"){ clearTimeout(finishTimer); restartRun(); }
     if(e.code === "Escape") stop();
     return;
   }
@@ -3244,6 +3287,8 @@ window.GAME = {
   MODE_OF: MODE_OF,
   play: play, stop: stop, respawn: respawn,
   step: step,                     // один шаг физики — нужен автотестам
+  restartRun: restartRun,         // новый забег без перезагрузки
+  spawnTooClose: spawnTooClose,   // старт рядом с финишем
   settle: settleLiquid,           // такт течения — автотестам
   fillLiquid: fillLiquidBox,      // заливка области — автотестам
   get lsim(){ return lsim; },     // капли в движении — автотестам
@@ -3396,6 +3441,13 @@ socket.on('connect', () => {
       if (bad.length) {
         say('Объекты не для этого режима', 'В режиме «' + m.mode + '» не работают: ' +
             bad.filter(function(v,i,a){ return a.indexOf(v) === i; }).join(', '));
+        return;
+      }
+      // старт вплотную к финишу — то же правило, что и при запуске
+      var nearFin = (window.GAME && GAME.spawnTooClose) ? GAME.spawnTooClose() : null;
+      if (nearFin !== null) {
+        say('Старт слишком близко к финишу',
+            'Между ними ' + nearFin + ' точек. Отодвинь старт или финиш и попробуй снова.');
         return;
       }
     } catch(e){

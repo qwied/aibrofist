@@ -829,7 +829,7 @@ var pl = {x:0,y:0,w:20,h:60,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,self
     inWater:false,headUnder:false,inAcid:false,sinking:false,_wasWet:false,_skips:0,
     air:AIR_MAX,hp:HP_MAX};
 var keys = {l:false,r:false,u:false,d:false};
-var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false;
+var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false, finishTimer = 0;
 var deaths = 0, coins = 0, coinsTotal = 0, timeMs = 0, shake = 0, acc = 0, last = 0;
 
 /* Где игрок относительно воды: верхняя кромка, под водой ли голова
@@ -968,6 +968,22 @@ function stop(){
   wp.length = 0; wcell = null;
   resetView();
 }
+/* Перезапуск забега без перезагрузки страницы: монеты, время, смерти
+   и все собранные предметы возвращаются на место, карта не трогается.
+   Раньше это было размазано по обработчику клавиши R, поэтому после
+   финиша пройти карту заново можно было только с клавиатуры. */
+function restartRun(){
+  done = false; hideMsg();
+  coins = 0; timeMs = 0; deaths = 0;
+  objects.forEach(function(o){
+    o._got = false; o._reached = false;
+    o._act = !!o.startsOpen; o._latch = false;
+  });
+  var sp = findSpawn();
+  if(sp) spawnPt = {x:sp.x, y:sp.y};
+  stat(); respawn();
+}
+
 function respawn(){
   pl.x = spawnPt.x; pl.y = spawnPt.y; pl.vx = 0; pl.vy = 0; pl.dead = false; coy = 0; buf = 0;
   pl.air = AIR_MAX; pl.hp = HP_MAX;
@@ -1347,7 +1363,11 @@ function step(){
       burst(o.x+o.w/2, o.y+o.h/2, 40, "#fbbf24", 5, 60);
       showMsg("ФИНИШ!",
               "Время " + (timeMs/1000).toFixed(1) + "с · монет " + coins + "/" + coinsTotal +
-              " · смертей " + deaths + "   —   R заново, Esc выход");
+              " · смертей " + deaths + "   —   новый забег через мгновение");
+      /* Карта запускается заново сама: ни кнопок, ни перезагрузки. Пара
+         секунд — чтобы успеть увидеть время и салют, дальше снова старт. */
+      clearTimeout(finishTimer);
+      finishTimer = setTimeout(function(){ if(playing && done) restartRun(); }, 2200);
     }
     if(o.type === "button" && !o._act){ o._act = true; drive(o); }
     if(o.type === "lever" && !o._latch){ o._act = !o._act; o._latch = true; drive(o); }
@@ -2140,8 +2160,7 @@ document.addEventListener("keydown", function(e){
     if(e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space"){ keys.u = true; buf = BUFFER; e.preventDefault(); }
     // вниз нужен только в воде — погружение
     if(e.code === "ArrowDown" || e.code === "KeyS"){ keys.d = true; e.preventDefault(); }
-    if(e.code === "KeyR"){ done = false; hideMsg(); coins = 0;
-      objects.forEach(function(o){ o._got = false; }); timeMs = 0; stat(); respawn(); }
+    if(e.code === "KeyR"){ clearTimeout(finishTimer); restartRun(); }
     if(e.code === "Escape") stop();
     return;
   }
