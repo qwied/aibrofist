@@ -77,10 +77,22 @@ function retally(m) {
   return t;
 }
 
-// сколько новых карт автор выложил сегодня
-function todayCount(author) {
-  const from = Date.now() - 864e5;
-  return maps.filter(m => low(m.author) === low(author) && (m.created || m.date) >= from).length;
+/* Сколько новых карт автор выложил за сутки.
+   Считаем по счётчику в аккаунте, а не по списку карт: раньше можно
+   было выложить карту, получить монеты, удалить её — и счётчик падал,
+   так что и лимит, и награда обходились бесконечно. */
+function publishedToday(u) {
+  if (!u) return 0;
+  if (!u.mapDay || Date.now() - u.mapDay > 864e5) return 0;
+  return u.mapCount || 0;
+}
+function countPublish(u) {
+  if (!u.mapDay || Date.now() - u.mapDay > 864e5) { u.mapDay = Date.now(); u.mapCount = 0; }
+  u.mapCount = (u.mapCount || 0) + 1;
+}
+function publishWait(u) {
+  const left = (u.mapDay || Date.now()) + 864e5 - Date.now();
+  return Math.max(0, left);
 }
 
 let maps = [];
@@ -152,13 +164,9 @@ function register(app, getUser, acc) {
 
     // лимит считаем только для новых карт — обновлять свои можно свободно
     if (i === -1) {
-      const used = todayCount(u.name);
+      const used = publishedToday(u);
       if (used >= DAILY_LIMIT) {
-        const oldest = maps
-          .filter(m => low(m.author) === low(u.name) && (m.created || m.date) >= Date.now() - 864e5)
-          .sort((a, b) => (a.created || a.date) - (b.created || b.date))[0];
-        const waitMs = oldest ? ((oldest.created || oldest.date) + 864e5 - Date.now()) : 864e5;
-        const mins = Math.ceil(waitMs / 60000);
+        const mins = Math.ceil(publishWait(u) / 60000);
         const h = Math.floor(mins / 60), mn = mins % 60;
         return res.json({
           status: 'error',
@@ -190,10 +198,11 @@ function register(app, getUser, acc) {
     let balance = u.coins || 0;
     if (acc && typeof acc.save === 'function') {
       u.coins = balance = balance + REWARD;
+      countPublish(u);
       acc.save();
     }
 
-    const left = DAILY_LIMIT - todayCount(u.name);
+    const left = DAILY_LIMIT - publishedToday(u);
     res.json({
       status: 'success',
       reward: REWARD,
@@ -210,7 +219,7 @@ function register(app, getUser, acc) {
     if (!u) return res.json({ limit: DAILY_LIMIT, left: DAILY_LIMIT, reward: REWARD, guest: true });
     res.json({
       limit: DAILY_LIMIT, reward: REWARD, guest: false,
-      left: Math.max(0, DAILY_LIMIT - todayCount(u.name))
+      left: Math.max(0, DAILY_LIMIT - publishedToday(u))
     });
   });
 
@@ -285,7 +294,11 @@ function register(app, getUser, acc) {
     const m = maps.find(x => low(x.author) === low(req.body.author) &&
                              low(x.mapName) === low(req.body.mapName));
     if (!m) return res.json({ status: 'error', message: 'Карта не найдена' });
-    const v = parseInt(req.body.vote) > 0 ? 1 : -1;
+    // мусор в запросе не должен молча превращаться в дизлайк
+    const raw = parseInt(req.body.vote, 10);
+    if (!(raw === 1 || raw === -1))
+      return res.json({ status: 'error', message: 'Неизвестная оценка' });
+    const v = raw;
     m.votes = m.votes || {};
     // повторный клик по той же кнопке снимает оценку
     if (m.votes[low(u.name)] === v) delete m.votes[low(u.name)];

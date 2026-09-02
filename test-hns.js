@@ -17,7 +17,8 @@ ok('сбрасывается функцией', /function clearCaught/.test(src)
 ok('сброс в начале раунда', /clearCaught\(\);\s*\/\/ новый раунд/.test(src));
 ok('сброс при уходе в лобби', (src.match(/clearCaught\(\);/g) || []).length >= 2);
 ok('чужие тоже сбрасываются', /others\[id\]\.caught = false/.test(src));
-ok('чужие поимки слышны',   /if \(o\.name && text\.indexOf\(o\.name\) !== -1\) o\.caught = true;/.test(src));
+ok('чужие поимки слышны',   /if \(others\[id\]\.name === who\) others\[id\]\.caught = true;/.test(src));
+ok('имя сверяется целиком',  /\^\(\.\+\?\) пойман/.test(src));
 
 console.log('\nконец раунда:');
 ok('проверка «все пойманы»', /function checkAllCaught/.test(src));

@@ -600,7 +600,11 @@ var mode = "hideAndSeek", tool = "select", objects = [], sel = null, uid = 1;
    Раскладываем их по сетке ячеек и берём только те, что рядом.
    ══════════════════════════════════════════════════ */
 var CELL = 260, grid = null, gridDirty = true;
-function markDirty(){ gridDirty = true; }
+/* Любая правка карты снова запускает течение: подняли воду, убрали
+   опору, подвинули платформу — жидкость обязана поехать вниз.
+   Раньше пересчёт включался только при наливе, поэтому поднятая вода
+   так и висела в воздухе. */
+function markDirty(){ gridDirty = true; markLiquid(); }
 function buildGrid(){
   grid = {};
   for(var i=0;i<objects.length;i++){
@@ -1090,7 +1094,9 @@ function ricochet(o){
   var sp = Math.sqrt(rx*rx + ry*ry);
   if(sp > RICO_CAP){ rx = rx/sp*RICO_CAP; ry = ry/sp*RICO_CAP; }
   pl.vx = rx; pl.vy = ry;
-  pl.ground = false; pl.wall = 0; pl.selfJump = false;
+  /* coy обнуляем: иначе сразу после отскока остаётся «монетка времени»
+     от касания земли и игрок прыгает второй раз прямо в воздухе. */
+  pl.ground = false; pl.wall = 0; pl.selfJump = false; coy = 0; buf = 0;
   o._squash = 1;
   puff(px - nv[0]*pl.w*0.5, py - nv[1]*pl.h*0.5, 8);
 }
@@ -1730,7 +1736,10 @@ function syncWater(){
 }
 function drawWater(vx0, vy0, vx1, vy1){
   // жидкости и в редакторе, и в игре это рой частиц, а не заливка
-  if(!playing && anim % 4 === 0) settleLiquid();
+  /* Пересчёт каждый кадр: при расчёте раз в четыре кадра было видно,
+     как жидкость прыгает клетками. На больших разливах притормаживаем,
+     чтобы не просаживать кадр. */
+  if(!playing) settleLiquid();
   syncWater();
   if(!playing) stepWater();
   drawParticles();
@@ -2002,6 +2011,26 @@ var clipboard = null;
 var mouseW = {x:0, y:0};
 function copySel(){
   if(!sel) return false;
+  // лужу копируем целиком, запоминая форму относительно левого верха
+  if(sel.type === "liquid"){
+    var body = liqBody(sel);
+    var minX = 1e9, minY = 1e9;
+    body.forEach(function(o){ if(o.x < minX) minX = o.x; if(o.y < minY) minY = o.y; });
+    clipboard = {
+      type: "liquid", body: body.map(function(o){
+        return { dx: o.x - minX, dy: o.y - minY, w: o.w, h: o.h,
+                 liq: o.liq, sens: o.sens, flow: o.flow, flowPower: o.flowPower };
+      }),
+      w: 0, h: 0
+    };
+    body.forEach(function(o){
+      clipboard.w = Math.max(clipboard.w, o.x + o.w - minX);
+      clipboard.h = Math.max(clipboard.h, o.y + o.h - minY);
+    });
+    showMsg("Скопировано", "Ctrl+V поставит копию под курсором");
+    setTimeout(hideMsg, 1200);
+    return true;
+  }
   clipboard = Object.assign({}, sel);
   showMsg("Скопировано", "Ctrl+V поставит копию под курсором");
   setTimeout(hideMsg, 1200);
@@ -2013,6 +2042,23 @@ function pasteAt(x, y){
   if(clipboard.type === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return false; }
   if(!allowedIn(clipboard.type, mode)) return false;
   commit();
+  // вставка лужи: восстанавливаем всю форму, а не один ряд
+  if(clipboard.type === "liquid" && clipboard.body){
+    if(overLimit(clipboard.body.length)) return false;
+    var ax = snapN(x - clipboard.w/2), ay = snapN(y - clipboard.h/2);
+    var last = null;
+    clipboard.body.forEach(function(b){
+      var o = mk("liquid", ax + b.dx, ay + b.dy, b.w, b.h);
+      o.liq = b.liq;
+      if(b.sens) o.sens = b.sens;
+      if(b.flow) o.flow = b.flow;
+      if(b.flowPower) o.flowPower = b.flowPower;
+      objects.push(o); last = o;
+    });
+    sel = last;
+    markDirty(); inspect();
+    return true;
+  }
   var c = Object.assign({}, clipboard);
   c.id = uid++;
   if(c.customId) c.customId = "w"+c.id;
@@ -2068,12 +2114,19 @@ function pourWater(x, y){
   markLiquid();                 // дальше её потянет вниз само
 }
 /* ---- ТЕКУЧЕСТЬ ----
-   Налитая жидкость не висит в воздухе: каждый кадр она сползает на
-   свободную клетку под собой, а если снизу занято — растекается вбок.
-   Это обычная «падающая песочница» по клеткам 20x20, поэтому лужа сама
-   находит ямы и выравнивает уровень. */
-var liqDirty = false;
-function markLiquid(){ liqDirty = true; }
+   Жидкость ведёт себя как жидкость, а не как стопка блоков:
+
+   1. падает вниз, пока под ней пусто;
+   2. если снизу занято — сползает по диагонали;
+   3. если и там занято — растекается вбок под давлением того, что
+      лежит сверху. Именно третий шаг раньше отсутствовал, поэтому
+      налитый столб так и стоял столбом.
+
+   Давление и есть условие остановки: пока над клеткой что-то лежит,
+   её выдавливает в стороны; как только слой стал одинарным — давить
+   нечему, и лужа замирает ровной поверхностью. */
+var liqDirty = false, liqBusy = false;
+function markLiquid(){ if(!liqBusy) liqDirty = true; }
 
 // объёмы режем обратно на клетки: двигать ряды целиком нельзя
 function liquidToCells(){
@@ -2088,52 +2141,75 @@ function liquidToCells(){
   return { cells: cells, rest: rest };
 }
 
+var liqTicks = 0;
 function settleLiquid(){
   if(!liqDirty || playing) return;
+  /* Страховка от вечного переливания: если за 400 тактов жидкость не
+     улеглась, останавливаем — иначе редактор пересобирал бы карту
+     кадр за кадром без конца. */
+  if(++liqTicks > 400){ liqTicks = 0; liqDirty = false; liqBusy = true; mergeWater(); liqBusy = false; return; }
+
+  var selWas = (sel && sel.type === "liquid") ? { x: sel.x, y: sel.y } : null;
   var pack = liquidToCells(), cells = pack.cells;
-  if(!cells.length){ liqDirty = false; return; }
+  if(!cells.length){ liqDirty = false; liqTicks = 0; return; }
 
   // занятость: твёрдые блоки считаем один раз на проход
-  var solids = [];
-  for(var i=0;i<objects.length;i++) if(solid(objects[i])) solids.push(bbox(objects[i]));
+  var solids = [], i;
+  for(i=0;i<objects.length;i++) if(solid(objects[i])) solids.push(bbox(objects[i]));
   var busy = {};
   var key = function(x,y){ return x + "," + y; };
   var blocked = function(x, y){
     var mx = x + WCELL/2, my = y + WCELL/2;
-    for(var s=0;s<solids.length;s++){
-      var b = solids[s];
+    for(var k=0;k<solids.length;k++){
+      var b = solids[k];
       if(mx > b[0] && mx < b[2] && my > b[1] && my < b[3]) return true;
     }
     return false;
   };
+  var free = function(x, y){ return !busy[key(x,y)] && !blocked(x,y); };
   for(i=0;i<cells.length;i++) busy[key(cells[i].x, cells[i].y)] = 1;
 
   // снизу вверх, иначе столб проваливается за один кадр целиком
   cells.sort(function(a,b){ return b.y - a.y; });
   var moved = 0;
+  var move = function(c, nx, ny){
+    delete busy[key(c.x, c.y)];
+    c.x = nx; c.y = ny;
+    busy[key(nx, ny)] = 1;
+    moved++;
+  };
+
   for(i=0;i<cells.length;i++){
-    var c = cells[i];
-    var dy = c.y + WCELL;
-    if(dy < 6000 && !busy[key(c.x, dy)] && !blocked(c.x, dy)){
-      delete busy[key(c.x, c.y)];
-      c.y = dy; busy[key(c.x, dy)] = 1; moved++;
-      continue;
-    }
-    // снизу занято — пробуем вбок, но только если там есть куда падать
-    var dir = ((c.x/WCELL + c.y/WCELL + anim) % 2) ? 1 : -1;
-    for(var t=0;t<2;t++){
+    var c = cells[i], dy = c.y + WCELL;
+    if(c.y > 6000) continue;
+
+    // 1. прямо вниз
+    if(free(c.x, dy)){ move(c, c.x, dy); continue; }
+
+    // сторону чередуем по клетке и времени, иначе лужа растекается косо
+    var dir = (((c.x/WCELL) + (c.y/WCELL) + (anim >> 3)) % 2) ? 1 : -1;
+
+    // 2. по диагонали вниз
+    var done = false;
+    for(var t=0;t<2 && !done;t++){
       var nx = c.x + dir*WCELL;
-      if(!busy[key(nx, c.y)] && !blocked(nx, c.y) &&
-         !busy[key(nx, c.y + WCELL)] && !blocked(nx, c.y + WCELL)){
-        delete busy[key(c.x, c.y)];
-        c.x = nx; busy[key(nx, c.y)] = 1; moved++;
-        break;
-      }
+      if(free(nx, dy) && free(nx, c.y)){ move(c, nx, dy); done = true; }
+      dir = -dir;
+    }
+    if(done) continue;
+
+    /* 3. вбок под давлением. Двигаем только если сверху что-то лежит:
+       одинарный слой уже ровный, толкать его незачем. */
+    if(free(c.x, c.y - WCELL)) continue;
+    for(t=0;t<2;t++){
+      nx = c.x + dir*WCELL;
+      if(free(nx, c.y)){ move(c, nx, c.y); break; }
       dir = -dir;
     }
   }
 
   // собираем обратно объектами; когда всё улеглось — склеиваем в ряды
+  liqBusy = true;
   var out = pack.rest;
   for(i=0;i<cells.length;i++){
     var q = cells[i];
@@ -2145,9 +2221,58 @@ function settleLiquid(){
     out.push(o);
   }
   objects = out;
-  sel = null;
-  if(!moved){ liqDirty = false; mergeWater(); }
-  markDirty();
+  /* Выделение переносим на клетку с тем же местом: без этого панель
+     свойств закрывалась прямо во время правки ползунков. */
+  if(selWas){
+    sel = null;
+    for(i=0;i<objects.length;i++){
+      var q2 = objects[i];
+      if(q2.type !== "liquid") continue;
+      if(selWas.x >= q2.x && selWas.x < q2.x + q2.w &&
+         selWas.y >= q2.y && selWas.y < q2.y + q2.h){ sel = q2; break; }
+    }
+  }
+  if(!moved){ liqDirty = false; liqTicks = 0; mergeWater(); }
+  gridDirty = true;
+  _liqBody = null;
+  liqBusy = false;
+}
+
+/* ---- ТЕЛО ЖИДКОСТИ ----
+   Разлитая лужа — одно целое, даже если внутри она хранится рядами.
+   Выделение, удаление и копирование работают по всему связному телу:
+   раньше уходил один ряд, а остальное оставалось висеть. */
+var _liqBody = null, _liqBodyOf = null;
+function liqBody(o){
+  if(!o || o.type !== "liquid") return [];
+  if(_liqBody && _liqBodyOf === o) return _liqBody;
+
+  var all = objects.filter(function(q){ return q.type === "liquid"; });
+  // раскладываем на клетки и помним, какому объекту клетка принадлежит
+  var owner = {}, key = function(x,y){ return x + "," + y; };
+  all.forEach(function(q){
+    for(var x = q.x; x < q.x + q.w - 0.5; x += WCELL)
+      for(var y = q.y; y < q.y + q.h - 0.5; y += WCELL)
+        owner[key(Math.round(x), Math.round(y))] = q;
+  });
+
+  var seen = {}, stack = [], body = [];
+  for(var x0 = o.x; x0 < o.x + o.w - 0.5; x0 += WCELL)
+    for(var y0 = o.y; y0 < o.y + o.h - 0.5; y0 += WCELL)
+      stack.push([Math.round(x0), Math.round(y0)]);
+
+  while(stack.length){
+    var c = stack.pop(), k = key(c[0], c[1]);
+    if(seen[k]) continue;
+    seen[k] = 1;
+    var own = owner[k];
+    if(!own) continue;
+    if(body.indexOf(own) === -1) body.push(own);
+    stack.push([c[0]+WCELL, c[1]], [c[0]-WCELL, c[1]],
+               [c[0], c[1]+WCELL], [c[0], c[1]-WCELL]);
+  }
+  _liqBody = body; _liqBodyOf = o;
+  return body;
 }
 
 /* Клетки одного ряда склеиваем в один объект: иначе большой бассейн
@@ -2241,6 +2366,8 @@ function move(x,y){
   inspect();
 }
 function up(){
+  // подвинули или изменили блок — жидкость под ним могла получить дорогу
+  if(drag && (drag.m === "move" || drag.m === "size" || drag.m === "new")) markLiquid();
   if(drag && drag.m === "liquid"){ drag = null; markLiquid(); inspect(); return; }
   if(drag && drag.m === "new" && !drag.moved){
     var o = objects[objects.length-1];
@@ -2423,7 +2550,16 @@ function duplicate(){
   if(c.customId) c.customId = "w"+c.id;
   objects.push(c); sel = c; inspect();
 }
-function removeSel(){ if(!sel) return; commit(); objects = objects.filter(function(o){ return o !== sel; }); sel = null; inspect(); }
+function removeSel(){
+  if(!sel) return;
+  commit();
+  // лужа удаляется целиком: убирать по одному ряду бессмысленно
+  var kill = (sel.type === "liquid") ? liqBody(sel) : [sel];
+  objects = objects.filter(function(o){ return kill.indexOf(o) === -1; });
+  sel = null;
+  markLiquid();          // жидкость перетечёт в освободившееся место
+  inspect();
+}
 
 /* ══════════════════════════════════════════════════
    INSPECTOR
@@ -2437,6 +2573,31 @@ document.getElementById("inspHead").addEventListener("click", function(e){
   document.getElementById("widgets").style.display = t.dataset.tab === "widgets" ? "block" : "none";
 });
 function pr(){ var d = document.createElement("div"); d.className = "pRow"; props.appendChild(d); return d; }
+/* Список жидкостей: образец цвета, название и описание механики.
+   Один и тот же и при наливе, и в свойствах выделенного объёма. */
+function liquidPicker(set, get){
+  var r = pr();
+  r.innerHTML = "<label>Жидкость</label>";
+  var sel2 = document.createElement("select");
+  sel2.style.cssText = "width:118px;padding:5px 6px;border:1px solid var(--line);"
+    + "border-radius:7px;font:inherit;font-size:12px;background:#fafbfd;color:var(--ink)";
+  LIQ_ORDER.forEach(function(k){
+    var op = document.createElement("option");
+    op.value = k; op.textContent = LIQ[k].n;
+    if(get() === k) op.selected = true;
+    sel2.appendChild(op);
+  });
+  sel2.addEventListener("focus", commit);
+  sel2.addEventListener("change", function(){ set(sel2.value); markDirty(); inspect(); });
+  r.appendChild(sel2);
+
+  var info = document.createElement("div");
+  info.className = "pHelpBody";
+  info.style.display = "block";
+  info.textContent = (LIQ[get()] || LIQ.water).about;
+  props.appendChild(info);
+}
+
 function num(l,v,fn){
   var r = pr(), a = document.createElement("label"); a.textContent = l;
   var i = document.createElement("input"); i.type = "number"; i.value = Math.round(v);
@@ -2504,6 +2665,18 @@ function linkHelp(){
 }
 function inspect(){
   var box = document.getElementById("insp");
+  /* Инструмент «Жидкости» без выделения: показываем выбор жидкости здесь.
+     Раньше он жил в отдельном оверлее, и после его удаления на пустой
+     карте можно было налить только воду. */
+  if(!playing && !sel && tool === "liquid"){
+    box.style.display = "flex";
+    props.innerHTML = "";
+    var h = document.createElement("div"); h.id = "objTitle";
+    h.innerHTML = "Жидкости<span>налив</span>";
+    props.appendChild(h);
+    liquidPicker(function(k){ curLiq = k; }, function(){ return curLiq; });
+    return;
+  }
   if(!sel || playing){ box.style.display = "none"; return; }
   box.style.display = "flex";
   props.innerHTML = "";
@@ -2542,27 +2715,8 @@ function inspect(){
   if(sel.type === "liquid"){
     /* Выбор жидкости прямо в свойствах: меняется только выделенный
        объём, поэтому в одной карте спокойно живут и вода, и лава. */
-    var lr = pr();
-    lr.innerHTML = "<label>Жидкость</label>";
-    var lsel = document.createElement("select");
-    lsel.style.cssText = "width:118px;padding:5px 6px;border:1px solid var(--line);"
-      + "border-radius:7px;font:inherit;font-size:12px;background:#fafbfd;color:var(--ink)";
-    LIQ_ORDER.forEach(function(k){
-      var op = document.createElement("option");
-      op.value = k; op.textContent = LIQ[k].n;
-      if((sel.liq||"water") === k) op.selected = true;
-      lsel.appendChild(op);
-    });
-    lsel.addEventListener("focus", commit);
-    lsel.addEventListener("change", function(){
-      sel.liq = lsel.value; curLiq = lsel.value; markDirty(); inspect();
-    });
-    lr.appendChild(lsel);
-
-    var info = document.createElement("div");
-    info.className = "pHelpBody";
-    info.style.display = "block";
-    info.textContent = liqOf(sel).about;
+    liquidPicker(function(k){ sel.liq = k; curLiq = k; },
+                 function(){ return sel.liq || "water"; });
     props.appendChild(info);
 
     /* Чувствительность: насколько бодро игрок слушается управления в
@@ -2872,6 +3026,8 @@ window.GAME = {
   MODE_OF: MODE_OF,
   play: play, stop: stop, respawn: respawn,
   step: step,                     // один шаг физики — нужен автотестам
+  settle: function(){ markLiquid(); settleLiquid(); },   // такт течения — автотестам
+  liqBody: liqBody,               // связное тело жидкости — автотестам
   freeEdge: freeEdge,             // открытые грани объёма — нужен автотестам
   myColor: null, onDraw: null,
   get keys(){ return keys; },          // состояние управления

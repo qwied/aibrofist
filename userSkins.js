@@ -47,9 +47,20 @@ function tally(s) {
 }
 function retally(s) { const t = tally(s); s.rating = t.rating; return t; }
 
-function todayCount(author) {
-  const from = Date.now() - 864e5;
-  return list.filter(s => low(s.author) === low(author) && (s.created || s.date) >= from).length;
+/* Счётчик публикаций держим в аккаунте, а не считаем по списку скинов:
+   иначе можно выложить скин, забрать монеты, удалить его — и лимит с
+   наградой обходятся сколько угодно раз. */
+function publishedToday(u) {
+  if (!u) return 0;
+  if (!u.skinDay || Date.now() - u.skinDay > 864e5) return 0;
+  return u.skinCount || 0;
+}
+function countPublish(u) {
+  if (!u.skinDay || Date.now() - u.skinDay > 864e5) { u.skinDay = Date.now(); u.skinCount = 0; }
+  u.skinCount = (u.skinCount || 0) + 1;
+}
+function publishWait(u) {
+  return Math.max(0, (u.skinDay || Date.now()) + 864e5 - Date.now());
 }
 
 function pub(s, me) {
@@ -164,13 +175,9 @@ function register(app, acc, skinsApi) {
                  '. Поменяйте хотя бы одну деталь.'
       });
 
-    const used = todayCount(u.name);
+    const used = publishedToday(u);
     if (used >= DAILY_LIMIT) {
-      const oldest = list
-        .filter(s => low(s.author) === low(u.name) && (s.created || s.date) >= Date.now() - 864e5)
-        .sort((a, b) => (a.created || a.date) - (b.created || b.date))[0];
-      const waitMs = oldest ? ((oldest.created || oldest.date) + 864e5 - Date.now()) : 864e5;
-      const mins = Math.ceil(waitMs / 60000);
+      const mins = Math.ceil(publishWait(u) / 60000);
       const h = Math.floor(mins / 60), mn = mins % 60;
       return res.json({
         status: 'error',
@@ -190,16 +197,17 @@ function register(app, acc, skinsApi) {
     save();
 
     u.coins = (u.coins || 0) + REWARD;
+    countPublish(u);
     saveUsers();
 
     res.json({
       status: 'success',
       reward: REWARD,
       coins: u.coins,
-      left: Math.max(0, DAILY_LIMIT - todayCount(u.name)),
+      left: Math.max(0, DAILY_LIMIT - publishedToday(u)),
       limit: DAILY_LIMIT,
       message: 'Скин опубликован. +' + REWARD + ' монет  ·  сегодня осталось: ' +
-               Math.max(0, DAILY_LIMIT - todayCount(u.name)) + ' из ' + DAILY_LIMIT
+               Math.max(0, DAILY_LIMIT - publishedToday(u)) + ' из ' + DAILY_LIMIT
     });
   });
 
@@ -270,7 +278,7 @@ function register(app, acc, skinsApi) {
     if (!u) return res.json({ limit: DAILY_LIMIT, left: DAILY_LIMIT, reward: REWARD, guest: true });
     res.json({
       limit: DAILY_LIMIT, reward: REWARD, guest: false,
-      left: Math.max(0, DAILY_LIMIT - todayCount(u.name))
+      left: Math.max(0, DAILY_LIMIT - publishedToday(u))
     });
   });
 

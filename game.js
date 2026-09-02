@@ -452,12 +452,16 @@
   // пойманным считает тот, кого назвали в чате
   function watchCaught(text) {
     if (MODE !== 'hideAndSeek' || me.role === 'seeker') return;
-    if (text.indexOf('пойман') === -1) return;
-    if (text.indexOf(me.name) !== -1) { me.caught = true; applyColor(); }
+    /* Сообщение о поимке имеет вид «Имя пойман!». Сверяем именно эту
+       форму: искать имя подстрокой нельзя — игрока с коротким именем
+       помечало бы пойманным от любой чужой реплики. */
+    var m = /^(.+?) пойман/.exec(text);
+    if (!m) return;
+    var who = m[1];
+    if (who === me.name) { me.caught = true; applyColor(); }
     // чужие поимки тоже слышны: у прячущихся фигуры красятся синхронно
     Object.keys(others).forEach(function (id) {
-      var o = others[id];
-      if (o.name && text.indexOf(o.name) !== -1) o.caught = true;
+      if (others[id].name === who) others[id].caught = true;
     });
   }
 

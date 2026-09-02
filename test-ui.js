@@ -524,6 +524,84 @@ else {
 
   GAME.stop();
 }
+// ---- течение жидкости ----
+if (GAME && GAME.settle) {
+  const floor2 = { id: 1, type: 'rect', x: 0, y: 600, w: 800, h: 40, rot: 0, fill: '#111827' };
+  const spawn2 = { id: 2, type: 'spawn', x: 40, y: 540, w: 20, h: 60, rot: 0, fill: '#111827' };
+  // столб воды в воздухе: должен упасть и растечься лужей
+  const col = [];
+  for (let i = 0; i < 8; i++)
+    col.push({ id: 50 + i, type: 'liquid', liq: 'water', x: 400, y: 200 + i * 20,
+               w: 20, h: 20, rot: 0 });
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...col] });
+
+  const liquid = () => GAME.objects.filter(o => o.type === 'liquid');
+  const cells = () => {
+    let n = 0;
+    liquid().forEach(o => { n += Math.round(o.w / 20) * Math.round(o.h / 20); });
+    return n;
+  };
+  const startCells = cells();
+  for (let i = 0; i < 400; i++) GAME.settle();
+
+  const l = liquid();
+  let lowest = 0, minX = 1e9, maxX = -1e9, tallest = 0;
+  l.forEach(o => {
+    if (o.y + o.h > lowest) lowest = o.y + o.h;
+    if (o.x < minX) minX = o.x;
+    if (o.x + o.w > maxX) maxX = o.x + o.w;
+  });
+  check('вода долетела до пола', Math.abs(lowest - 600) < 1, 'низ ' + lowest);
+  check('вода растеклась вширь', maxX - minX >= 60, 'ширина ' + (maxX - minX));
+  check('объём не потерялся', cells() === startCells, cells() + ' из ' + startCells);
+
+  // столб не должен остаться столбом: считаем высоту самой высокой колонки
+  const colH = {};
+  l.forEach(o => {
+    for (let x = o.x; x < o.x + o.w - 0.5; x += 20)
+      colH[x] = (colH[x] || 0) + Math.round(o.h / 20);
+  });
+  tallest = Math.max(...Object.values(colH));
+  check('столб развалился в лужу', tallest <= 3, 'самая высокая колонка ' + tallest);
+
+  // яма: вода должна её найти и заполнить, а не висеть рядом
+  const wallL = { id: 3, type: 'rect', x: 300, y: 500, w: 20, h: 100, rot: 0, fill: '#111827' };
+  const wallR = { id: 4, type: 'rect', x: 400, y: 500, w: 20, h: 100, rot: 0, fill: '#111827' };
+  const drop = [];
+  for (let i = 0; i < 4; i++)
+    drop.push({ id: 60 + i, type: 'liquid', liq: 'water', x: 340, y: 100 + i * 20,
+                w: 20, h: 20, rot: 0 });
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, wallL, wallR, ...drop] });
+  for (let i = 0; i < 400; i++) GAME.settle();
+  let inPit = 0;
+  GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
+    if (o.x >= 320 && o.x + o.w <= 400 && o.y >= 500) inPit += Math.round(o.w / 20) * Math.round(o.h / 20);
+  });
+  check('вода налилась в яму', inPit >= 3, inPit + ' клеток');
+}
+
+// ---- лужа как единое целое ----
+if (GAME && GAME.liqBody) {
+  const floor3 = { id: 1, type: 'rect', x: 0, y: 600, w: 800, h: 40, rot: 0, fill: '#111827' };
+  const spawn3 = { id: 2, type: 'spawn', x: 40, y: 540, w: 20, h: 60, rot: 0, fill: '#111827' };
+  const pool = [];
+  for (let r = 0; r < 2; r++)
+    for (let c = 0; c < 5; c++)
+      pool.push({ id: 70 + r * 5 + c, type: 'liquid', liq: 'water',
+                  x: 200 + c * 20, y: 560 + r * 20, w: 20, h: 20, rot: 0 });
+  // отдельная лужа в стороне — она не должна попасть в то же тело
+  const far = { id: 90, type: 'liquid', liq: 'water', x: 600, y: 580, w: 20, h: 20, rot: 0 };
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor3, spawn3, ...pool, far] });
+
+  const all = GAME.objects.filter(o => o.type === 'liquid');
+  const first = all.find(o => o.x < 400);
+  const body = GAME.liqBody(first);
+  let bodyCells = 0;
+  body.forEach(o => { bodyCells += Math.round(o.w / 20) * Math.round(o.h / 20); });
+  check('тело собирает всю лужу', bodyCells === 10, bodyCells + ' клеток');
+  check('дальняя лужа отдельно', body.indexOf(all.find(o => o.x >= 600)) === -1);
+}
+
 // ---- нагрузка: большой бассейн на полный потолок частиц ----
 if (GAME) {
   const big = [{ id: 1, type: 'rect', x: 0, y: 900, w: 2000, h: 40, rot: 0, fill: '#111827' },

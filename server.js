@@ -30,12 +30,18 @@ app.use((req, res, next) => {
   res.redirect(301, 'https://' + PRIMARY_HOST + req.originalUrl);
 });
 
-// служебные файлы наружу не отдаём
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/lang.js','/themes.js','/extras.js','/package.json','/package-lock.json','/readme-v38.md','/audit-ui.js','/test-ui.js','/test-avatar.js','/test-i18n.js','/test-theme.js','/test-objects.js','/check-domain.js','/domain-pp-ua.md'];
+/* Служебные файлы наружу не отдаём. Список был поимённым и отставал от
+   репозитория: новый тест или свежий readme оказывались доступны по
+   прямой ссылке. Теперь закрыты и целые семейства по префиксу. */
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js',
+                 '/lang.js','/themes.js','/extras.js','/check-domain.js',
+                 '/package.json','/package-lock.json'];
+const PRIVATE_PREFIX = ['/test-', '/audit-', '/readme', '/domain', '/patch_', '/data', '/node_modules'];
 app.use((req, res, next) => {
   const p = req.path.toLowerCase();
-  if (PRIVATE.indexOf(p) !== -1 || p.indexOf('/data') === 0 || p.indexOf('/node_modules') === 0)
-    return res.status(404).send('Not found');
+  if (PRIVATE.indexOf(p) !== -1) return res.status(404).send('Not found');
+  for (let i = 0; i < PRIVATE_PREFIX.length; i++)
+    if (p.indexOf(PRIVATE_PREFIX[i]) === 0) return res.status(404).send('Not found');
   next();
 });
 

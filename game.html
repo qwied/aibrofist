@@ -1068,7 +1068,9 @@ function ricochet(o){
   var sp = Math.sqrt(rx*rx + ry*ry);
   if(sp > RICO_CAP){ rx = rx/sp*RICO_CAP; ry = ry/sp*RICO_CAP; }
   pl.vx = rx; pl.vy = ry;
-  pl.ground = false; pl.wall = 0; pl.selfJump = false;
+  /* coy обнуляем: иначе сразу после отскока остаётся «монетка времени»
+     от касания земли и игрок прыгает второй раз прямо в воздухе. */
+  pl.ground = false; pl.wall = 0; pl.selfJump = false; coy = 0; buf = 0;
   o._squash = 1;
   puff(px - nv[0]*pl.w*0.5, py - nv[1]*pl.h*0.5, 8);
 }

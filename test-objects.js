@@ -99,7 +99,8 @@ LIQS.forEach(k => ok('есть ' + k, new RegExp('\\n  ' + k + ': \\{').test(liq
 ok('старой воды нет',       !tools.some(t => t.t === 'water'));
 ok('инструмент в палитре',  tools.some(t => t.t === 'liquid'));
 ok('во всех режимах',       /\{t:"liquid",\s*n:"Жидкости",\s*m:ALL\}/.test(src));
-ok('выбор в свойствах',     /sel\.liq = lsel\.value/.test(src));
+ok('выбор в свойствах',     /liquidPicker\(function\(k\)\{ sel\.liq = k;/.test(src));
+ok('выбор до первого налива', /tool === "liquid"\)\{\s*\n\s*box\.style\.display/.test(src));
 ok('раздел во всех режимах',/\{t:"liquid",\s*n:"Жидкости",\s*m:ALL\}/.test(src));
 ok('залить всё этой',       /Залить всё этой/.test(src));
 
@@ -136,7 +137,13 @@ ok('падающих кружков нет',  !/течения: те самые 
 ok('оверлей убран',         !/liqBox/.test(src) && !/buildLiqList/.test(src));
 ok('обычный цвет воды',     /c1:"#60a5fa", c2:"#2563eb"/.test(src));
 ok('жидкость стекает вниз', /function settleLiquid/.test(src) && /function liquidToCells/.test(src));
-ok('текучесть в кадре',     /if\(!playing && anim % 4 === 0\) settleLiquid\(\);/.test(src));
+ok('растекается под давлением', /вбок под давлением/.test(src) && /if\(free\(c\.x, c\.y - WCELL\)\) continue;/.test(src));
+ok('сползает по диагонали',  /по диагонали вниз/.test(src));
+ok('любая правка запускает течение', /function markDirty\(\)\{ gridDirty = true; markLiquid\(\); \}/.test(src));
+ok('лужа удаляется целиком', /liqBody\(sel\) : \[sel\]/.test(src));
+ok('лужа копируется целиком', /clipboard\.type === "liquid" && clipboard\.body/.test(src));
+ok('связное тело считается',  /function liqBody/.test(src));
+ok('пересчёт каждый кадр',  /if\(!playing\) settleLiquid\(\);/.test(src));
 
 console.log('\nграфика жидкостей:');
 ok('свой цвет у каждой',    /g\.addColorStop\(0, L\.c1\)/.test(src));
