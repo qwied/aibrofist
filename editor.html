@@ -238,7 +238,7 @@ body.mob #msg h1{font-size:38px}
   <div id="exitBtn">Выйти</div>
   <div class="stat"><i>⏱</i><span id="sTime">0.0</span></div>
   <div class="stat" title="монет в карте (максимум 3)"><i>Монеты</i><span id="sCoin">0</span></div>
-      <div class="stat" title="объектов в карте (максимум 2000)"><i>▦</i><span id="sObj">0</span></div>
+      <div class="stat" title="объектов в карте (максимум 2000, жидкость не считается)"><i>▦</i><span id="sObj">0</span></div>
   <div class="stat" title="смертей"><i>Смерти</i><span id="sDeath">0</span></div>
 </div>
 <div id="msg"><h1 id="msgT"></h1><p id="msgS"></p></div>
@@ -650,10 +650,33 @@ var movers = [];
 function indexMovers(){
   movers = objects.filter(function(o){ return o.moves || o.spins; });
 }
-function overLimit(extra){
-  if(objects.length + (extra||1) <= OBJ_LIMIT) return false;
+/* Жидкость в лимит объектов не входит: разлив из сотен клеток съедал
+   бы весь запас, а по смыслу лужа — один объект, а не триста. У неё
+   свой потолок, и он нужен только чтобы не просадить кадр. */
+var LIQ_LIMIT = 6000;
+function countHard(){
+  var n = 0;
+  for(var i=0;i<objects.length;i++) if(objects[i].type !== "liquid") n++;
+  return n;
+}
+function countLiquidCells(){
+  var n = 0;
+  for(var i=0;i<objects.length;i++)
+    if(objects[i].type === "liquid")
+      n += Math.round(objects[i].w/WCELL) * Math.round(objects[i].h/WCELL);
+  return n;
+}
+function overLimit(extra, liquid){
+  if(liquid){
+    if(countLiquidCells() + (extra||1) <= LIQ_LIMIT) return false;
+    showMsg("Жидкости слишком много",
+            "Больше " + LIQ_LIMIT + " клеток кадр уже не тянет.");
+    setTimeout(hideMsg, 2200);
+    return true;
+  }
+  if(countHard() + (extra||1) <= OBJ_LIMIT) return false;
   showMsg("Предел " + OBJ_LIMIT + " объектов",
-          "В карте уже " + objects.length + ". Удалите лишнее, чтобы добавить новое.");
+          "В карте уже " + countHard() + ". Удалите лишнее, чтобы добавить новое.");
   setTimeout(hideMsg, 2200);
   return true;
 }
@@ -1008,7 +1031,8 @@ function stat(){
   document.getElementById("sDeath").textContent = deaths;
   document.getElementById("sCoin").textContent = coins + "/" + coinsTotal;
   var so = document.getElementById("sObj");
-  if(so) so.textContent = objects.length + "/" + OBJ_LIMIT;
+  // жидкость в счётчике не показываем: она не тратит лимит
+  if(so) so.textContent = countHard() + "/" + OBJ_LIMIT;
 }
 function showMsg(t,s){
   document.getElementById("msgT").textContent = t;
@@ -1624,21 +1648,40 @@ function drawParticles(){
       if(o.y + o.h > y1) y1 = o.y + o.h;
     }
 
-    ctx.save();
-    ctx.globalAlpha = L.a;
+    /* ---- ФОРМА ----
+       Клетки сами по себе дают куб с прямыми углами. Чтобы получилась
+       капля, контур объёма обводится толстым пером с круглыми стыками:
+       перо раздувает силуэт и скругляет каждый угол. Сначала широкое
+       светлое перо — от него остаётся ореол по краю, потом узкое
+       тёмное — оно и есть тело. Внутренние стыки клеток закрашиваются
+       той же краской и не видны. */
+    var body = new Path2D();
+    for(i=0;i<list.length;i++){ o = list[i]; body.rect(o.x, o.y, o.w, o.h); }
 
-    // 1. тело: заливка ровно по налитым клеткам
-    var g = ctx.createLinearGradient(0, y0, 0, y1);
+    ctx.save();
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    ctx.globalAlpha = L.a * 0.85;
+    ctx.strokeStyle = shade(L.c1, 34);
+    ctx.fillStyle = shade(L.c1, 34);
+    ctx.lineWidth = 17;
+    ctx.stroke(body);
+    ctx.fill(body);
+
+    ctx.globalAlpha = L.a;
+    var g = ctx.createLinearGradient(0, y0 - 10, 0, y1 + 10);
     g.addColorStop(0, L.c1);
     g.addColorStop(1, L.c2);
+    ctx.strokeStyle = g;
     ctx.fillStyle = g;
-    ctx.beginPath();
-    for(i=0;i<list.length;i++){ o = list[i]; ctx.rect(o.x, o.y, o.w, o.h); }
-    ctx.fill();
+    ctx.lineWidth = 9;
+    ctx.stroke(body);
+    ctx.fill(body);
 
-    // 2. всё, что внутри, обрезаем по объёму — наружу ничего не вылезет
+    // всё, что внутри, обрезаем по этому же силуэту
     ctx.save();
-    ctx.clip();
+    ctx.clip(body);
 
     if(L.sheen){
       // блик: светлая полоса у поверхности, как отсвет на глади
@@ -1646,7 +1689,7 @@ function drawParticles(){
       sh.addColorStop(0, "rgba(255,255,255," + (0.40*L.sheen).toFixed(3) + ")");
       sh.addColorStop(1, "rgba(255,255,255,0)");
       ctx.fillStyle = sh;
-      ctx.fillRect(x0, y0, x1-x0, y1-y0);
+      ctx.fillRect(x0-20, y0-20, x1-x0+40, y1-y0+40);
     }
     if(L.glow){
       // прожилки: у лавы раскалённые жилы, у кислоты пена
@@ -1654,8 +1697,8 @@ function drawParticles(){
       ctx.fillStyle = shade(L.c1, 30);
       for(i=0;i<list.length;i++){
         o = list[i];
-        for(var vx = o.x + 6; vx < o.x + o.w - 4; vx += 26){
-          var vy = o.y + 4 + ((vx*13 + o.y*7) % Math.max(1, o.h - 8));
+        for(var vx = o.x + 4; vx < o.x + o.w; vx += 26){
+          var vy = o.y + 4 + ((vx*13 + o.y*7) % Math.max(1, o.h));
           var vw = 10 + 8*Math.sin(anim*0.045 + vx*0.06);
           rr(vx, vy, Math.max(3, vw), 4, 2); ctx.fill();
         }
@@ -1677,46 +1720,7 @@ function drawParticles(){
       }
       ctx.globalAlpha = L.a;
     }
-    // пузырьки у прозрачных жидкостей
-    if(L.a < 0.9){
-      ctx.globalAlpha = 0.26;
-      ctx.fillStyle = "#ffffff";
-      for(i=0;i<list.length;i++){
-        o = list[i];
-        for(var bx = o.x + 11; bx < o.x + o.w; bx += 34){
-          var seed = (bx*17 + o.y*29);
-          var by = o.y + o.h - ((anim*0.7 + seed) % Math.max(1, o.h));
-          ctx.beginPath();
-          ctx.arc(bx, by, 1.6 + (seed % 3) * 0.5, 0, 6.2832);
-          ctx.fill();
-        }
-      }
-      ctx.globalAlpha = L.a;
-    }
     ctx.restore();   // снимаем обрезку
-
-    // 3. поверхность: волна поверх открытых сверху граней
-    var crest = shade(L.c1, 42);
-    ctx.globalAlpha = Math.min(1, L.a + 0.12);
-    for(i=0;i<list.length;i++){
-      o = list[i];
-      var tops = freeEdge(o, list, "top");
-      for(var t=0;t<tops.length;t++){
-        var a = tops[t][0], b = tops[t][1];
-        if(b - a < 1) continue;
-        ctx.beginPath();
-        ctx.moveTo(a, o.y + 7);
-        for(var x = a; x <= b; x += 4)
-          ctx.lineTo(x, o.y + Math.sin(x*0.06 + anim*0.045) * 2.2);
-        ctx.lineTo(b, o.y + 7);
-        ctx.closePath();
-        ctx.fillStyle = crest;
-        ctx.fill();
-      }
-    }
-
-    /* Контура у жидкости нет: обводка резала объём на прямоугольники
-       и было видно, что это блоки, а не разлитая вода. */
     ctx.restore();
   }
 }
@@ -2045,7 +2049,7 @@ function pasteAt(x, y){
   commit();
   // вставка лужи: восстанавливаем всю форму, а не один ряд
   if(clipboard.type === "liquid" && clipboard.body){
-    if(overLimit(clipboard.body.length)) return false;
+    if(overLimit(clipboard.body.length, true)) return false;
     var ax = snapN(x - clipboard.w/2), ay = snapN(y - clipboard.h/2);
     var last = null;
     clipboard.body.forEach(function(b){
@@ -2108,7 +2112,7 @@ function pourWater(x, y){
   if(cellSolid(cx, cy)) return;
   // по той же клетке другой жидкостью — она вытесняет прежнюю
   if(here){ if(here.liq === curLiq) return; here.liq = curLiq; sel = here; return; }
-  if(overLimit(1)) return;
+  if(overLimit(1, true)) return;
   var o = mk("liquid", cx, cy, WCELL, WCELL);
   o.liq = curLiq;
   objects.push(o); sel = o;

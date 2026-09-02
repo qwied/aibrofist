@@ -149,7 +149,8 @@ global.window = {
   Image: function () { return { src: '', complete: false, naturalWidth: 0 }; },
   fetch: () => Promise.reject(new Error('offline')),
   navigator: { language: 'ru', languages: ['ru'] },
-  Path2D: function () {}, TextDecoder: function () { this.decode = () => ''; }
+  // Path2D в заглушке умеет копить прямоугольники: жидкость рисует через него
+  Path2D: function () { this.rect = () => {}; }, TextDecoder: function () { this.decode = () => ''; }
 };
 const G = {
   addEventListener: global.window.addEventListener,
