@@ -238,14 +238,14 @@ body.mob #msg h1{font-size:38px}
   <div id="exitBtn">Выйти</div>
   <div class="stat"><i>⏱</i><span id="sTime">0.0</span></div>
   <div class="stat" title="монет в карте (максимум 3)"><i>Монеты</i><span id="sCoin">0</span></div>
-      <div class="stat" title="объектов в карте (максимум 2000, жидкость не считается)"><i>▦</i><span id="sObj">0</span></div>
+      <div class="stat" title="объектов в карте (максимум 2000)"><i>▦</i><span id="sObj">0</span></div>
   <div class="stat" title="смертей"><i>Смерти</i><span id="sDeath">0</span></div>
 </div>
 <div id="msg"><h1 id="msgT"></h1><p id="msgS"></p></div>
 
 <div id="pad">
   <div class="padG"><div class="pBtn" id="pLeft">◀</div><div class="pBtn" id="pRight">▶</div></div>
-  <div class="padG"><div class="pBtn" id="pDive">▼</div><div class="pBtn" id="pJump">JUMP</div></div>
+  <div class="padG"><div class="pBtn" id="pJump">JUMP</div></div>
 </div>
 
 <div id="dlg">
@@ -358,21 +358,6 @@ var PAINT = {
   triangle: function(o){
     ctx.fillStyle = o.fill || C.ink;
     ctx.beginPath(); ctx.moveTo(o.w/2,0); ctx.lineTo(o.w,o.h); ctx.lineTo(0,o.h); ctx.closePath(); ctx.fill();
-  },
-  liquid: function(o){
-    var L = LIQ[o.liq] || LIQ.water;
-    var g = ctx.createLinearGradient(0,0,0,o.h);
-    g.addColorStop(0, L.c1); g.addColorStop(1, L.c2);
-    ctx.globalAlpha = L.a; ctx.fillStyle = g; ctx.fillRect(0,0,o.w,o.h);
-    ctx.globalAlpha = 1;
-    if(L.sheen){
-      ctx.fillStyle = "rgba(255,255,255," + (0.35*L.sheen).toFixed(2) + ")";
-      ctx.fillRect(0, 0, o.w, Math.max(2, o.h*0.28));
-    }
-    ctx.strokeStyle = L.c1; ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    for(var x=0;x<=o.w;x+=4) ctx.lineTo(x, 3 + Math.sin(x*0.4)*2);
-    ctx.stroke();
   },
   text: function(o){
     ctx.fillStyle = o.fill || C.ink;
@@ -542,7 +527,6 @@ var TOOLS = [
   {t:"triangle",   n:"Треугольник", m:ALL},
   {t:"text",       n:"Текст",       m:ALL},
   {t:"coin",       n:"Монета",      m:ALL},
-  {t:"liquid",     n:"Жидкости",    m:ALL},
   {t:"spawn",      n:"Точка старта",m:ALL},
   {t:"button",     n:"Кнопка",      m:ALL},
   {t:"lever",      n:"Рычаг",       m:ALL},
@@ -563,14 +547,14 @@ var OBJ_LIMIT = 2000;   // максимум объектов в карте, од
 var INK = "#111827";
 var COLORS = {
   rect:INK, circle:INK, triangle:INK, text:INK,
-  coin:"", button:INK, lever:INK, liquid:WATER_DEF,
+  coin:"", button:INK, lever:INK,
   checkpoint:"", finishline:"", spawn:INK
 };
 /* Базовая фигура — клетка 20x20: из неё удобно складывать всё остальное.
    Игрок 20x60, ровно три клетки в высоту. */
 var SIZES = {
   rect:[20,20], circle:[20,20], triangle:[20,20], text:[70,24], coin:[22,22],
-  button:[34,18], lever:[22,42], liquid:[20,20],
+  button:[34,18], lever:[22,42],
   checkpoint:[30,64], finishline:[42,86], spawn:[20,60]
 };
 var SOLID  = ["rect","circle","triangle"];
@@ -587,6 +571,9 @@ var LINKED = ["rect","circle","triangle","button","lever"];
    STATE
    ══════════════════════════════════════════════════ */
 var COIN_LIMIT = 3;   // больше трёх монет в карту не положить — защита от накрутки
+/* Владельцу лимит не мешает: его карты для показов, а не для набивания
+   монет. Флаг приходит из инструментов владельца. */
+function coinCapped(){ return !window.BFAdminAbuse; }
 function countCoins(){ return objects.filter(function(o){ return o.type === "coin"; }).length; }
 function coinWarn(){
   showMsg("Максимум " + COIN_LIMIT + " монеты", "Больше монет в карту положить нельзя.");
@@ -600,11 +587,7 @@ var mode = "hideAndSeek", tool = "select", objects = [], sel = null, uid = 1;
    Раскладываем их по сетке ячеек и берём только те, что рядом.
    ══════════════════════════════════════════════════ */
 var CELL = 260, grid = null, gridDirty = true;
-/* Любая правка карты снова запускает течение: подняли воду, убрали
-   опору, подвинули платформу — жидкость обязана поехать вниз.
-   Раньше пересчёт включался только при наливе, поэтому поднятая вода
-   так и висела в воздухе. */
-function markDirty(){ gridDirty = true; markLiquid(); }
+function markDirty(){ gridDirty = true; }
 function buildGrid(){
   grid = {};
   for(var i=0;i<objects.length;i++){
@@ -650,33 +633,10 @@ var movers = [];
 function indexMovers(){
   movers = objects.filter(function(o){ return o.moves || o.spins; });
 }
-/* Жидкость в лимит объектов не входит: разлив из сотен клеток съедал
-   бы весь запас, а по смыслу лужа — один объект, а не триста. У неё
-   свой потолок, и он нужен только чтобы не просадить кадр. */
-var LIQ_LIMIT = 6000;
-function countHard(){
-  var n = 0;
-  for(var i=0;i<objects.length;i++) if(objects[i].type !== "liquid") n++;
-  return n;
-}
-function countLiquidCells(){
-  var n = 0;
-  for(var i=0;i<objects.length;i++)
-    if(objects[i].type === "liquid")
-      n += Math.round(objects[i].w/WCELL) * Math.round(objects[i].h/WCELL);
-  return n;
-}
-function overLimit(extra, liquid){
-  if(liquid){
-    if(countLiquidCells() + (extra||1) <= LIQ_LIMIT) return false;
-    showMsg("Жидкости слишком много",
-            "Больше " + LIQ_LIMIT + " клеток кадр уже не тянет.");
-    setTimeout(hideMsg, 2200);
-    return true;
-  }
-  if(countHard() + (extra||1) <= OBJ_LIMIT) return false;
+function overLimit(extra){
+  if(objects.length + (extra||1) <= OBJ_LIMIT) return false;
   showMsg("Предел " + OBJ_LIMIT + " объектов",
-          "В карте уже " + countHard() + ". Удалите лишнее, чтобы добавить новое.");
+          "В карте уже " + objects.length + ". Удалите лишнее, чтобы добавить новое.");
   setTimeout(hideMsg, 2200);
   return true;
 }
@@ -724,10 +684,6 @@ function snap(){ return JSON.stringify(objects.map(function(o){
   var c = {}; for(var k in o) if(k[0] !== "_") c[k] = o[k]; return c;
 })); }
 function commit(){
-  /* Перед любой правкой фиксируем, где вода СЕЙЧАС: иначе снимок для
-     отмены и сама правка лягут поверх устаревших координат, и уже
-     упавшая вода прыгнет обратно наверх. */
-  liqFlush();
   undoStack.push(snap()); if(undoStack.length > 80) undoStack.shift();
   redoStack.length = 0;
 }
@@ -787,83 +743,6 @@ function drawParts(){
    ══════════════════════════════════════════════════ */
 /* FRIC = 0 — на земле игрок останавливается сразу, без скольжения.
    В воздухе инерция остаётся, иначе управление в прыжке ломается. */
-/* ---- жидкости ----
-   Жидкость — это объекты типа "liquid", а не картинка: и физика, и вид
-   считаются скриптом. Клетка 20x20, ряды склеиваются при рисовании. */
-var WCELL   = 20;
-var AIR_MAX = 10 * 60;      // 10 секунд под водой, в кадрах
-var HP_MAX  = 100;
-var DROWN_DPS = 70;         // урон в секунду, когда воздух кончился
-var HEAL_PS   = 30;         // восстановление на суше
-// разгон, сопротивление и выталкивание теперь у каждой жидкости свои,
-// общим остался только предел вертикальной скорости
-var W_MAXV = 4.6;
-/* ---- ЖИДКОСТИ ----
-   Одна вода превратилась в раздел: у каждой жидкости своя плотность,
-   вязкость, урон и свой вид. Объект в карте один — "liquid", а какая
-   именно жидкость, хранится в поле liq.
-
-   speed  предел скорости от скорости бега      dps    урон в секунду
-   accel  разгон                                lethal убивает при касании
-   drag   сопротивление                         breathe тратится ли воздух
-   grav   ослабленная тяжесть                   sink   тяга вниз, если >0
-   buoy   выталкивание                          slip   скользкое дно
-   swim   гребок вверх                          jump   множитель прыжка со дна
-   dive   гребок вниз
-   c1/c2  верх и низ заливки   a  плотность цвета
-   glow   свечение   sheen  блик   grain  зернистость */
-var LIQ = {
-  water: { n:"Вода", about:"Плавание и выталкивание. Воздуха хватает на 10 секунд.",
-    // обычный синий из палитры сайта, а не бирюза
-    c1:"#60a5fa", c2:"#2563eb", a:0.88, glow:0, sheen:0.35, grain:0,
-    speed:0.72, accel:0.55, drag:0.90, grav:0.30, buoy:0.30, swim:0.62, dive:0.95,
-    dps:0, lethal:false, breathe:true, sink:0, slip:0, jump:1 },
-
-  acid: { n:"Кислота", about:"Разъедает сразу при касании: 45 урона в секунду.",
-    c1:"#a3e635", c2:"#15803d", a:0.80, glow:0.45, sheen:0.30, grain:0,
-    speed:0.70, accel:0.55, drag:0.90, grav:0.30, buoy:0.30, swim:0.60, dive:0.95,
-    dps:45, lethal:false, breathe:true, sink:0, slip:0, jump:1 },
-
-  lava: { n:"Лава", about:"Мгновенная смерть от одного касания.",
-    c1:"#fde047", c2:"#b91c1c", a:0.97, glow:1, sheen:0, grain:0,
-    speed:0.30, accel:0.30, drag:0.80, grav:0.55, buoy:0.45, swim:0.30, dive:0.30,
-    dps:0, lethal:true, breathe:false, sink:0, slip:0, jump:1 },
-
-  quicksand: { n:"Зыбучий песок", about:"Затягивает вниз, выбраться вверх невозможно.",
-    c1:"#e7c78a", c2:"#a16207", a:0.98, glow:0, sheen:0.10, grain:1,
-    speed:0.28, accel:0.25, drag:0.86, grav:0.40, buoy:0, swim:0, dive:0.30,
-    dps:0, lethal:false, breathe:true, sink:1.7, slip:0, jump:1 },
-
-  oil: { n:"Нефть", about:"Почти не держит на плаву, а дно под ней скользкое.",
-    c1:"#4b5563", c2:"#0b1020", a:0.97, glow:0, sheen:0.95, grain:0,
-    speed:0.60, accel:0.45, drag:0.88, grav:0.34, buoy:0.18, swim:0.50, dive:0.45,
-    dps:0, lethal:false, breathe:true, sink:0, slip:1, jump:1 },
-
-  slime: { n:"Слизь", about:"Вязкая, зато со дна выталкивает прыжком в полтора раза выше.",
-    c1:"#bef264", c2:"#4d7c0f", a:0.95, glow:0.18, sheen:0.55, grain:0,
-    speed:0.32, accel:0.30, drag:0.78, grav:0.26, buoy:0.42, swim:0.55, dive:0.35,
-    dps:0, lethal:false, breathe:true, sink:0, slip:0, jump:1.45 },
-
-  mercury: { n:"Ртуть", about:"Такая плотная, что почти не даёт погрузиться.",
-    c1:"#f1f5f9", c2:"#64748b", a:1, glow:0, sheen:1, grain:0,
-    speed:0.55, accel:0.45, drag:0.88, grav:0.22, buoy:0.85, swim:0.45, dive:0.30,
-    dps:0, lethal:false, breathe:true, sink:0, slip:0, jump:1 },
-
-  tar: { n:"Смола", about:"Держит намертво: двигаться можно, но еле-еле.",
-    c1:"#3f3f46", c2:"#18181b", a:1, glow:0, sheen:0.45, grain:0,
-    speed:0.14, accel:0.18, drag:0.70, grav:0.30, buoy:0.24, swim:0.30, dive:0.30,
-    dps:0, lethal:false, breathe:true, sink:0.5, slip:0, jump:1 }
-};
-var LIQ_ORDER = ["water","acid","lava","quicksand","oil","slime","mercury","tar"];
-function liqOf(o){ return LIQ[o && o.liq] || LIQ.water; }
-var WATER_DEF = "#3b82f6";
-/* Вода в игре — рой мелких частиц с обычной физикой. Слипаются они не
-   физически, а на рисовании: мягкие пятна складываются и обрезаются по
-   плотности, поэтому рой читается как единая жидкость, а не как мячики. */
-var P_R    = 7;              // радиус частицы
-var P_STEP = 13;             // шаг раскладки при заполнении объёма
-var P_MAX  = 700;            // потолок: больше браузер не тянет на телефоне
-
 var JUMP_H = 122, MOVE_A = 0.9, MAX_VX = 5.2, FRIC = 0, AIR = 0.94,
     COYOTE = 6, BUFFER = 7, WALL_SLIDE = 2.6, WALL_VX = 6.2, STEP_UP = 16;
 function G(){ return gravityScale * 0.062; }          // 9 → 0.558 px/кадр²
@@ -877,122 +756,13 @@ function wallVX(){ return WALL_VX * gk(); }
 function maxFall(){ return 12 + gravityScale * 0.8; }
 
 var pl = {x:0,y:0,w:20,h:60,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,selfJump:false,hidden:false,
-    inWater:false,headUnder:false,inAcid:false,sinking:false,_wasWet:false,_skips:0,
-    air:AIR_MAX,hp:HP_MAX};
-var keys = {l:false,r:false,u:false,d:false};
+};
+var keys = {l:false,r:false,u:false};
 var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false, finishTimer = 0;
 var deaths = 0, coins = 0, coinsTotal = 0, timeMs = 0, shake = 0, acc = 0, last = 0;
 
 /* Где игрок относительно воды: верхняя кромка, под водой ли голова
    и не кислота ли это. Считается по тем же объектам, что и коллизии. */
-/* В какой жидкости игрок. Если их несколько сразу, берём самую опасную:
-   лава важнее кислоты, кислота важнее воды. */
-function liqRank(L){ return L.lethal ? 3 : (L.dps > 0 ? 2 : (L.sink > 0 ? 1 : 0)); }
-function waterState(near){
-  var top = Infinity, inW = false, L = null, src = null;
-  for(var i=0;i<near.length;i++){
-    var o = near[i];
-    if(o.type !== "liquid") continue;
-    if(pl.x + pl.w <= o.x || pl.x >= o.x + o.w) continue;
-    if(pl.y + pl.h <= o.y || pl.y >= o.y + o.h) continue;
-    inW = true;
-    if(o.y < top) top = o.y;
-    var cand = liqOf(o);
-    if(!L || liqRank(cand) > liqRank(L)){ L = cand; src = o; }
-  }
-  L = L || LIQ.water;
-
-  /* Настройки самого объёма важнее умолчаний вида: ползунок
-     чувствительности и переключатель течения задаются в редакторе. */
-  var sens = (src && src.sens) ? src.sens : 1;
-  var flow = (src && src.flow) ? src.flow : (L.sink > 0 ? "down" : "none");
-  var power = (src && src.flowPower) ? src.flowPower : (L.sink || 2);
-
-  pl.inWater = inW;
-  pl.liq = inW ? L : null;
-  pl.inAcid = inW && L.dps > 0;
-  pl.sinking = inW && flow === "down";
-  // голова считается погружённой, когда кромка выше макушки
-  pl.headUnder = inW && (pl.y + 8 >= top);
-  return { top: inW ? top : 0, L: L, sens: sens, flow: flow, power: power,
-           sink: flow === "down", sinkSpeed: power };
-}
-
-/* ---- ВЗАИМОДЕЙСТВИЕ С ПОВЕРХНОСТЬЮ ----
-   Игрок влияет на воду: вход с разгона поднимает брызги, а на большой
-   скорости под малым углом он отскакивает от глади «блинчиком». Каждый
-   отскок съедает часть скорости, поэтому бесконечно скакать нельзя. */
-var SKIP_MIN_VX = 5.2;      // без разгона блинчик не выйдет
-var SKIP_MAX_VY = 9.5;      // падать надо полого, а не отвесно
-var SKIP_KEEP = 0.62;       // сколько скорости остаётся после отскока
-
-function liquidTopAt(near, x, y){
-  var top = Infinity;
-  for(var i=0;i<near.length;i++){
-    var o = near[i];
-    if(o.type !== "liquid") continue;
-    if(x < o.x || x > o.x + o.w) continue;
-    if(o.y + o.h < y) continue;
-    if(o.y < top) top = o.y;
-  }
-  return top;
-}
-
-function splash(near, wat){
-  var cx = pl.x + pl.w/2, foot = pl.y + pl.h;
-
-  // вошёл в жидкость — брызги тем сильнее, чем быстрее падал
-  if(pl.inWater && !pl._wasWet){
-    var f = Math.min(1, Math.abs(pl.vy) / 14);
-    burst(cx, wat.top, Math.round(4 + f*10), shade(wat.L.c1, 40), 1.4 + f*2.2, 22);
-    pl._skips = 0;
-  }
-  // резкое движение под водой гонит волну
-  if(pl.inWater && anim % 6 === 0 && (Math.abs(pl.vx) > 2.6 || Math.abs(pl.vy) > 3.4))
-    burst(cx, pl.y + pl.h*0.5, 2, shade(wat.L.c1, 30), 1.1, 14);
-  if(!pl.inWater && pl._wasWet) pl._skips = 0;
-  pl._wasWet = pl.inWater;
-
-  if(pl.inWater) return;
-
-  /* Блинчик: летим вниз быстро и полого, а под ногами вот-вот гладь. */
-  if(pl.vy <= 0 || Math.abs(pl.vx) < SKIP_MIN_VX || pl.vy > SKIP_MAX_VY) return;
-  var top = liquidTopAt(near, cx, foot);
-  if(top === Infinity) return;
-  if(foot < top - 2 || foot > top + pl.vy + 4) return;
-  if((pl._skips || 0) >= 3) return;          // серия конечна
-
-  pl.y = top - pl.h - 1;
-  pl.vy = -Math.abs(pl.vy) * SKIP_KEEP - 2.2;
-  pl.vx *= SKIP_KEEP + 0.2;                   // каждый отскок тормозит
-  pl._skips = (pl._skips || 0) + 1;
-  pl.ground = false; pl.selfJump = false;
-  burst(cx, top, 9, shade(liqOf({liq:"water"}).c1, 46), 2.2, 20);
-}
-
-/* Воздух и урон. Под водой запас тратится, на воздухе восстанавливается;
-   кислота жжёт сразу при касании. */
-function breathe(){
-  var L = pl.liq;
-  // лава не оставляет времени на всё остальное
-  if(L && L.lethal){ die(); return; }
-  if(pl.headUnder && (!L || L.breathe)){
-    if(pl.air > 0) pl.air--;
-  } else {
-    pl.air = Math.min(AIR_MAX, pl.air + 4);
-  }
-  var dmg = 0;
-  if(pl.air <= 0) dmg += DROWN_DPS / 60;
-  if(L && L.dps > 0) dmg += L.dps / 60;
-  if(dmg > 0){
-    pl.hp -= dmg;
-    if(anim % 8 === 0) burst(pl.x+pl.w/2, pl.y+pl.h*0.4, 3, (L && L.dps > 0) ? L.c1 : "#60a5fa", 1.6, 16);
-  } else if(!pl.inWater && pl.hp < HP_MAX){
-    pl.hp = Math.min(HP_MAX, pl.hp + HEAL_PS / 60);
-  }
-  if(pl.hp <= 0){ pl.hp = 0; die(); }
-}
-
 function findSpawn(){ for(var i=0;i<objects.length;i++) if(objects[i].type === "spawn") return objects[i]; return null; }
 /* Старт вплотную к финишу — не карта, а кнопка: шаг вправо и уровень
    пройден. Держим их на расстоянии, иначе так накручивают прохождения. */
@@ -1012,7 +782,6 @@ function spawnTooClose(){
 }
 
 function play(){
-  liqWriteBack();          // капли обязаны попасть в карту до старта
   var sp = findSpawn();
   if(!sp){ dialog("Нет точки старта","Поставь инструмент «Точка старта», потом жми ▶.",null); return; }
   var near = spawnTooClose();
@@ -1032,7 +801,6 @@ function play(){
     o._hx = o.x; o._hy = o.y; o._t = 0; o._act = !!o.startsOpen;
     o._got = false; o._reached = false; o._spin = 0; o._squash = 0;
   });
-  buildWater();
   respawn();
   document.body.classList.add("play");
   sel = null; inspect(); hideMsg(); last = 0; acc = 0; stat();
@@ -1041,7 +809,6 @@ function stop(){
   playing = false; document.body.classList.remove("play"); hideMsg(); parts.length = 0;
   objects.forEach(function(o){ if(o._hx !== undefined){ o.x = o._hx; o.y = o._hy; }
     o._act = false; o._reached = false; o._spin = 0; o._got = false; });
-  wp.length = 0; wcell = null;
   resetView();
 }
 /* Перезапуск забега без перезагрузки страницы: монеты, время, смерти
@@ -1062,8 +829,6 @@ function restartRun(){
 
 function respawn(){
   pl.x = spawnPt.x; pl.y = spawnPt.y; pl.vx = 0; pl.vy = 0; pl.dead = false; coy = 0; buf = 0;
-  pl.air = AIR_MAX; pl.hp = HP_MAX;
-  pl.inWater = false; pl.headUnder = false; pl.inAcid = false; pl.sinking = false; pl.liq = null;
 }
 function die(){
   if(pl.dead || done) return;
@@ -1075,8 +840,7 @@ function stat(){
   document.getElementById("sDeath").textContent = deaths;
   document.getElementById("sCoin").textContent = coins + "/" + coinsTotal;
   var so = document.getElementById("sObj");
-  // жидкость в счётчике не показываем: она не тратит лимит
-  if(so) so.textContent = countHard() + "/" + OBJ_LIMIT;
+  if(so) so.textContent = objects.length + "/" + OBJ_LIMIT;
 }
 function showMsg(t,s){
   document.getElementById("msgT").textContent = t;
@@ -1272,7 +1036,6 @@ function step(){
     if(o._squash) o._squash *= 0.82;
   });
   if(shake > 0) shake *= 0.86;
-  stepWater();
   stepParts();
   if(done || pl.dead) return;
 
@@ -1284,20 +1047,8 @@ function step(){
   var sol = [], i;
   for(i=0;i<near.length;i++) if(solid(near[i])) sol.push(near[i]);
 
-  var wat = waterState(near);
-
   var dir = (keys.r?1:0)-(keys.l?1:0);
-  if(pl.inWater){
-    /* У каждой жидкости свои разгон, предел скорости и сопротивление:
-       в воде плывёшь, в смоле еле ползёшь. */
-    var L = wat.L;
-    // чувствительность растягивает и разгон, и предел скорости
-    var wlim = maxVX() * L.speed * wat.sens;
-    if(dir){ pl.vx += dir*moveA()*L.accel*wat.sens; pl.face = dir; }
-    else pl.vx *= L.slip ? 0.995 : L.drag;    // под нефтью дно скользкое
-    pl.vx = Math.max(-wlim, Math.min(wlim, pl.vx));
-    if(Math.abs(pl.vx) < .05 && !L.slip) pl.vx = 0;
-  } else if(dir){
+  if(dir){
     pl.vx += dir*moveA(); pl.vx = Math.max(-maxVX(), Math.min(maxVX(), pl.vx)); pl.face = dir;
   } else {
     pl.vx *= pl.ground ? FRIC : AIR; if(Math.abs(pl.vx) < .05) pl.vx = 0;
@@ -1306,38 +1057,7 @@ function step(){
   if(coy > 0) coy--;
   if(buf > 0) buf--;
 
-  if(pl.inWater){
-    /* Плавание. Выталкивание пропорционально погружению, поэтому без
-       нажатий игрок сам всплывает и держится на поверхности головой
-       наружу; кнопка вверх — гребок вверх, вниз — погружение. */
-    var depth = Math.max(0, Math.min(1, ((pl.y + pl.h) - wat.top) / pl.h));
-    pl.vy += G() * L.grav;
-    if(wat.flow === "down"){
-      /* Затягивание на дно: выталкивания нет, вместо него тяга вниз до
-         заданной скорости, и вверх не сдвинуться вообще. */
-      if(pl.vy < wat.power) pl.vy += (wat.power - pl.vy) * 0.22;
-      if(pl.vy < 0) pl.vy = 0;
-    } else if(wat.flow === "up"){
-      /* Выталкивание наверх: течение само выносит игрока на поверхность,
-         грести вниз можно, но пересилить его тяжело. */
-      pl.vy -= wat.power * 0.55;
-      if(keys.u) pl.vy -= L.swim * wat.sens;
-      if(keys.d) pl.vy += L.dive * 1.6;
-    } else {
-      pl.vy -= G() * L.buoy * depth * 1.6;
-      if(keys.u) pl.vy -= L.swim * wat.sens;
-      // упругая жидкость подкидывает, если оттолкнуться от дна
-      if(keys.u && pl.ground && L.jump > 1){
-        pl.vy = jumpV() * L.jump; pl.ground = false;
-        puff(pl.x+pl.w/2, pl.y+pl.h, 6);
-      }
-    }
-    if(keys.d && wat.flow !== "up") pl.vy += L.dive;
-    pl.vy *= L.drag;
-    var vcap = W_MAXV * (wat.flow === "none" ? 1 : 1.8);
-    pl.vy = Math.max(-vcap, Math.min(vcap, pl.vy));
-    buf = 0; coy = 0; pl.selfJump = false;
-  } else {
+  {
     /* Кнопку прыжка можно держать: как только игрок коснулся земли,
        он прыгает снова, без повторного нажатия. */
     if(keys.u && !pl.selfJump && (pl.ground || coy > 0)) buf = BUFFER;
@@ -1357,8 +1077,6 @@ function step(){
     if(pl.vy > maxFall()) pl.vy = maxFall();
   }
 
-  splash(near, wat);
-  breathe();
 
   pl.x += pl.vx; pl.wall = 0;
   sol.forEach(function(o){
@@ -1521,405 +1239,6 @@ function paint(o, isSel){
    пределы налитого объёма: он работает как ёмкость, иначе бассейн,
    нарисованный в воздухе, утёк бы и карта сломалась.
    ══════════════════════════════════════════════════ */
-var wp = [];            // частицы
-var wcell = null;       // клетки, где вода разрешена (ключ "cx,cy")
-var wcolor = WATER_DEF, wacid = false;
-
-function wkey(x, y){ return Math.floor(x/WCELL) + "," + Math.floor(y/WCELL); }
-function cellOK(x, y, k){ var v = wcell ? wcell[wkey(x, y)] : 0; return k ? v === k : !!v; }
-
-/* Раскладываем частицы по объёму. Если воды налито много, шаг
-   увеличивается, чтобы не выйти за потолок в P_MAX частиц. */
-function buildWater(){
-  wp.length = 0; wcell = {};
-  var vols = [], i, o, area = 0;
-  for(i=0;i<objects.length;i++){
-    o = objects[i];
-    if(o.type !== "liquid") continue;
-    vols.push(o); area += o.w * o.h;
-  }
-  if(!vols.length){ wcell = null; return; }
-
-  // клетки объёма минус те, что заняты твёрдым: иначе частицы застрянут в стене
-  var solids = [];
-  for(i=0;i<objects.length;i++) if(solid(objects[i])) solids.push(bbox(objects[i]));
-  for(i=0;i<vols.length;i++){
-    o = vols[i];
-    for(var cy = o.y; cy < o.y + o.h; cy += WCELL)
-      for(var cx = o.x; cx < o.x + o.w; cx += WCELL){
-        var mx = cx + WCELL/2, my = cy + WCELL/2, hit = false;
-        for(var s=0;s<solids.length;s++){
-          var b = solids[s];
-          if(mx > b[0] && mx < b[2] && my > b[1] && my < b[3]){ hit = true; break; }
-        }
-        // в клетке помним, чья это жидкость: смешиваться они не должны
-        if(!hit) wcell[wkey(cx, cy)] = (LIQ_ORDER.indexOf(vols[i].liq || "water") + 1) || 1;
-      }
-  }
-
-  var step = P_STEP;
-  while(area / (step*step) > P_MAX) step += 2;
-  for(i=0;i<vols.length && wp.length < P_MAX;i++){
-    o = vols[i];
-    for(var y = o.y + step/2; y < o.y + o.h && wp.length < P_MAX; y += step)
-      for(var x = o.x + step/2; x < o.x + o.w && wp.length < P_MAX; x += step){
-        var kk = (LIQ_ORDER.indexOf(o.liq || "water") + 1) || 1;
-        if(!cellOK(x, y, kk)) continue;
-        wp.push({ x: x + (Math.random()-0.5)*2, y: y + (Math.random()-0.5)*2, vx: 0, vy: 0, k: kk });
-      }
-  }
-}
-
-/* Шаг физики роя. Соседей ищем по хеш-сетке, иначе на 700 частицах
-   получается четверть миллиона пар за кадр. */
-function stepWater(){
-  var n = wp.length;
-  if(!n || !wcell) return;
-  var i, j, p, q, g = G() * 0.5, D = P_R * 2, cell = D;
-  var grid = {}, key, cx, cy, k;
-
-  for(i=0;i<n;i++){
-    p = wp[i];
-    p.vy += g;
-    key = Math.floor(p.x/cell) + "," + Math.floor(p.y/cell);
-    (grid[key] = grid[key] || []).push(i);
-  }
-
-  for(i=0;i<n;i++){
-    p = wp[i];
-    cx = Math.floor(p.x/cell); cy = Math.floor(p.y/cell);
-    for(var ox=-1; ox<=1; ox++) for(var oy=-1; oy<=1; oy++){
-      var b = grid[(cx+ox) + "," + (cy+oy)];
-      if(!b) continue;
-      for(k=0;k<b.length;k++){
-        j = b[k];
-        if(j <= i) continue;
-        q = wp[j];
-        var dx = q.x - p.x, dy = q.y - p.y;
-        var d2 = dx*dx + dy*dy;
-        if(d2 > D*D || d2 < 0.0001) continue;
-        var d = Math.sqrt(d2), f = (D - d) / D * 0.42;
-        dx /= d; dy /= d;
-        p.vx -= dx*f; p.vy -= dy*f;
-        q.vx += dx*f; q.vy += dy*f;
-      }
-    }
-  }
-
-  // игрок расталкивает воду вокруг себя
-  if(playing && !pl.dead && pl.inWater){
-    var px = pl.x + pl.w/2, py = pl.y + pl.h/2, rr = Math.max(pl.w, pl.h)*0.6;
-    for(i=0;i<n;i++){
-      p = wp[i];
-      var ddx = p.x - px, ddy = p.y - py, dd = Math.sqrt(ddx*ddx + ddy*ddy);
-      if(dd > rr || dd < 0.001) continue;
-      p.vx += ddx/dd * 0.5; p.vy += ddy/dd * 0.5;
-    }
-  }
-
-  for(i=0;i<n;i++){
-    p = wp[i];
-    p.vx *= 0.93; p.vy *= 0.985;
-    if(p.vx >  6) p.vx =  6; if(p.vx < -6) p.vx = -6;
-    if(p.vy >  8) p.vy =  8; if(p.vy < -8) p.vy = -8;
-    // по осям отдельно: так частица скользит вдоль стенки, а не залипает
-    var nx = p.x + p.vx;
-    if(cellOK(nx, p.y, p.k)) p.x = nx; else p.vx *= -0.3;
-    var ny = p.y + p.vy;
-    if(cellOK(p.x, ny, p.k)) p.y = ny; else p.vy *= -0.3;
-  }
-}
-
-/* Метабол-рендер. Каждая частица — мягкое пятно; пятна складываются,
-   потом плотность прогоняется через порог, и края слипаются в общий
-   контур. Никаких спрайтов, всё считается на холсте. */
-/* Заготовка пятна: перерисовывается только когда заметно поменялся
-   масштаб, а не каждый кадр. */
-var bcv = null, bcx = null, bR = -1;
-
-/* ---- КАК РИСУЮТСЯ ЖИДКОСТИ ----
-   Раньше рой частиц размывался в пятна и висел кляксами в воздухе. Теперь
-   тело жидкости — это ровно те клетки, которые налил игрок: чёткий край,
-   ровная поверхность, заливка градиентом. Частицы никуда не делись, но
-   ушли внутрь: их видно как медленные течения под поверхностью, обрезанные
-   по объёму. Приёмы те же, что у остальных объектов — плоская заливка,
-   мягкий градиент, тонкий контур. */
-
-// свободные участки грани: те, что не закрыты соседней клеткой той же жидкости
-function freeEdge(o, list, side){
-  var a, b, i, n, span = [];
-  if(side === "top" || side === "bottom"){ a = o.x; b = o.x + o.w; }
-  else { a = o.y; b = o.y + o.h; }
-  span.push([a, b]);
-  for(i=0;i<list.length;i++){
-    n = list[i];
-    if(n === o) continue;
-    var touch = false, na, nb;
-    if(side === "top")         touch = Math.abs((n.y + n.h) - o.y) < 0.5;
-    else if(side === "bottom") touch = Math.abs(n.y - (o.y + o.h)) < 0.5;
-    else if(side === "left")   touch = Math.abs((n.x + n.w) - o.x) < 0.5;
-    else                       touch = Math.abs(n.x - (o.x + o.w)) < 0.5;
-    if(!touch) continue;
-    if(side === "top" || side === "bottom"){ na = n.x; nb = n.x + n.w; }
-    else { na = n.y; nb = n.y + n.h; }
-    var out = [];
-    for(var s=0;s<span.length;s++){
-      var p0 = span[s][0], p1 = span[s][1];
-      if(nb <= p0 || na >= p1){ out.push([p0, p1]); continue; }
-      if(na > p0) out.push([p0, na]);
-      if(nb < p1) out.push([nb, p1]);
-    }
-    span = out;
-    if(!span.length) break;
-  }
-  return span;
-}
-
-/* Отдельный холст под жидкость: на нём она собирается непрозрачной,
-   чтобы стыки клеток не просвечивали сквозь тело. */
-var lcv = null, lcx = null;
-function drawParticles(){
-  // собираем объёмы по видам: каждая жидкость рисуется своим проходом
-  var byKind = {}, i, o;
-  var src = liqList();
-  for(i=0;i<src.length;i++){
-    o = src[i];
-    var k = LIQ[o.liq] ? o.liq : "water";
-    (byKind[k] = byKind[k] || []).push(o);
-  }
-
-  for(var kind in byKind){
-    var list = byKind[kind], L = LIQ[kind];
-    var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    for(i=0;i<list.length;i++){
-      o = list[i];
-      if(o.x < x0) x0 = o.x;
-      if(o.y < y0) y0 = o.y;
-      if(o.x + o.w > x1) x1 = o.x + o.w;
-      if(o.y + o.h > y1) y1 = o.y + o.h;
-    }
-
-    /* ---- ФОРМА ----
-       Разбор образца по слоям, сверху вниз:
-         волна        — гладкая, длинная, малая амплитуда;
-         полоса 1     — самая светлая, сразу под волной;
-         полоса 2     — светлая, чуть насыщеннее;
-         тело         — ровный цвет без градиента, до самого дна;
-         пузырьки     — только над водой; внутри они закрывали то,
-                        что под водой.
-
-       Раньше тело было градиентом с потемнением ко дну, полоса
-       поверхности одна, и по краю шёл тёмный контур — отсюда и
-       расхождение с образцом.
-
-       Всё собирается в отдельном слое непрозрачной краской и кладётся
-       на холст один раз: иначе стыки клеток просвечивали бы сквозь
-       тело и вода шла бы пятнами. */
-    if(!lcv){
-      lcv = document.createElement("canvas");
-      lcx = lcv.getContext ? lcv.getContext("2d") : null;
-    }
-    if(!lcx) continue;
-    var CW = cv.width, CH = cv.height;
-    if(lcv.width !== CW || lcv.height !== CH){ lcv.width = CW; lcv.height = CH; }
-    lcx.setTransform(1,0,0,1,0,0);
-    lcx.clearRect(0,0,CW,CH);
-    // тот же взгляд на мир, что и у основного холста
-    lcx.setTransform(view.s*DPR,0,0,view.s*DPR, view.x*DPR, view.y*DPR);
-
-    var cBody  = shade(L.c1, 40);
-    var cBand1 = shade(L.c1, 78);
-    var cBand2 = shade(L.c1, 58);
-
-    /* Толщины полос считаются от глубины: у лужи в одну клетку полосы
-       в полсотни пикселей накрыли бы её целиком, и воды не осталось. */
-    var deepH = Math.max(WCELL, y1 - y0);
-    var stack = Math.min(50, deepH * 0.5);
-    var h1 = stack * 0.6, h2 = stack * 0.4;
-
-    var body = new Path2D();
-    for(i=0;i<list.length;i++){ o = list[i]; body.rect(o.x, o.y, o.w, o.h); }
-
-    /* Тело: на фото оно не плоское — у поверхности светлее, ко дну
-       заметно глубже, но без резкой границы. */
-    var bg = lcx.createLinearGradient(0, y0, 0, y1);
-    bg.addColorStop(0, shade(L.c1, 46));
-    bg.addColorStop(1, shade(L.c1, 6));
-    lcx.fillStyle = bg;
-    lcx.fill(body);
-
-    /* Пузыри внутри воды: на фото они крупные, мягкие и почти
-       незаметные — не мешают видеть, что под водой. */
-    lcx.save();
-    lcx.clip(body);
-    lcx.fillStyle = shade(L.c1, 70);
-    for(i=0;i<list.length;i++){
-      o = list[i];
-      for(var ux = o.x + 12; ux < o.x + o.w; ux += 58){
-        var us = (ux*29 + o.y*17) % 200;
-        var uph = ((anim * 0.25 + us) % 200) / 200;
-        var uy = o.y + o.h - uph * (o.h + 40);
-        var ur = 9 + (us % 5) * 3;
-        lcx.globalAlpha = 0.16 * (1 - Math.abs(uph - 0.5) * 0.9);
-        lcx.beginPath();
-        lcx.arc(ux + Math.sin(uph*4 + us)*5, uy, ur, 0, 6.2832);
-        lcx.fill();
-      }
-    }
-    lcx.globalAlpha = 1;
-    lcx.restore();
-
-    /* 2. поверхность. Полосы ложатся только там, где сверху нет своей
-       же жидкости — иначе они шли бы и внутри объёма. */
-    var tops = [];
-    for(i=0;i<list.length;i++){
-      o = list[i];
-      var spans = freeEdge(o, list, "top");
-      for(var t2=0;t2<spans.length;t2++)
-        if(spans[t2][1] - spans[t2][0] > 1) tops.push([spans[t2][0], spans[t2][1], o.y]);
-    }
-    var waveY = function(x, top){ return top + Math.sin(x*0.018 + anim*0.03) * 4.5 - 3; };
-
-    var band = function(a2, b2, ty, from, to, color){
-      lcx.fillStyle = color;
-      lcx.beginPath();
-      if(from === 0){
-        // верхний слой обрезан волной, нижние идут ровными полосами
-        lcx.moveTo(a2, waveY(a2, ty));
-        for(var x2 = a2; x2 <= b2; x2 += 4) lcx.lineTo(x2, waveY(x2, ty));
-      } else {
-        lcx.moveTo(a2, ty + from);
-        lcx.lineTo(b2, ty + from);
-      }
-      lcx.lineTo(b2, ty + to);
-      lcx.lineTo(a2, ty + to);
-      lcx.closePath();
-      lcx.fill();
-    };
-
-    for(i=0;i<tops.length;i++){
-      var a2 = tops[i][0], b2 = tops[i][1], ty = tops[i][2];
-      band(a2, b2, ty, 0, h1, cBand1);
-      band(a2, b2, ty, h1, h1 + h2, cBand2);
-    }
-
-    // 3. приметы жидкости — внутри тела
-    lcx.save();
-    lcx.clip(body);
-    if(L.glow){
-      // прожилки: у лавы раскалённые жилы, у кислоты пена
-      lcx.globalAlpha = 0.24 * L.glow;
-      lcx.fillStyle = shade(L.c1, 34);
-      for(i=0;i<list.length;i++){
-        o = list[i];
-        for(var vx = o.x + 4; vx < o.x + o.w; vx += 26){
-          var vy = o.y + 4 + ((vx*13 + o.y*7) % Math.max(1, o.h));
-          var vw = 10 + 8*Math.sin(anim*0.045 + vx*0.06);
-          lcx.beginPath();
-          lcx.arc(vx + vw/2, vy + 2, Math.max(2, vw/2), 0, 6.2832);
-          lcx.fill();
-        }
-      }
-      lcx.globalAlpha = 1;
-    }
-    if(L.grain){
-      // зерно песка
-      lcx.globalAlpha = 0.22;
-      lcx.fillStyle = "#4a3410";
-      for(i=0;i<list.length;i++){
-        o = list[i];
-        for(var gx = o.x + 3; gx < o.x + o.w; gx += 7)
-          for(var gy = o.y + 3; gy < o.y + o.h; gy += 7){
-            var d = ((gx*7 + gy*13) % 4);
-            if(d > 1) continue;
-            lcx.fillRect(gx + d, gy - d, 2, 2);
-          }
-      }
-      lcx.globalAlpha = 1;
-    }
-    lcx.restore();
-
-    /* 4. пузырьки — над водой. Всплывают из поверхности и тают. */
-    lcx.fillStyle = cBand1;
-    for(i=0;i<tops.length;i++){
-      var sa = tops[i][0], sb = tops[i][1], sy = tops[i][2];
-      for(var bx = sa + 14; bx < sb; bx += 46){
-        var seed = (bx*17 + sy*29) % 360;
-        var ph = ((anim * 0.55 + seed) % 90) / 90;      // 0 → 1
-        var by = sy - ph * 40;
-        lcx.globalAlpha = (1 - ph) * 0.6;
-        lcx.beginPath();
-        lcx.arc(bx + Math.sin(ph*6 + seed)*3, by, 2 + (seed % 3) * 0.9, 0, 6.2832);
-        lcx.fill();
-      }
-    }
-    lcx.globalAlpha = 1;
-
-    // готовый слой кладём на холст один раз
-    ctx.save();
-    ctx.setTransform(DPR,0,0,DPR,0,0);
-    ctx.globalAlpha = L.a;
-    ctx.drawImage(lcv, 0, 0, CW/DPR, CH/DPR);
-    ctx.restore();
-  }
-}
-
-var _wsig = "";
-/* Рой пересобирается, когда объём жидкости в карте изменился. Подпись
-   считаем по клеткам: этого достаточно и это дёшево. */
-function syncWater(){
-  var sig = "", n = 0;
-  for(var i=0;i<objects.length;i++){
-    var o = objects[i];
-    if(o.type !== "liquid") continue;
-    sig += o.x + "," + o.y + "," + o.w + "," + o.h + "," + (o.liq||"water") + ";"; n++;
-  }
-  if(sig === _wsig) return;
-  _wsig = sig;
-  buildWater();
-}
-function drawWater(vx0, vy0, vx1, vy1){
-  // жидкости и в редакторе, и в игре это рой частиц, а не заливка
-  /* Пересчёт каждый кадр: при расчёте раз в четыре кадра было видно,
-     как жидкость прыгает клетками. На больших разливах притормаживаем,
-     чтобы не просаживать кадр. */
-  if(!playing) settleLiquid();
-  syncWater();
-  if(!playing) stepWater();
-  drawParticles();
-}
-/* Полоски воздуха и здоровья. Рисуем на холсте, а не в разметке:
-   так они одинаковы и в редакторе, и в игре. */
-function drawBreathHud(){
-  if(!playing || pl.dead) return;
-  var showAir = pl.air < AIR_MAX;
-  var showHp  = pl.hp  < HP_MAX;
-  if(!showAir && !showHp) return;
-
-  var W = 190, H = 9, x = VW()/2 - W/2, y = VH() - 74;
-  ctx.save();
-  ctx.font = "600 11px system-ui, sans-serif";
-  ctx.textBaseline = "middle";
-
-  function bar(label, frac, color, yy){
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = "#0f172a";
-    ctx.fillText(label, x - 34, yy + H/2);
-    ctx.fillStyle = "rgba(15,23,42,.16)";
-    ctx.fillRect(x, yy, W, H);
-    ctx.fillStyle = color;
-    ctx.fillRect(x, yy, W * Math.max(0, Math.min(1, frac)), H);
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(15,23,42,.35)"; ctx.lineWidth = 1;
-    ctx.strokeRect(x + .5, yy + .5, W - 1, H - 1);
-  }
-  if(showAir) bar("Воздух", pl.air / AIR_MAX,
-                  pl.air < AIR_MAX * 0.3 ? "#ef4444" : "#38bdf8", y);
-  if(showHp)  bar("Здоровье", pl.hp / HP_MAX,
-                  pl.hp < 35 ? "#ef4444" : "#22c55e", y + (showAir ? H + 6 : 0));
-  ctx.restore();
-}
-
 function render(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   /* Холст всегда светлый, независимо от темы сайта: карта — это
@@ -1939,10 +1258,12 @@ function render(){
   for(var ri=0; ri<objects.length; ri++){
     var ro = objects[ri], rb = bbox(ro);
     if(rb[2] < vx0 || rb[0] > vx1 || rb[3] < vy0 || rb[1] > vy1) continue;
-    if(ro.type === "liquid") continue;     // жидкости рисуются отдельным слоем поверх
+    /* Точка старта — это метка для автора карты, а не второй игрок.
+       Во время игры её не рисуем: иначе на экране две фигуры, живая и
+       та, что стоит на месте спавна. */
+    if(playing && ro.type === "spawn") continue;
     paint(ro, !playing && ro === sel); drawn++;
   }
-  drawWater(vx0, vy0, vx1, vy1);
   if(playing && !pl.dead){
     ctx.save(); ctx.translate(pl.x, pl.y);
     // себя в укрытии видно бледным — чужие не видят вообще
@@ -1951,26 +1272,8 @@ function render(){
            (window.GAME && window.GAME.mySkin) || null);
     ctx.restore();
   }
-  // рамка налива: видно, какую область зальёт
-  if(drag && drag.m === "liqBox" && drag.moved){
-    var L0 = LIQ[curLiq] || LIQ.water;
-    var px = Math.floor(Math.min(drag.ox,drag.cx)/WCELL)*WCELL;
-    var py = Math.floor(Math.min(drag.oy,drag.cy)/WCELL)*WCELL;
-    var pw = Math.floor(Math.max(drag.ox,drag.cx)/WCELL)*WCELL - px + WCELL;
-    var ph = Math.floor(Math.max(drag.oy,drag.cy)/WCELL)*WCELL - py + WCELL;
-    ctx.save();
-    ctx.globalAlpha = 0.45; ctx.fillStyle = L0.c1;
-    ctx.fillRect(px, py, pw, ph);
-    ctx.globalAlpha = 0.9; ctx.strokeStyle = shade(L0.c2, -20);
-    ctx.lineWidth = 2; ctx.setLineDash([6,4]);
-    ctx.strokeRect(px, py, pw, ph);
-    ctx.setLineDash([]); ctx.restore();
-  }
-
   if(window.GAME && window.GAME.onDraw) window.GAME.onDraw(ctx);
   drawParts();
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  drawBreathHud();
   if(!playing) anim++;
   requestAnimationFrame(render);
 }
@@ -2108,14 +1411,10 @@ document.getElementById("modes").addEventListener("click", function(e){
       // Ворота, дверь и укрытие убраны — в старых картах становятся блоком,
       // чтобы геометрия уровня не разъехалась
       if(o.type === "door" || o.type === "gate" || o.type === "cover"){ o.type = "rect"; }
-      /* Вода стала разделом жидкостей. Старые объёмы переводим по их
-         прежним галочкам, чтобы уже выложенные карты не сломались. */
-      if(o.type === "water"){
-        o.type = "liquid";
-        o.liq = o.acid ? "acid" : (o.sink ? "quicksand" : "water");
-        delete o.acid; delete o.sink; delete o.sinkSpeed; delete o.sinkPower; delete o.fill;
-      }
-      if(o.type === "liquid" && !LIQ[o.liq]) o.liq = "water";
+    });
+    // жидкости из движка убраны — из старых карт выбрасываем совсем
+    objects = objects.filter(function(o){
+      return o.type !== "liquid" && o.type !== "water";
     });
     sel = null; markDirty(); indexMovers();
     showMsg("Убрано объектов: " + drop.length,
@@ -2136,8 +1435,6 @@ function setTool(n){
   if(n !== "select"){ sel = null; inspect(); }
 }
 
-/* Список жидкостей живёт в панели свойств: отдельный оверлей закрывал
-   карту и дублировал то же самое. */
 
 function at(x,y){
   // выделяем по настоящей форме, а не по рамке — иначе повёрнутые
@@ -2171,26 +1468,6 @@ var clipboard = null;
 var mouseW = {x:0, y:0};
 function copySel(){
   if(!sel) return false;
-  // лужу копируем целиком, запоминая форму относительно левого верха
-  if(sel.type === "liquid"){
-    var body = liqBody(sel);
-    var minX = 1e9, minY = 1e9;
-    body.forEach(function(o){ if(o.x < minX) minX = o.x; if(o.y < minY) minY = o.y; });
-    clipboard = {
-      type: "liquid", body: body.map(function(o){
-        return { dx: o.x - minX, dy: o.y - minY, w: o.w, h: o.h,
-                 liq: o.liq, sens: o.sens, flow: o.flow, flowPower: o.flowPower };
-      }),
-      w: 0, h: 0
-    };
-    body.forEach(function(o){
-      clipboard.w = Math.max(clipboard.w, o.x + o.w - minX);
-      clipboard.h = Math.max(clipboard.h, o.y + o.h - minY);
-    });
-    showMsg("Скопировано", "Ctrl+V поставит копию под курсором");
-    setTimeout(hideMsg, 1200);
-    return true;
-  }
   clipboard = Object.assign({}, sel);
   showMsg("Скопировано", "Ctrl+V поставит копию под курсором");
   setTimeout(hideMsg, 1200);
@@ -2199,26 +1476,9 @@ function copySel(){
 function pasteAt(x, y){
   if(!clipboard || playing) return false;
   if(overLimit(1)) return false;
-  if(clipboard.type === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return false; }
+  if(clipboard.type === "coin" && coinCapped() && countCoins() >= COIN_LIMIT){ coinWarn(); return false; }
   if(!allowedIn(clipboard.type, mode)) return false;
   commit();
-  // вставка лужи: восстанавливаем всю форму, а не один ряд
-  if(clipboard.type === "liquid" && clipboard.body){
-    if(overLimit(clipboard.body.length, true)) return false;
-    var ax = snapN(x - clipboard.w/2), ay = snapN(y - clipboard.h/2);
-    var last = null;
-    clipboard.body.forEach(function(b){
-      var o = mk("liquid", ax + b.dx, ay + b.dy, b.w, b.h);
-      o.liq = b.liq;
-      if(b.sens) o.sens = b.sens;
-      if(b.flow) o.flow = b.flow;
-      if(b.flowPower) o.flowPower = b.flowPower;
-      objects.push(o); last = o;
-    });
-    sel = last;
-    markDirty(); inspect();
-    return true;
-  }
   var c = Object.assign({}, clipboard);
   c.id = uid++;
   if(c.customId) c.customId = "w"+c.id;
@@ -2233,390 +1493,6 @@ function pasteAt(x, y){
   objects.push(c); sel = c;
   markDirty(); inspect();
   return true;
-}
-
-/* ---- РАЗДЕЛ «ЖИДКОСТИ» В РЕДАКТОРЕ ----
-   Все жидкости живут одним типом объекта "liquid" клетками по 20
-   пикселей; какая именно — в поле liq. Наливаются они зажатием и
-   держатся ровно там, где провели мышью. */
-var curLiq = "water";                     // что налито сейчас
-function liquidAt(cx, cy){
-  for(var i=0;i<objects.length;i++){
-    var o = objects[i];
-    if(o.type !== "liquid") continue;
-    if(cx + 1 >= o.x && cx + WCELL - 1 <= o.x + o.w &&
-       cy + 1 >= o.y && cy + WCELL - 1 <= o.y + o.h) return o;
-  }
-  return null;
-}
-/* Занята ли клетка твёрдым блоком */
-function cellSolid(cx, cy){
-  var mx = cx + WCELL/2, my = cy + WCELL/2;
-  for(var i=0;i<objects.length;i++){
-    var o = objects[i];
-    if(!solid(o)) continue;
-    var b = bbox(o);
-    if(mx > b[0] && mx < b[2] && my > b[1] && my < b[3]) return true;
-  }
-  return false;
-}
-/* Заливка прямоугольной области клетками 20x20. Одна и та же функция
-   и для рамки, и для одиночного тычка — просто область в одну клетку. */
-function fillLiquidBox(x0, y0, x1, y1, dragged){
-  liqFlush();                 // сначала фиксируем уже налитое
-
-  var ax = Math.floor(Math.min(x0,x1) / WCELL) * WCELL;
-  var ay = Math.floor(Math.min(y0,y1) / WCELL) * WCELL;
-  var bx = Math.floor(Math.max(x0,x1) / WCELL) * WCELL;
-  var by = Math.floor(Math.max(y0,y1) / WCELL) * WCELL;
-  if(!dragged){ bx = ax; by = ay; }
-
-  var cols = (bx - ax)/WCELL + 1, rows = (by - ay)/WCELL + 1;
-  if(overLimit(cols * rows, true)) return;
-
-  /* Занятость считаем один раз на всю область: проверять каждую клетку
-     обходом всех объектов — это квадрат от размера заливки, на большой
-     рамке редактор бы вставал. */
-  var taken = {}, solids = [], i;
-  for(i=0;i<objects.length;i++){
-    var q = objects[i];
-    if(q.type === "liquid"){
-      for(var qx = q.x; qx < q.x + q.w - 0.5; qx += WCELL)
-        for(var qy = q.y; qy < q.y + q.h - 0.5; qy += WCELL)
-          taken[Math.round(qx) + "," + Math.round(qy)] = q;
-    } else if(solid(q)) solids.push(bbox(q));
-  }
-  var hard = function(mx, my){
-    for(var k=0;k<solids.length;k++){
-      var b = solids[k];
-      if(mx > b[0] && mx < b[2] && my > b[1] && my < b[3]) return true;
-    }
-    return false;
-  };
-
-  var made = null;
-  for(var cx = ax; cx <= bx; cx += WCELL)
-    for(var cy = ay; cy <= by; cy += WCELL){
-      if(hard(cx + WCELL/2, cy + WCELL/2)) continue;
-      var here = taken[cx + "," + cy];
-      // по занятой клетке другой жидкостью — она вытесняет прежнюю
-      if(here){ if(here.liq !== curLiq) here.liq = curLiq; continue; }
-      var o = mk("liquid", cx, cy, WCELL, WCELL);
-      o.liq = curLiq;
-      objects.push(o); made = o;
-    }
-  if(made) sel = made;
-  // просим пересобрать капли прямо здесь: полагаться на вызывающего
-  // нельзя, иначе новая вода не попадёт в расчёт и потеряется
-  markLiquid();
-}
-
-/* ---- ТЕКУЧЕСТЬ ----
-   Клетка 20x20 — это способ хранения, а не способ движения. Раньше
-   жидкость телепортировалась из клетки в клетку целыми двадцатками, и
-   было видно, как она скачет кубиками.
-
-   Теперь у каждой капли настоящие координаты: своя вертикальная
-   скорость, которая растёт от той же тяжести, что и у игрока, и своё
-   смещение внутри клетки. Клетка меняется только когда капля реально
-   прошла двадцать пикселей, а рисуется она там, где находится на самом
-   деле — поэтому падение сплошное, а не по ступенькам.
-
-   Симуляция живёт постоянно, а не запускается на время: налил каплю —
-   она поехала вниз в тот же кадр. */
-var LIQ_MAXV = 12;                 // предел падения, чуть медленнее игрока
-var LIQ_SPREAD = 0.30;             // как быстро гасится боковой сдвиг
-
-var lsim = null;                   // живые капли, пока идёт движение
-var liqDirty = true;               // карта изменилась — пересобрать капли
-var liqBusy = false;               // защита от самозапуска при записи назад
-var liqRest = 0;                   // сколько кадров ничего не двигалось
-var liqAge = 0;                    // сколько кадров идёт движение без записи
-
-/* ГЛАВНОЕ ПРО ПРИЗРАЧНУЮ ВОДУ.
-   Пока капли летят, они живут в lsim, а объекты карты хранят их старые
-   места — запись назад идёт только когда всё уляжется. Если налить
-   новую воду в этот момент, пересборка брала объекты, то есть СТАРЫЕ
-   координаты, и уже упавшая вода прыгала обратно наверх и падала
-   заново. Выглядело так, будто рядом с новой лужей появляется призрак
-   прежней.
-
-   Поэтому перед каждой пересборкой капли сбрасываются в карту как есть,
-   даже если ещё в движении. */
-function liqFlush(){
-  if(!lsim || !lsim.length || liqBusy) return;
-  liqBusy = true;
-  var out = objects.filter(function(o){ return o.type !== "liquid"; });
-  for(var i=0;i<lsim.length;i++){
-    var q = lsim[i];
-    var o = mk("liquid", q.x, q.y, WCELL, WCELL);
-    o.liq = q.liq;
-    if(q.sens) o.sens = q.sens;
-    if(q.flow) o.flow = q.flow;
-    if(q.flowPower) o.flowPower = q.flowPower;
-    out.push(o);
-  }
-  objects = out;
-  _liqBody = null;
-  liqBusy = false;
-}
-/* Просьба пересобрать капли. Сбрасывать их в карту здесь нельзя: к
-   этому моменту правка уже внесена, и запись затёрла бы её. Фиксация
-   идёт раньше, в commit(). */
-function markLiquid(){ if(!liqBusy) liqDirty = true; }
-
-// объёмы режем на капли: двигать ряды целиком нельзя
-function liquidToCells(){
-  var cells = [], rest = [];
-  objects.forEach(function(o){
-    if(o.type !== "liquid"){ rest.push(o); return; }
-    for(var x = o.x; x < o.x + o.w - 0.5; x += WCELL)
-      for(var y = o.y; y < o.y + o.h - 0.5; y += WCELL)
-        cells.push({ x: Math.round(x), y: Math.round(y), sub: 0, v: 0, ox: 0,
-                     liq: o.liq || "water",
-                     sens: o.sens, flow: o.flow, flowPower: o.flowPower });
-  });
-  return { cells: cells, rest: rest };
-}
-
-function liqSync(){
-  var pack = liquidToCells();
-  lsim = pack.cells;
-  liqDirty = false;
-  liqRest = 0;
-}
-
-/* Запись назад в объекты карты: только когда всё улеглось. Пока капли
-   в движении, объекты не трогаем — иначе каждый кадр пересобиралась бы
-   вся карта и рвалась история отмен. */
-function liqWriteBack(){
-  /* Если карту только что заменили, капли ещё от прежней — записывать их
-     нельзя, иначе play() затирал бы свежезагруженную воду старой. */
-  if(!lsim || liqDirty) return;
-  liqBusy = true;
-  var out = objects.filter(function(o){ return o.type !== "liquid"; });
-  for(var i=0;i<lsim.length;i++){
-    var q = lsim[i];
-    var o = mk("liquid", q.x, q.y, WCELL, WCELL);
-    o.liq = q.liq;
-    if(q.sens) o.sens = q.sens;
-    if(q.flow) o.flow = q.flow;
-    if(q.flowPower) o.flowPower = q.flowPower;
-    out.push(o);
-  }
-  objects = out;
-  mergeWater();
-  gridDirty = true;
-  _liqBody = null;
-  liqBusy = false;
-}
-
-function settleLiquid(){
-  if(playing) return;
-  if(liqDirty || !lsim) liqSync();
-  if(!lsim.length) return;
-
-  // твёрдые блоки считаем один раз за кадр
-  var solids = [], i;
-  for(i=0;i<objects.length;i++) if(solid(objects[i])) solids.push(bbox(objects[i]));
-  var busy = {};
-  var key = function(x,y){ return x + "," + y; };
-  var blocked = function(x, y){
-    var mx = x + WCELL/2, my = y + WCELL/2;
-    for(var k=0;k<solids.length;k++){
-      var b = solids[k];
-      if(mx > b[0] && mx < b[2] && my > b[1] && my < b[3]) return true;
-    }
-    return false;
-  };
-  var free = function(x, y){ return !busy[key(x,y)] && !blocked(x,y); };
-  /* Высота столба в каждой колонке. По ней вода выравнивает уровень:
-     капля уходит туда, где воды меньше, а не просто в свободную клетку.
-     Раньше растекание шло только под давлением сверху, поэтому лужа
-     застывала горкой вместо ровной поверхности. */
-  var colH = {};
-  for(i=0;i<lsim.length;i++){
-    busy[key(lsim[i].x, lsim[i].y)] = 1;
-    colH[lsim[i].x] = (colH[lsim[i].x] || 0) + 1;
-  }
-
-  // снизу вверх: нижние уходят первыми и освобождают место верхним
-  lsim.sort(function(a,b){ return b.y - a.y; });
-
-  var busyMove = function(c, nx, ny){
-    delete busy[key(c.x, c.y)];
-    if(nx !== c.x){
-      colH[c.x] = (colH[c.x] || 1) - 1;
-      colH[nx] = (colH[nx] || 0) + 1;
-    }
-    c.x = nx; c.y = ny;
-    busy[key(nx, ny)] = 1;
-  };
-
-  var moving = 0;
-  for(i=0;i<lsim.length;i++){
-    var c = lsim[i];
-    if(c.y > 8000) continue;
-
-    // боковой сдвиг гасим плавно — иначе перескок вбок тоже был бы рывком
-    if(c.ox){
-      c.ox *= (1 - LIQ_SPREAD);
-      if(Math.abs(c.ox) < 0.4) c.ox = 0; else moving++;
-    }
-
-    // ---- падение настоящей скоростью ----
-    if(free(c.x, c.y + WCELL)){
-      c.v += G();
-      if(c.v > LIQ_MAXV) c.v = LIQ_MAXV;
-      c.sub += c.v;
-      moving++;
-      while(c.sub >= WCELL){
-        if(!free(c.x, c.y + WCELL)){ c.sub = 0; c.v = 0; break; }
-        busyMove(c, c.x, c.y + WCELL);
-        c.sub -= WCELL;
-      }
-      continue;
-    }
-
-    // приземлилась — гасим падение и добираем остаток внутри клетки
-    if(c.sub > 0){ c.sub *= 0.5; if(c.sub < 0.5) c.sub = 0; moving++; }
-    c.v = 0;
-
-    var dir = (((c.x/WCELL) + (c.y/WCELL) + (anim >> 3)) % 2) ? 1 : -1;
-
-    // ---- сползание по диагонали ----
-    var done = false;
-    for(var t=0;t<2 && !done;t++){
-      var nx = c.x + dir*WCELL;
-      if(free(nx, c.y + WCELL) && free(nx, c.y)){
-        busyMove(c, nx, c.y + WCELL);
-        c.ox = -dir*WCELL; c.sub = 0;
-        done = true; moving++;
-      }
-      dir = -dir;
-    }
-    if(done) continue;
-
-    /* ---- выравнивание уровня ----
-       Двигаем каплю в ту сторону, где столб воды ниже хотя бы на две
-       клетки. Строгая разница и есть условие остановки: как только
-       соседние столбы сравнялись, двигать нечего и лужа замирает ровной
-       поверхностью. Меняться местами при этом невозможно — обратный
-       ход всегда делает разницу меньше порога. */
-    var hHere = colH[c.x] || 1;
-    /* Смотрим не только на соседнюю колонку, но и дальше вдоль ряда:
-       иначе поверхность застывала пологой лесенкой — каждая пара
-       соседей отличалась всего на клетку и по отдельности считалась
-       ровной, а лужа в целом была неровной. Идём в сторону ближайшей
-       колонки, которая ниже хотя бы на две: разница строгая, поэтому
-       обратный ход невозможен и переливание не зацикливается. */
-    var reach = 10, bestDist = 99, bestDx = 0;
-    for(t=0;t<2;t++){
-      for(var d2=1; d2<=reach; d2++){
-        var cx2 = c.x + dir*d2*WCELL;
-        if(blocked(cx2, c.y)) break;                 // стена — дальше не видно
-        if(d2 === 1 && !free(cx2, c.y)) break;        // первый шаг должен быть свободен
-        if(hHere - (colH[cx2] || 0) >= 2){
-          if(d2 < bestDist){ bestDist = d2; bestDx = dir; }
-          break;
-        }
-      }
-      dir = -dir;
-    }
-    if(bestDx){
-      busyMove(c, c.x + bestDx*WCELL, c.y);
-      c.ox = -bestDx*WCELL;
-      moving++;
-    }
-  }
-
-  /* Улеглось — записываем в карту и склеиваем в ряды. Ждём несколько
-     спокойных кадров, чтобы не писать назад на каждой мелкой дрожи. */
-  if(moving){
-    liqRest = 0;
-    /* Страховка от бесконечного переливания: если за 900 кадров движение
-       не затихло, всё равно записываем — карта не должна навсегда
-       расходиться с тем, что видно на экране. */
-    if(++liqAge > 900){ liqAge = 0; liqWriteBack(); }
-  } else if(++liqRest === 3){ liqAge = 0; liqWriteBack(); }
-}
-
-/* Что рисовать: пока капли живут — их, иначе объекты карты. Один
-   и тот же список, поэтому вид не прыгает при записи назад. */
-function liqList(){
-  if(!playing && lsim && lsim.length){
-    var out = [];
-    for(var i=0;i<lsim.length;i++){
-      var c = lsim[i];
-      out.push({ x: c.x + c.ox, y: c.y + c.sub, w: WCELL, h: WCELL, liq: c.liq });
-    }
-    return out;
-  }
-  return objects.filter(function(o){ return o.type === "liquid"; });
-}
-
-/* ---- ТЕЛО ЖИДКОСТИ ----
-   Разлитая лужа — одно целое, даже если внутри она хранится рядами.
-   Выделение, удаление и копирование работают по всему связному телу:
-   раньше уходил один ряд, а остальное оставалось висеть. */
-var _liqBody = null, _liqBodyOf = null;
-function liqBody(o){
-  if(!o || o.type !== "liquid") return [];
-  liqFlush();                 // капли могли ещё не попасть в карту
-  if(_liqBody && _liqBodyOf === o) return _liqBody;
-
-  var all = objects.filter(function(q){ return q.type === "liquid"; });
-  // раскладываем на клетки и помним, какому объекту клетка принадлежит
-  var owner = {}, key = function(x,y){ return x + "," + y; };
-  all.forEach(function(q){
-    for(var x = q.x; x < q.x + q.w - 0.5; x += WCELL)
-      for(var y = q.y; y < q.y + q.h - 0.5; y += WCELL)
-        owner[key(Math.round(x), Math.round(y))] = q;
-  });
-
-  var seen = {}, stack = [], body = [];
-  for(var x0 = o.x; x0 < o.x + o.w - 0.5; x0 += WCELL)
-    for(var y0 = o.y; y0 < o.y + o.h - 0.5; y0 += WCELL)
-      stack.push([Math.round(x0), Math.round(y0)]);
-
-  while(stack.length){
-    var c = stack.pop(), k = key(c[0], c[1]);
-    if(seen[k]) continue;
-    seen[k] = 1;
-    var own = owner[k];
-    if(!own) continue;
-    if(body.indexOf(own) === -1) body.push(own);
-    stack.push([c[0]+WCELL, c[1]], [c[0]-WCELL, c[1]],
-               [c[0], c[1]+WCELL], [c[0], c[1]-WCELL]);
-  }
-  _liqBody = body; _liqBodyOf = o;
-  return body;
-}
-
-/* Клетки одного ряда склеиваем в один объект: иначе большой бассейн
-   съедает лимит в 2000 объектов за пару движений мышью. */
-function mergeWater(){
-  var rows = {}, rest = [];
-  objects.forEach(function(o){
-    if(o.type === "liquid" && o.h === WCELL){
-      // склеиваем только соседей одной и той же жидкости
-      var k = o.y + "|" + (o.liq || "water");
-      (rows[k] = rows[k] || []).push(o);
-    } else rest.push(o);
-  });
-  var out = rest;
-  Object.keys(rows).forEach(function(k){
-    var list = rows[k].sort(function(a,b){ return a.x - b.x; });
-    var cur = null;
-    list.forEach(function(o){
-      if(cur && o.x <= cur.x + cur.w + 0.001){
-        cur.w = Math.max(cur.w, o.x + o.w - cur.x);
-      } else { cur = o; out.push(o); }
-    });
-  });
-  objects = out;
-  if(sel && objects.indexOf(sel) === -1) sel = null;
-  markDirty();
 }
 
 var drag = null;
@@ -2642,16 +1518,7 @@ function down(x,y,alt){
     else sel = null;
     inspect(); return;
   }
-  /* Жидкость наливается так же, как ставится любой объект: тянешь
-     рамку — заливается вся область. Короткий тычок кладёт одну клетку.
-     Раньше приходилось возить мышью по каждой клетке отдельно. */
-  if(tool === "liquid"){
-    if(!allowedIn("liquid", mode)){ setTool("select"); return; }
-    commit();
-    drag = {m:"liqBox", ox:x, oy:y, cx:x, cy:y, moved:false};
-    return;
-  }
-  if(tool === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
+  if(tool === "coin" && coinCapped() && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
   if(!allowedIn(tool, mode)){ setTool("select"); return; }
   if(overLimit(1)) return;
   commit();
@@ -2666,11 +1533,6 @@ function down(x,y,alt){
 }
 function move(x,y){
   if(!drag || playing) return;
-  if(drag.m === "liqBox"){
-    if(Math.abs(x-drag.ox) > 6 || Math.abs(y-drag.oy) > 6) drag.moved = true;
-    drag.cx = x; drag.cy = y;
-    return;
-  }
   if(drag.m === "new"){
     if(Math.abs(x-drag.ox) > 6 || Math.abs(y-drag.oy) > 6) drag.moved = true;
     var o = objects[objects.length-1];
@@ -2688,12 +1550,6 @@ function move(x,y){
   inspect();
 }
 function up(){
-  // подвинули или изменили блок — жидкость под ним могла получить дорогу
-  if(drag && (drag.m === "move" || drag.m === "size" || drag.m === "new")) markLiquid();
-  if(drag && drag.m === "liqBox"){
-    fillLiquidBox(drag.ox, drag.oy, drag.cx, drag.cy, drag.moved);
-    drag = null; markLiquid(); inspect(); return;
-  }
   if(drag && drag.m === "new" && !drag.moved){
     var o = objects[objects.length-1];
     o.w = drag.w; o.h = drag.h;
@@ -2809,8 +1665,7 @@ function inSomeField(){
   return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable;
 }
 function movementKey(code){
-  return code === "ArrowLeft" || code === "ArrowRight"
-      || code === "ArrowUp"   || code === "ArrowDown";
+  return code === "ArrowLeft" || code === "ArrowRight" || code === "ArrowUp";
 }
 
 document.addEventListener("keydown", function(e){
@@ -2823,8 +1678,6 @@ document.addEventListener("keydown", function(e){
     if(e.code === "ArrowLeft" || e.code === "KeyA") keys.l = true;
     if(e.code === "ArrowRight"|| e.code === "KeyD") keys.r = true;
     if(e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space"){ keys.u = true; buf = BUFFER; e.preventDefault(); }
-    // вниз нужен только в воде — погружение
-    if(e.code === "ArrowDown" || e.code === "KeyS"){ keys.d = true; e.preventDefault(); }
     if(e.code === "KeyR"){ clearTimeout(finishTimer); restartRun(); }
     if(e.code === "Escape") stop();
     return;
@@ -2851,7 +1704,6 @@ document.addEventListener("keyup", function(e){
     if(e.code === "ArrowLeft" || e.code === "KeyA") keys.l = false;
     if(e.code === "ArrowRight"|| e.code === "KeyD") keys.r = false;
     if(e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") keys.u = false;
-    if(e.code === "ArrowDown" || e.code === "KeyS") keys.d = false;
   }
 });
 function pad(id, fn){
@@ -2862,11 +1714,10 @@ function pad(id, fn){
 pad("pLeft",  function(v){ keys.l = v; });
 pad("pRight", function(v){ keys.r = v; });
 pad("pJump",  function(v){ keys.u = v; if(v) buf = BUFFER; });
-pad("pDive",  function(v){ keys.d = v; });
 
 function duplicate(){
   if(!sel) return;
-  if(sel.type === "coin" && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
+  if(sel.type === "coin" && coinCapped() && countCoins() >= COIN_LIMIT){ coinWarn(); return; }
   if(overLimit(1)) return;
   commit();
   var c = JSON.parse(JSON.stringify(sel));
@@ -2877,11 +1728,8 @@ function duplicate(){
 function removeSel(){
   if(!sel) return;
   commit();
-  // лужа удаляется целиком: убирать по одному ряду бессмысленно
-  var kill = (sel.type === "liquid") ? liqBody(sel) : [sel];
-  objects = objects.filter(function(o){ return kill.indexOf(o) === -1; });
+  objects = objects.filter(function(o){ return o !== sel; });
   sel = null;
-  markLiquid();          // жидкость перетечёт в освободившееся место
   inspect();
 }
 
@@ -2897,31 +1745,6 @@ document.getElementById("inspHead").addEventListener("click", function(e){
   document.getElementById("widgets").style.display = t.dataset.tab === "widgets" ? "block" : "none";
 });
 function pr(){ var d = document.createElement("div"); d.className = "pRow"; props.appendChild(d); return d; }
-/* Список жидкостей: образец цвета, название и описание механики.
-   Один и тот же и при наливе, и в свойствах выделенного объёма. */
-function liquidPicker(set, get){
-  var r = pr();
-  r.innerHTML = "<label>Жидкость</label>";
-  var sel2 = document.createElement("select");
-  sel2.style.cssText = "width:118px;padding:5px 6px;border:1px solid var(--line);"
-    + "border-radius:7px;font:inherit;font-size:12px;background:#fafbfd;color:var(--ink)";
-  LIQ_ORDER.forEach(function(k){
-    var op = document.createElement("option");
-    op.value = k; op.textContent = LIQ[k].n;
-    if(get() === k) op.selected = true;
-    sel2.appendChild(op);
-  });
-  sel2.addEventListener("focus", commit);
-  sel2.addEventListener("change", function(){ set(sel2.value); markDirty(); inspect(); });
-  r.appendChild(sel2);
-
-  var info = document.createElement("div");
-  info.className = "pHelpBody";
-  info.style.display = "block";
-  info.textContent = (LIQ[get()] || LIQ.water).about;
-  props.appendChild(info);
-}
-
 function num(l,v,fn){
   var r = pr(), a = document.createElement("label"); a.textContent = l;
   var i = document.createElement("input"); i.type = "number"; i.value = Math.round(v);
@@ -2989,18 +1812,6 @@ function linkHelp(){
 }
 function inspect(){
   var box = document.getElementById("insp");
-  /* Инструмент «Жидкости» без выделения: показываем выбор жидкости здесь.
-     Раньше он жил в отдельном оверлее, и после его удаления на пустой
-     карте можно было налить только воду. */
-  if(!playing && !sel && tool === "liquid"){
-    box.style.display = "flex";
-    props.innerHTML = "";
-    var h = document.createElement("div"); h.id = "objTitle";
-    h.innerHTML = "Жидкости<span>налив</span>";
-    props.appendChild(h);
-    liquidPicker(function(k){ curLiq = k; }, function(){ return curLiq; });
-    return;
-  }
   if(!sel || playing){ box.style.display = "none"; return; }
   box.style.display = "flex";
   props.innerHTML = "";
@@ -3022,9 +1833,7 @@ function inspect(){
     sr.innerHTML = "<label>Размер</label><b style='font-size:12px'>20 x 60</b>";
   }
 
-  /* У жидкости цвет не выбирают: он часть самой жидкости, иначе синюю
-     лаву никто не опознает. */
-  if(sel.type !== "liquid"){
+  {
     var r = pr();
     r.innerHTML = "<label>Цвет</label>";
     var ci = document.createElement("input"); ci.type = "color";
@@ -3036,59 +1845,7 @@ function inspect(){
   if(sel.type === "text") txt("Текст", sel.text, function(v){ sel.text = v; });
 
   grp("Игровые свойства");
-  if(sel.type === "liquid"){
-    /* Выбор жидкости прямо в свойствах: меняется только выделенный
-       объём, поэтому в одной карте спокойно живут и вода, и лава. */
-    liquidPicker(function(k){ sel.liq = k; curLiq = k; },
-                 function(){ return sel.liq || "water"; });
-    props.appendChild(info);
-
-    /* Чувствительность: насколько бодро игрок слушается управления в
-       этой жидкости. Единица — как задумано у самой жидкости. */
-    rng("Чувствительность", sel.sens === undefined ? 1 : sel.sens, 0.3, 2, 0.05,
-        function(v){ sel.sens = v; });
-
-    /* Режим течения. Взаимоисключающий: обычная вода, затягивание на дно
-       или выталкивание наверх — что-то одно. */
-    var fr = pr();
-    fr.innerHTML = "<label>Течение</label>";
-    var fsel = document.createElement("select");
-    fsel.style.cssText = "width:118px;padding:5px 6px;border:1px solid var(--line);"
-      + "border-radius:7px;font:inherit;font-size:12px;background:#fafbfd;color:var(--ink)";
-    [["none","Обычное"],["down","Затягивает на дно"],["up","Выталкивает наверх"]]
-      .forEach(function(a){
-        var op = document.createElement("option");
-        op.value = a[0]; op.textContent = a[1];
-        if((sel.flow || "none") === a[0]) op.selected = true;
-        fsel.appendChild(op);
-      });
-    fsel.addEventListener("focus", commit);
-    fsel.addEventListener("change", function(){
-      sel.flow = fsel.value; markDirty(); inspect();
-    });
-    fr.appendChild(fsel);
-    if(sel.flow === "down" || sel.flow === "up")
-      rng("Сила течения", sel.flowPower || 2, 0.4, 8, 0.2, function(v){ sel.flowPower = v; });
-
-    var same = objects.filter(function(o){ return o.type === "liquid" && (o.liq||"water") === (sel.liq||"water"); }).length;
-    var wr = pr();
-    wr.innerHTML = "<label>Объёмов такой же</label><b style='font-size:12px'>" + same + "</b>";
-
-    var all = pr();
-    all.innerHTML = "<label>Залить всё этой</label>";
-    var ab = document.createElement("button");
-    ab.textContent = "Применить";
-    ab.style.cssText = "padding:5px 10px;border:1px solid var(--line);border-radius:7px;"
-      + "background:#fff;font:inherit;font-size:11.5px;cursor:pointer";
-    ab.onclick = function(){
-      commit();
-      var k = sel.liq || "water";
-      objects.forEach(function(o){ if(o.type === "liquid") o.liq = k; });
-      markDirty(); inspect();
-    };
-    all.appendChild(ab);
-  }
-  if(["spawn","checkpoint","finishline","coin","liquid"].indexOf(sel.type) === -1)
+  if(["spawn","checkpoint","finishline","coin"].indexOf(sel.type) === -1)
     chk("Яд (убивает)", sel.deadly, function(v){ sel.deadly = v; });
   if(SOLID.indexOf(sel.type) !== -1)
     chk("Проходимый (декорация)", !!sel.ghost, function(v){ sel.ghost = v; });
@@ -3352,14 +2109,8 @@ window.GAME = {
   step: step,                     // один шаг физики — нужен автотестам
   restartRun: restartRun,         // новый забег без перезагрузки
   spawnTooClose: spawnTooClose,   // старт рядом с финишем
-  settle: settleLiquid,           // такт течения — автотестам
-  fillLiquid: fillLiquidBox,      // заливка области — автотестам
-  get lsim(){ return lsim; },     // капли в движении — автотестам
-  liqBody: liqBody,               // связное тело жидкости — автотестам
-  freeEdge: freeEdge,             // открытые грани объёма — нужен автотестам
   myColor: null, onDraw: null,
   get keys(){ return keys; },          // состояние управления
-  get water(){ return wp; },           // частицы воды
   get playing(){ return playing; },
   get pl(){ return pl; },
   get view(){ return view; },
@@ -3371,8 +2122,6 @@ window.GAME = {
   loadMap: function(json){
     var d = (typeof json === "string") ? JSON.parse(json) : json;
     if(playing) stop();
-    // капли от прежней карты выбрасываем, иначе они дольют новую
-    lsim = null; liqDirty = true;
     objects = (d.objects || []).map(function(o){ return Object.assign({}, o); });
     if(d.mode) mode = d.mode;
     // режимы sandbox и twoPlayer убраны — старые карты открываем как прятки
@@ -3405,14 +2154,10 @@ window.GAME = {
       // Ворота, дверь и укрытие убраны — в старых картах становятся блоком,
       // чтобы геометрия уровня не разъехалась
       if(o.type === "door" || o.type === "gate" || o.type === "cover"){ o.type = "rect"; }
-      /* Вода стала разделом жидкостей. Старые объёмы переводим по их
-         прежним галочкам, чтобы уже выложенные карты не сломались. */
-      if(o.type === "water"){
-        o.type = "liquid";
-        o.liq = o.acid ? "acid" : (o.sink ? "quicksand" : "water");
-        delete o.acid; delete o.sink; delete o.sinkSpeed; delete o.sinkPower; delete o.fill;
-      }
-      if(o.type === "liquid" && !LIQ[o.liq]) o.liq = "water";
+    });
+    // жидкости из движка убраны — из старых карт выбрасываем совсем
+    objects = objects.filter(function(o){
+      return o.type !== "liquid" && o.type !== "water";
     });
     if(objects.length > OBJ_LIMIT) objects.length = OBJ_LIMIT;
     objects.forEach(function(o){ if(o.id >= uid) uid = o.id + 1; });

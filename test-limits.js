@@ -76,16 +76,11 @@ function harness(mod, extra) {
   const many = (hard, wet) => {
     const objs = [{ type: 'spawn', x: 0, y: 0, w: 20, h: 60 }];
     for (let i = 1; i < hard; i++) objs.push({ type: 'rect', x: i, y: 0, w: 20, h: 20 });
-    for (let i = 0; i < wet; i++) objs.push({ type: 'liquid', liq: 'water', x: i, y: 0, w: 20, h: 20 });
     return { mapName: 'big' + hard + '_' + wet, mapType: 'hideAndSeek',
              mapData: JSON.stringify({ objects: objs }) };
   };
-  r = await L.call('POST /uploadMap', many(50, 3000));
-  ok('много воды не мешает публикации', r.status === 'success', r.message);
   r = await L.call('POST /uploadMap', many(2500, 0));
   ok('лимит обычных объектов держится', r.status === 'error', r.message);
-  r = await L.call('POST /uploadMap', many(50, 9000));
-  ok('у жидкости свой потолок', r.status === 'error', r.message);
 
   console.log(fails ? '\nПРОВАЛЕНО проверок: ' + fails : '\nвсе проверки пройдены ✓');
   process.exit(fails ? 1 : 0);

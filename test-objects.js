@@ -45,8 +45,7 @@ ok('холст не темнеет',      !/night/.test(src));
 // плоские фигуры без бликов и скруглений
 console.log('\nмодели фигур:');
 const paint = src.match(/var PAINT = \{[\s\S]*?\n\};/);
-// только три базовые фигуры: жидкости рисуются иначе и сюда не входят
-const three = src.match(/  rect: function[\s\S]*?  liquid: function/)[0];
+const three = src.match(/  rect: function[\s\S]*?  text: function/)[0];
 ok('rect без скруглений',   /ctx\.fillRect\(0,0,o\.w,o\.h\)/.test(three) && !/rr\(0,0,o\.w,o\.h/.test(three));
 ok('без бликов у фигур',    !/rgba\(255,255,255/.test(three));
 ok('без градиента у круга', !/createRadialGradient/.test(three));
@@ -82,7 +81,6 @@ ok('отражение по X',        /if\(o\.ricochet && Math\.abs\(pl\.vx\) >
 ok('отражение сверху',      /if\(o\.ricochet && pl\.vy > RICO_MIN\)/.test(src));
 ok('отражение снизу',       /if\(o\.ricochet && Math\.abs\(pl\.vy\) > RICO_MIN\)/.test(src));
 
-// вода
 console.log('\nдублирование:');
 ok('Ctrl+D на месте',       /mod && e\.code === "KeyD"/.test(src));
 ok('Alt и потащить',        /down\(p\.x, p\.y, e\.altKey\)/.test(src) && /if\(alt && !overLimit\(1\)\)/.test(src));
@@ -92,28 +90,6 @@ console.log('\nстены:');
 ok('карабканья нет',        !/pl\.vx = -pl\.wall\*wallVX\(\)/.test(src) && !/pl\.vx = -pl\.wall\*wallVX\(\)/.test(game));
 ok('скольжение осталось',   /pl\.wall !== 0 && pl\.vy > WALL_SLIDE/.test(src));
 
-console.log('\nраздел «Жидкости»:');
-const LIQS = ['water','acid','lava','quicksand','oil','slime','mercury','tar'];
-const liqTable = src.match(/var LIQ = \{[\s\S]*?\n\};/)[0];
-LIQS.forEach(k => ok('есть ' + k, new RegExp('\\n  ' + k + ': \\{').test(liqTable)));
-ok('старой воды нет',       !tools.some(t => t.t === 'water'));
-ok('инструмент в палитре',  tools.some(t => t.t === 'liquid'));
-ok('во всех режимах',       /\{t:"liquid",\s*n:"Жидкости",\s*m:ALL\}/.test(src));
-ok('выбор в свойствах',     /liquidPicker\(function\(k\)\{ sel\.liq = k;/.test(src));
-ok('выбор до первого налива', /tool === "liquid"\)\{\s*\n\s*box\.style\.display/.test(src));
-ok('раздел во всех режимах',/\{t:"liquid",\s*n:"Жидкости",\s*m:ALL\}/.test(src));
-ok('залить всё этой',       /Залить всё этой/.test(src));
-
-console.log('\nмеханики жидкостей:');
-ok('лава убивает',          /if\(L && L\.lethal\)\{ die\(\); return; \}/.test(src));
-ok('урон по профилю',       /if\(L && L\.dps > 0\) dmg \+= L\.dps \/ 60;/.test(src));
-ok('вверх заблокировано',   /if\(pl\.vy < 0\) pl\.vy = 0;/.test(src));
-ok('слизь подкидывает',     /L\.jump > 1/.test(src));
-ok('нефть скользкая',       /L\.slip \? 0\.995 : L\.drag/.test(src));
-ok('самая опасная главнее', /function liqRank/.test(src));
-ok('жидкости не смешиваются', /cellOK\(x, y, k\)|cellOK\(nx, p\.y, p\.k\)/.test(src));
-ok('старые карты переводятся', /o\.liq = o\.acid \? "acid" : \(o\.sink \? "quicksand" : "water"\)/.test(src));
-
 console.log('\nбатут:');
 ok('сила настраивается',    /rng\("Сила отскока"/.test(src));
 ok('отскок по нормали',     /function faceNormal/.test(src) && /function ricochet\(o\)/.test(src));
@@ -121,78 +97,9 @@ ok('наклон учитывается',    /var pts = polyOf\(o\)/.test(src));
 ok('сила из свойства',      /o\.power === undefined \? 1 : o\.power/.test(src));
 ok('старые батуты мигрируют', src.indexOf('o.power = Math.max(0.2, Math.min(3, (o.power || 17) / 12.3));') !== -1);
 
-console.log('\nвода: настройки и взаимодействие:');
-ok('ползунок чувствительности', /rng\("Чувствительность"/.test(src));
-ok('чувствительность в физике', /maxVX\(\) \* L\.speed \* wat\.sens/.test(src));
-ok('три режима течения',    /\["none","Обычное"\],\["down","Затягивает на дно"\],\["up","Выталкивает наверх"\]/.test(src));
-ok('затягивание вниз',      /wat\.flow === "down"/.test(src));
-ok('выталкивание вверх',    /wat\.flow === "up"/.test(src));
-ok('всплески при входе',    /function splash/.test(src) && /pl\.inWater && !pl\._wasWet/.test(src));
-ok('блинчики по воде',      /SKIP_MIN_VX/.test(src) && /pl\._skips \|\| 0\) >= 3/.test(src));
-ok('то же в игре',          /function splash/.test(game) && /wat\.flow === "up"/.test(game));
-
-console.log('\nвид жидкости:');
-ok('контура нет',           !/ctx\.strokeStyle = rim/.test(src) && !/ctx\.strokeStyle = rim/.test(game));
-ok('падающих кружков нет',  !/течения: те самые частицы/.test(src));
-ok('оверлей убран',         !/id="liqBox"/.test(src) && !/buildLiqList/.test(src));
-ok('обычный цвет воды',     /c1:"#60a5fa", c2:"#2563eb"/.test(src));
-ok('жидкость стекает вниз', /function settleLiquid/.test(src) && /function liquidToCells/.test(src));
-ok('растекается по уровню',  /выравнивание уровня/.test(src));
-ok('сползает по диагонали',  /сползание по диагонали/.test(src));
-ok('любая правка запускает течение', /function markDirty\(\)\{ gridDirty = true; markLiquid\(\); \}/.test(src));
-ok('лужа удаляется целиком', /liqBody\(sel\) : \[sel\]/.test(src));
-ok('лужа копируется целиком', /clipboard\.type === "liquid" && clipboard\.body/.test(src));
-ok('связное тело считается',  /function liqBody/.test(src));
-ok('пересчёт каждый кадр',  /if\(!playing\) settleLiquid\(\);/.test(src));
-ok('настоящая скорость падения', /c\.v \+= G\(\);/.test(src) && /LIQ_MAXV/.test(src));
-ok('смещение внутри клетки', /c\.sub \+= c\.v;/.test(src));
-ok('боковой сдвиг плавный',  /LIQ_SPREAD/.test(src) && /c\.ox \*= \(1 - LIQ_SPREAD\)/.test(src));
-ok('рисуем из живых капель', /function liqList/.test(src) && /var src = liqList\(\);/.test(src));
-ok('запись назад только в покое', /else if\(\+\+liqRest === 3\)/.test(src));
-ok('устаревшие капли не пишутся', /if\(!lsim \|\| liqDirty\) return;/.test(src));
-ok('уровень выравнивается',  /var hHere = colH\[c\.x\] \|\| 1;/.test(src) && /reach = 10/.test(src));
-ok('полосы по глубине',      /stack = Math\.min\(50, deepH \* 0\.5\)/.test(src));
-ok('контура нет, как в образце', !/cRim/.test(src) && !/cRim/.test(game));
-ok('погружение сильнее всплытия', /dive:0\.95/.test(src));
-
-console.log('\nформа и лимит жидкости:');
-ok('пологая длинная волна', /Math\.sin\(x\*0\.018 \+ anim\*0\.03\) \* 4\.5/.test(src));
-ok('две полосы под волной', /cBand1 = shade\(L\.c1, 78\)/.test(src) && /cBand2 = shade\(L\.c1, 58\)/.test(src));
-ok('синей линии нет',       !/cLine/.test(src) && !/cLine/.test(game));
-ok('тело мягким градиентом', /lcx\.fillStyle = bg;\s*\n\s*lcx\.fill\(body\);/.test(src));
-ok('обрезка по силуэту',     /lcx\.clip\(body\)/.test(src));
-ok('слой непрозрачный',      /var lcv = null, lcx = null;/.test(src));
-ok('кладётся один раз',      /ctx\.drawImage\(lcv, 0, 0, CW\/DPR, CH\/DPR\)/.test(src));
-ok('то же в игре',           /cBand1 = shade\(L\.c1, 78\)/.test(game) && /lcx\.clip\(body\)/.test(game));
-ok('жидкость вне лимита',    /function overLimit\(extra, liquid\)/.test(src) && /LIQ_LIMIT/.test(src));
-ok('счётчик без жидкости',   /countHard\(\) \+ "\/" \+ OBJ_LIMIT/.test(src));
-ok('налив по своему потолку', /overLimit\(cols \* rows, true\)/.test(src));
-
-console.log('\nграфика жидкостей:');
-ok('свой цвет у каждой',    /g\.addColorStop\(0, L\.c1\)/.test(src));
-ok('свечение',              /if\(L\.glow\)/.test(src));
-ok('блик',                  /if\(L\.sheen\)/.test(src));
-ok('зерно песка',           /if\(L\.grain\)/.test(src));
-ok('пузырьков внутри нет', /пузырьки — над водой/.test(src));
-ok('волна только на поверхности', /freeEdge\(o, list, "top"\)/.test(src));
-ok('внутреннее по силуэту', /lcx\.clip\(body\);/.test(src));
-ok('то же в игре',          /var LIQ = \{/.test(game) && /function drawParticles/.test(game));
-
 console.log('\nгенератора в редакторе нет:');
 ok('скриптов нет',          !/mapGen\.js/.test(src) && !/mapNLU\.js/.test(src));
 ok('помощник остался',      /editorHelp\.js/.test(src) && /editorAI\.js/.test(src));
-
-console.log('\nпризрачная вода:');
-ok('фиксация перед правкой',  /function liqFlush/.test(src) && /liqFlush\(\);\s*\n\s*undoStack\.push/.test(src));
-ok('налив фиксирует и просит пересбор', /liqFlush\(\);\s*\/\/ сначала фиксируем/.test(src) && /markLiquid\(\);\s*\n\}/.test(src));
-ok('смена карты сбрасывает капли', /lsim = null; liqDirty = true;/.test(src));
-ok('запись назад не при пересборке', /if\(!lsim \|\| liqDirty\) return;/.test(src));
-
-console.log('\nвид воды:');
-ok('градиент тела',          /bg\.addColorStop\(0, shade\(L\.c1, 46\)\)/.test(src) && /bg\.addColorStop\(1, shade\(L\.c1, 6\)\)/.test(src));
-ok('крупные мягкие пузыри',  /ur = 9 \+ \(us % 5\) \* 3/.test(src));
-ok('пузыри обрезаны по воде', /lcx\.clip\(body\);/.test(src));
-ok('то же в игре',           /bg\.addColorStop\(0, shade\(L\.c1, 46\)\)/.test(game));
 
 console.log('\nфиниш и старт:');
 ok('перезапуск одной функцией', /function restartRun\(\)/.test(src) && /function restartRun\(\)/.test(game));
@@ -207,6 +114,11 @@ ok('Ctrl+C копирует',       /mod && e\.code === "KeyC"/.test(src) && /fu
 ok('Ctrl+V вставляет',      /mod && e\.code === "KeyV"/.test(src) && /function pasteAt/.test(src));
 ok('копия по центру мыши',  /c\.x = snapN\(x - c\.w\/2\)/.test(src));
 ok('курсор отслеживается',  /mouseW = p;/.test(src));
+
+console.log('\nодна модель игрока:');
+ok('метка старта скрыта в игре', /if\(playing && ro\.type === "spawn"\) continue;/.test(src));
+ok('то же в игре',              /if\(playing && ro\.type === "spawn"\) continue;/.test(game));
+ok('жидкости выбрасываются',    /o\.type !== "liquid" && o\.type !== "water"/.test(src) && /o\.type !== "liquid" && o\.type !== "water"/.test(game));
 
 console.log('\nразмер игрока:');
 ok('ручек у старта нет',    /sel\.type === "spawn"\) return null/.test(src));

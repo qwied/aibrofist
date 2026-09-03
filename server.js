@@ -33,7 +33,7 @@ app.use((req, res, next) => {
 /* Служебные файлы наружу не отдаём. Список был поимённым и отставал от
    репозитория: новый тест или свежий readme оказывались доступны по
    прямой ссылке. Теперь закрыты и целые семейства по префиксу. */
-const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js',
+const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/updatetimer.js','/abuse.js',
                  '/lang.js','/themes.js','/extras.js','/check-domain.js',
                  '/package.json','/package-lock.json'];
 const PRIVATE_PREFIX = ['/test-', '/audit-', '/readme', '/domain', '/patch_', '/data', '/node_modules'];
@@ -57,6 +57,20 @@ app.get('/owner.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'owner.js'));
 });
 
+/* adminAbuse.js — то же правило, что и у owner.js: обычный игрок получает
+   пустышку, поэтому у него нет ни кнопки, ни адресов служебных запросов. */
+app.get('/adminAbuse.js', (req, res) => {
+  res.set('Content-Type', 'application/javascript; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  let allowed = false;
+  try { allowed = accountsRef && accountsRef.isOwner(accountsRef.currentUser(req)); }
+  catch (e) { allowed = false; }
+  // чужому — обычное «нет такого файла», а не пустышка: так о панели
+  // вообще ничего не узнать
+  if (!allowed) return res.status(404).send('Not found');
+  res.sendFile(path.join(__dirname, 'adminAbuse.js'));
+});
+
 // картинки скинов лежат в data/skinimg — отдаём только их, остальная data закрыта
 app.use('/skinimg', express.static(path.join(__dirname, 'data', 'skinimg'), {
   maxAge: '7d', fallthrough: true
@@ -71,8 +85,10 @@ app.get('/favicon.ico', (req, res) => {
 app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
+/* Владелец грузит видео и гифки для общего шоу — они приходят в base64,
+   поэтому тело запроса должно вмещать десятки мегабайт. */
+app.use(express.urlencoded({ extended: false, limit: '60mb' }));
+app.use(express.json({ limit: '60mb' }));
 
 // система аккаунтов, друзей и профилей
 const accounts = require('./accounts.js');
@@ -84,6 +100,11 @@ skinsApi.register(app, accounts);
 require('./userSkins.js').register(app, accounts, skinsApi);
 require('./lang.js').register(app, accounts);
 require('./themes.js').register(app, accounts);
+require('./updateTimer.js').register(app, accounts);
+require('./abuse.js').register(app, accounts);
+// файлы шоу владельца отдаём как статику: сами по себе они безобидны
+app.use('/abusefile', express.static(require('./abuse.js').FILE_DIR,
+        { maxAge: '1h', fallthrough: true }));
 require('./extras.js').register(app, accounts);
 
 // адреса, на которые ссылается шапка сайта

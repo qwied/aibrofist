@@ -255,3 +255,63 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
+
+/* ======= ОБРАТНЫЙ ОТСЧЁТ ДО ОБНОВЛЕНИЯ =======
+   Ставит его владелец из своей панели, а видят все: игроку полезно знать,
+   что сайт скоро уйдёт на обновление. Пока таймер не поставлен, в углу
+   ничего нет. */
+(function () {
+  'use strict';
+  var box = null, left = 0, timer = 0;
+
+  function chip() {
+    if (box) return box;
+    box = document.createElement('div');
+    box.id = 'bfUpd';
+    box.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:60;padding:7px 11px;'
+      + 'border-radius:10px;background:rgba(15,23,42,.86);color:#fff;'
+      + 'font:600 12px system-ui,sans-serif;letter-spacing:.2px;pointer-events:none;'
+      + 'box-shadow:0 4px 14px rgba(0,0,0,.18)';
+    document.body.appendChild(box);
+    return box;
+  }
+
+  function human(ms) {
+    var m = Math.max(0, Math.round(ms / 60000));
+    var h = Math.floor(m / 60);
+    m = m % 60;
+    if (h && m) return h + ' ч ' + m + ' мин';
+    if (h) return h + ' ч';
+    return m + ' мин';
+  }
+
+  function paint() {
+    if (left <= 0) {
+      if (box) { box.remove(); box = null; }
+      return;
+    }
+    chip().textContent = 'До обновления: ' + human(left);
+  }
+
+  function refresh() {
+    fetch('/update/get', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { left = d.left || 0; paint(); })
+      .catch(function () {});
+  }
+
+  function start() {
+    refresh();
+    setInterval(refresh, 60000);            // сверяемся с сервером раз в минуту
+    clearInterval(timer);
+    timer = setInterval(function () {       // между сверками тикаем сами
+      if (left > 0) { left -= 1000; paint(); }
+    }, 1000);
+  }
+
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', start);
+  else start();
+
+  window.BFUpdate = { refresh: refresh };
+})();

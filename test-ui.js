@@ -149,7 +149,6 @@ global.window = {
   Image: function () { return { src: '', complete: false, naturalWidth: 0 }; },
   fetch: () => Promise.reject(new Error('offline')),
   navigator: { language: 'ru', languages: ['ru'] },
-  // Path2D в заглушке умеет копить прямоугольники: жидкость рисует через него
   Path2D: function () { this.rect = () => {}; this.arc = () => {}; this.moveTo = () => {}; }, TextDecoder: function () { this.decode = () => ''; }
 };
 const G = {
@@ -242,7 +241,7 @@ try {
   console.log('  ✗ холст:', e.message); failed++;
 }
 
-/* ---- вода и рикошет вживую ----
+/* ---- физика вживую ----
    Строим маленькую сцену через мост GAME и крутим настоящий шаг физики:
    так проверяется не текст исходника, а поведение. */
 const GAME = global.window && global.window.GAME;
@@ -250,7 +249,7 @@ let phys = 0, physFail = 0;
 // harness жал все кнопки подряд, включая пад — снимаем зажатое управление
 function clearKeys() {
   if (!GAME) return;
-  GAME.keys.l = GAME.keys.r = GAME.keys.u = GAME.keys.d = false;
+  GAME.keys.l = GAME.keys.r = GAME.keys.u = false;
   GAME.pl.vx = 0;
 }
 function check(name, cond) {
@@ -261,12 +260,6 @@ if (!GAME) { console.log('  ✗ мост GAME недоступен'); physFail++
 else {
   const floor = { id: 1, type: 'rect', x: 0, y: 400, w: 600, h: 40, rot: 0, fill: '#111827' };
   const spawn = { id: 2, type: 'spawn', x: 60, y: 340, w: 20, h: 60, rot: 0, fill: '#111827' };
-  const pool  = [];
-  for (let i = 0; i < 6; i++)
-    pool.push({ id: 10 + i, type: 'liquid', liq: 'water', x: 200, y: 280 + i * 20,
-                w: 240, h: 20, rot: 0 });
-  // тот же бассейн, но налитый другой жидкостью
-  const poolOf = kind => pool.map(o => Object.assign({}, o, { liq: kind }));
 
   // 1. падение и приземление на пол
   GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn] });
@@ -275,80 +268,6 @@ else {
   for (let i = 0; i < 120; i++) GAME.step();
   check('игрок встаёт на пол', GAME.pl.ground && Math.abs(GAME.pl.y + GAME.pl.h - 400) < 2);
   check('размер игрока 20x60', GAME.pl.w === 20 && GAME.pl.h === 60);
-
-  // 2. вода: всплытие и голова над поверхностью
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
-  GAME.startPlay();
-  clearKeys();
-  GAME.pl.x = 300; GAME.pl.y = 300; GAME.pl.vy = 0;   // в толще воды, над полом
-  for (let i = 0; i < 200; i++) GAME.step();
-  check('игрок в воде', GAME.pl.inWater);
-  check('всплыл к поверхности', Math.abs(GAME.pl.y - 280) < 40);
-  check('голова над водой', !GAME.pl.headUnder);
-  check('воздух восстановился', GAME.pl.air > 0);
-
-  // 3. под водой плыть медленнее, чем бежать по суше
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn] });
-  GAME.startPlay();
-  clearKeys();
-  GAME.pl.x = 60; GAME.pl.y = 340; GAME.keys.r = true;
-  for (let i = 0; i < 90; i++) GAME.step();
-  const landVX = Math.abs(GAME.pl.vx);
-
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
-  GAME.startPlay();
-  clearKeys();
-  GAME.pl.x = 210; GAME.pl.y = 320; GAME.keys.r = true;
-  // держим игрока в бассейне: иначе он выплывет за 90 кадров
-  for (let i = 0; i < 90; i++) { GAME.pl.x = 300; GAME.pl.y = 320; GAME.step(); }
-  const waterVX = Math.abs(GAME.pl.vx);
-  clearKeys();
-  check('в воде медленнее, чем на суше', waterVX < landVX && waterVX > landVX * 0.5);
-
-  // 4. воздух кончается под водой и начинается урон
-  clearKeys();
-  GAME.pl.x = 300; GAME.pl.y = 340; GAME.pl.air = 3; GAME.pl.hp = 100;
-  let under = 0;
-  for (let i = 0; i < 90; i++) { GAME.pl.y = 340; GAME.step(); if (GAME.pl.headUnder) under++; }
-  check('голова под водой считается', under > 60);
-  check('без воздуха идёт урон', GAME.pl.hp < 100);
-
-  // 5. кислота жжёт сразу, даже с полным воздухом
-  const acid = poolOf('acid');
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...acid] });
-  GAME.startPlay();
-  clearKeys();
-  GAME.pl.x = 300; GAME.pl.y = 300; GAME.pl.air = 600; GAME.pl.hp = 100;
-  for (let i = 0; i < 60; i++) { GAME.pl.y = 300; GAME.step(); }
-  check('кислота ранит при касании', GAME.pl.hp < 100);
-
-  // 6. частицы воды: рождаются, держатся в объёме и успокаиваются
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
-  GAME.startPlay();
-  clearKeys();
-  const parts = GAME.water;
-  check('частицы появились', parts.length > 20 && parts.length <= 700);
-  for (let i = 0; i < 240; i++) GAME.step();
-  const outside = parts.filter(p =>
-    p.x < 200 - 20 || p.x > 440 + 20 || p.y < 280 - 20 || p.y > 400 + 20).length;
-  check('вода не выливается за объём', outside === 0, outside + ' сбежало');
-  const fast = parts.filter(p => Math.abs(p.vx) > 6.1 || Math.abs(p.vy) > 8.1).length;
-  check('рой не разлетается', fast === 0);
-  const spread = Math.max(...parts.map(p => p.x)) - Math.min(...parts.map(p => p.x));
-  check('частицы расходятся, а не слипаются в точку', spread > 60);
-
-  // 7. затягивание: из яда не выплыть даже с зажатым прыжком
-  const acidPool = poolOf('quicksand');
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...acidPool] });
-  GAME.startPlay();
-  clearKeys();
-  GAME.pl.x = 300; GAME.pl.y = 290; GAME.pl.hp = 100; GAME.pl.vy = 0;
-  const startY = GAME.pl.y;
-  GAME.keys.u = true;
-  for (let i = 0; i < 60; i++) GAME.step();
-  check('затягивает вниз', GAME.pl.sinking && GAME.pl.y > startY + 20);
-  check('с зажатым прыжком не выплыть', GAME.pl.y > startY);
-  clearKeys();
 
   // 8. рикошет: падение на отражающий блок отбрасывает вверх
   const rico = { id: 3, type: 'rect', x: 0, y: 400, w: 600, h: 40, rot: 0,
@@ -378,90 +297,6 @@ else {
   for (let i = 0; i < 60; i++) { GAME.pl.y = 150; GAME.step(); freeFall = GAME.pl.vy; }
   check('у стены падение медленнее', slideVY < freeFall, slideVY.toFixed(2) + ' против ' + freeFall.toFixed(2));
 
-  // 8. топление: тянет вниз и вверх не пускает
-  const sink = poolOf('quicksand');
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...sink] });
-  GAME.startPlay();
-  clearKeys();
-  GAME.pl.x = 300; GAME.pl.y = 290; GAME.keys.u = true;   // изо всех сил гребём вверх
-  let sinkY0 = GAME.pl.y, wentUp = false;
-  for (let i = 0; i < 120; i++) { GAME.step(); if (GAME.pl.y < sinkY0 - 1) wentUp = true; }
-  check('из топящей воды не выплыть', !wentUp);
-  check('затягивает вниз', GAME.pl.y > sinkY0 + 20);
-  clearKeys();
-
-  // 9. у каждой жидкости своя механика
-  function inLiquid(kind, frames, prep) {
-    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...poolOf(kind)] });
-    GAME.startPlay();
-    clearKeys();
-    GAME.pl.x = 300; GAME.pl.y = 300; GAME.pl.vx = 0; GAME.pl.vy = 0;
-    GAME.pl.hp = 100; GAME.pl.air = 600;
-    if (prep) prep();
-    const y0 = GAME.pl.y;
-    for (let i = 0; i < frames; i++) GAME.step();
-    return { y0, pl: GAME.pl };
-  }
-
-  const lava = inLiquid('lava', 5);
-  check('лава убивает сразу', lava.pl.dead || lava.pl.hp <= 0 || lava.pl.y === 340);
-
-  const ac = inLiquid('acid', 60);
-  check('кислота ранит при полном воздухе', ac.pl.hp < 100, ac.pl.hp.toFixed(0));
-
-  const qs = inLiquid('quicksand', 120, () => { GAME.keys.u = true; });
-  check('песок затягивает и не пускает вверх', qs.pl.y > qs.y0 + 20);
-  clearKeys();
-
-  // на поверхности игрок покачивается, поэтому сравниваем среднее
-  function restY(kind) {
-    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...poolOf(kind)] });
-    GAME.startPlay();
-    clearKeys();
-    GAME.pl.x = 300; GAME.pl.y = 340; GAME.pl.vx = 0; GAME.pl.vy = 0;
-    for (let i = 0; i < 240; i++) GAME.step();
-    let sum = 0;
-    for (let i = 0; i < 120; i++) { GAME.step(); sum += GAME.pl.y; }
-    return sum / 120;
-  }
-  const yMerc = restY('mercury'), yWater = restY('water'), yOil = restY('oil');
-  check('ртуть держит выше воды', yMerc < yWater - 2,
-        'ртуть ' + yMerc.toFixed(0) + ', вода ' + yWater.toFixed(0));
-  check('нефть держит хуже воды', yOil > yWater + 2,
-        'нефть ' + yOil.toFixed(0) + ', вода ' + yWater.toFixed(0));
-
-  // смола и слизь тормозят сильнее воды
-  function driveVX(kind) {
-    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...poolOf(kind)] });
-    GAME.startPlay();
-    clearKeys();
-    GAME.pl.x = 300; GAME.pl.y = 320; GAME.keys.r = true;
-    for (let i = 0; i < 90; i++) { GAME.pl.x = 300; GAME.pl.y = 320; GAME.step(); }
-    const v = Math.abs(GAME.pl.vx);
-    clearKeys();
-    return v;
-  }
-  const vWater = driveVX('water'), vTar = driveVX('tar'), vSlime = driveVX('slime');
-  check('в смоле медленнее всего', vTar < vSlime && vSlime < vWater,
-        'смола ' + vTar.toFixed(2) + ', слизь ' + vSlime.toFixed(2) + ', вода ' + vWater.toFixed(2));
-
-  // 10. поверхность жидкости без швов внутри объёма
-  const row = [
-    { x: 100, y: 200, w: 60, h: 20 },
-    { x: 160, y: 200, w: 60, h: 20 },
-    { x: 220, y: 200, w: 60, h: 20 }
-  ];
-  const tops = row.map(o => GAME.freeEdge(o, row, 'top'));
-  const flat = tops.flat();
-  check('верх ряда сплошной', flat.length === 3 && flat.every(([a, b]) => b - a === 60));
-  const stack = [
-    { x: 100, y: 200, w: 60, h: 20 },
-    { x: 100, y: 220, w: 60, h: 20 }
-  ];
-  check('внутренняя грань закрыта', GAME.freeEdge(stack[1], stack, 'top').length === 0);
-  check('низ стопки открыт', GAME.freeEdge(stack[1], stack, 'bottom').length === 1);
-  check('бок открыт', GAME.freeEdge(stack[0], stack, 'left').length === 1);
-
   // 11. сила батута и наклонный отскок
   function bounceTop(power, rot) {
     // батут поднят над полом: иначе игрок гасит скорость о пол, а не о него
@@ -486,247 +321,8 @@ else {
   const tilted = bounceTop(1.6, 35);
   check('наклонный батут кидает вбок', tilted.side > 2, tilted.side.toFixed(1));
 
-  // 12. режимы течения
-  function flowY(mode, power) {
-    const pool = [];
-    for (let i = 0; i < 6; i++)
-      pool.push({ id: 20 + i, type: 'liquid', liq: 'water', x: 200, y: 280 + i * 20,
-                  w: 240, h: 20, rot: 0, flow: mode, flowPower: power });
-    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
-    GAME.startPlay();
-    clearKeys();
-    GAME.pl.x = 300; GAME.pl.y = 340; GAME.pl.vx = 0; GAME.pl.vy = 0;
-    GAME.keys.u = true;                       // изо всех сил гребём вверх
-    for (let i = 0; i < 150; i++) GAME.step();
-    const y = GAME.pl.y;
-    clearKeys();
-    return y;
-  }
-  const yDown = flowY('down', 3), yNone = flowY('none', 0), yUp = flowY('up', 3);
-  check('затягивание тянет вниз', yDown > yNone + 10, yDown.toFixed(0) + ' против ' + yNone.toFixed(0));
-  check('выталкивание гонит вверх', yUp < yNone - 5, yUp.toFixed(0) + ' против ' + yNone.toFixed(0));
-
-  // 13. чувствительность
-  function sensVX(sens) {
-    const pool = [];
-    for (let i = 0; i < 6; i++)
-      pool.push({ id: 30 + i, type: 'liquid', liq: 'water', x: 200, y: 280 + i * 20,
-                  w: 240, h: 20, rot: 0, sens: sens });
-    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor, spawn, ...pool] });
-    GAME.startPlay();
-    clearKeys();
-    GAME.pl.x = 300; GAME.pl.y = 320; GAME.keys.r = true;
-    for (let i = 0; i < 90; i++) { GAME.pl.x = 300; GAME.pl.y = 320; GAME.step(); }
-    const v = Math.abs(GAME.pl.vx);
-    clearKeys();
-    return v;
-  }
-  check('чувствительность ускоряет', sensVX(2) > sensVX(0.5) * 1.5);
-
   GAME.stop();
 }
-// ---- течение жидкости ----
-if (GAME && GAME.settle) {
-  const floor2 = { id: 1, type: 'rect', x: 0, y: 600, w: 800, h: 40, rot: 0, fill: '#111827' };
-  const spawn2 = { id: 2, type: 'spawn', x: 40, y: 540, w: 20, h: 60, rot: 0, fill: '#111827' };
-  // столб воды в воздухе: должен упасть и растечься лужей
-  const col = [];
-  for (let i = 0; i < 8; i++)
-    col.push({ id: 50 + i, type: 'liquid', liq: 'water', x: 400, y: 200 + i * 20,
-               w: 20, h: 20, rot: 0 });
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...col] });
-
-  const liquid = () => GAME.objects.filter(o => o.type === 'liquid');
-  const cells = () => {
-    let n = 0;
-    liquid().forEach(o => { n += Math.round(o.w / 20) * Math.round(o.h / 20); });
-    return n;
-  };
-  const startCells = cells();
-  for (let i = 0; i < 400; i++) GAME.settle();
-
-  const l = liquid();
-  let lowest = 0, minX = 1e9, maxX = -1e9, tallest = 0;
-  l.forEach(o => {
-    if (o.y + o.h > lowest) lowest = o.y + o.h;
-    if (o.x < minX) minX = o.x;
-    if (o.x + o.w > maxX) maxX = o.x + o.w;
-  });
-  check('вода долетела до пола', Math.abs(lowest - 600) < 1, 'низ ' + lowest);
-  check('вода растеклась вширь', maxX - minX >= 60, 'ширина ' + (maxX - minX));
-  check('объём не потерялся', cells() === startCells, cells() + ' из ' + startCells);
-
-  // столб не должен остаться столбом: считаем высоту самой высокой колонки
-  const colH = {};
-  l.forEach(o => {
-    for (let x = o.x; x < o.x + o.w - 0.5; x += 20)
-      colH[x] = (colH[x] || 0) + Math.round(o.h / 20);
-  });
-  tallest = Math.max(...Object.values(colH));
-  check('столб развалился в лужу', tallest <= 3, 'самая высокая колонка ' + tallest);
-
-  // уровень выравнивается: столбы не отличаются больше чем на клетку
-  const hs = Object.values(colH);
-  check('уровень ровный', Math.max(...hs) - Math.min(...hs) <= 1,
-        'от ' + Math.min(...hs) + ' до ' + Math.max(...hs));
-
-  // налив рамкой: заливается вся область, а не одна клетка
-  if (GAME.fillLiquid) {
-    const pit = [
-      { id: 400, type: 'rect', x: 180, y: 500, w: 20, h: 120, rot: 0, fill: '#111827' },
-      { id: 401, type: 'rect', x: 380, y: 500, w: 20, h: 120, rot: 0, fill: '#111827' }
-    ];
-    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...pit] });
-    GAME.fillLiquid(200, 520, 375, 595, true);
-    let filled = 0;
-    GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
-      filled += Math.round(o.w / 20) * Math.round(o.h / 20);
-    });
-    check('рамка заливает всю область', filled === 9 * 4, filled + ' клеток');
-
-    // сквозь стены заливка не лезет
-    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...pit] });
-    GAME.fillLiquid(170, 520, 410, 595, true);
-    let inWall = 0;
-    GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
-      // считаем только те, что легли прямо в стену
-      if ((o.x >= 180 && o.x < 200) || (o.x >= 380 && o.x < 400)) inWall += 1;
-    });
-    check('в стены не заливается', inWall === 0, inWall + ' клеток внутри стен');
-
-    // короткий тычок кладёт ровно одну клетку
-    GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2] });
-    GAME.fillLiquid(300, 300, 302, 301, false);
-    let one = 0;
-    GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
-      one += Math.round(o.w / 20) * Math.round(o.h / 20);
-    });
-    check('тычок кладёт одну клетку', one === 1, one);
-  }
-
-  // неровный налив должен разровняться сам
-  const uneven = [];
-  let uid2 = 300;
-  [[200, 6], [220, 5], [240, 1], [260, 4], [280, 0], [300, 3]].forEach(([x, n]) => {
-    for (let k = 0; k < n; k++)
-      uneven.push({ id: uid2++, type: 'liquid', liq: 'water', x, y: 580 - k * 20,
-                    w: 20, h: 20, rot: 0 });
-  });
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...uneven] });
-  for (let i = 0; i < 600; i++) GAME.settle();
-  const h2 = {};
-  GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
-    for (let x = o.x; x < o.x + o.w - 0.5; x += 20)
-      h2[x] = (h2[x] || 0) + Math.round(o.h / 20);
-  });
-  const vals = Object.values(h2);
-  check('ступеньки разравниваются', Math.max(...vals) - Math.min(...vals) <= 1,
-        'от ' + Math.min(...vals) + ' до ' + Math.max(...vals));
-
-  // погружение: с зажатой «вниз» игрок уходит под воду целиком
-  const deep = [];
-  for (let i = 0; i < 10; i++)
-    deep.push({ id: 95 + i, type: 'liquid', liq: 'water', x: 200, y: 400 + i * 20,
-                w: 240, h: 20, rot: 0 });
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...deep] });
-  GAME.startPlay();
-  clearKeys();
-  GAME.pl.x = 300; GAME.pl.y = 380; GAME.pl.vy = 0;
-  GAME.keys.d = true;
-  for (let i = 0; i < 120; i++) GAME.step();
-  check('можно уйти под воду целиком', GAME.pl.y > 400 + 8, 'макушка на ' + GAME.pl.y.toFixed(0));
-  check('голова считается погружённой', GAME.pl.headUnder);
-  clearKeys();
-  GAME.stop();
-
-  // падение плавное: капля живёт между клетками, а не прыгает двадцатками
-  const drops = [];
-  for (let i = 0; i < 6; i++)
-    drops.push({ id: 80 + i, type: 'liquid', liq: 'water', x: 500, y: 100 + i * 20,
-                 w: 20, h: 20, rot: 0 });
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, ...drops] });
-  let sawSub = false, maxStep = 0, prevY = null;
-  for (let i = 0; i < 60; i++) {
-    GAME.settle();
-    const sim = GAME.lsim || [];
-    sim.forEach(c => { if (c.sub > 0.5 && c.sub < 19.5) sawSub = true; });
-    const low = sim.length ? Math.max(...sim.map(c => c.y + c.sub)) : null;
-    if (prevY !== null && low !== null) maxStep = Math.max(maxStep, low - prevY);
-    prevY = low;
-  }
-  check('падение между клетками', sawSub);
-  check('шаг за кадр как у игрока', maxStep > 0 && maxStep <= 13, 'до ' + maxStep.toFixed(1) + ' px за кадр');
-
-  // яма: вода должна её найти и заполнить, а не висеть рядом
-  const wallL = { id: 3, type: 'rect', x: 300, y: 500, w: 20, h: 100, rot: 0, fill: '#111827' };
-  const wallR = { id: 4, type: 'rect', x: 400, y: 500, w: 20, h: 100, rot: 0, fill: '#111827' };
-  const drop = [];
-  for (let i = 0; i < 4; i++)
-    drop.push({ id: 60 + i, type: 'liquid', liq: 'water', x: 340, y: 100 + i * 20,
-                w: 20, h: 20, rot: 0 });
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor2, spawn2, wallL, wallR, ...drop] });
-  for (let i = 0; i < 400; i++) GAME.settle();
-  let inPit = 0;
-  GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
-    if (o.x >= 320 && o.x + o.w <= 400 && o.y >= 500) inPit += Math.round(o.w / 20) * Math.round(o.h / 20);
-  });
-  check('вода налилась в яму', inPit >= 3, inPit + ' клеток');
-}
-
-// ---- лужа как единое целое ----
-if (GAME && GAME.liqBody) {
-  const floor3 = { id: 1, type: 'rect', x: 0, y: 600, w: 800, h: 40, rot: 0, fill: '#111827' };
-  const spawn3 = { id: 2, type: 'spawn', x: 40, y: 540, w: 20, h: 60, rot: 0, fill: '#111827' };
-  const pool = [];
-  for (let r = 0; r < 2; r++)
-    for (let c = 0; c < 5; c++)
-      pool.push({ id: 70 + r * 5 + c, type: 'liquid', liq: 'water',
-                  x: 200 + c * 20, y: 560 + r * 20, w: 20, h: 20, rot: 0 });
-  // отдельная лужа в стороне — она не должна попасть в то же тело
-  const far = { id: 90, type: 'liquid', liq: 'water', x: 600, y: 580, w: 20, h: 20, rot: 0 };
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floor3, spawn3, ...pool, far] });
-
-  const all = GAME.objects.filter(o => o.type === 'liquid');
-  const first = all.find(o => o.x < 400);
-  const body = GAME.liqBody(first);
-  let bodyCells = 0;
-  body.forEach(o => { bodyCells += Math.round(o.w / 20) * Math.round(o.h / 20); });
-  check('тело собирает всю лужу', bodyCells === 10, bodyCells + ' клеток');
-  check('дальняя лужа отдельно', body.indexOf(all.find(o => o.x >= 600)) === -1);
-}
-
-// ---- призрачная вода при повторном наливе ----
-if (GAME && GAME.fillLiquid && GAME.settle) {
-  const floorG = { id: 1, type: 'rect', x: 0, y: 600, w: 900, h: 40, rot: 0, fill: '#111827' };
-  const spawnG = { id: 2, type: 'spawn', x: 40, y: 540, w: 20, h: 60, rot: 0, fill: '#111827' };
-  const cellsOf = () => {
-    let n = 0;
-    GAME.objects.filter(o => o.type === 'liquid').forEach(o => {
-      n += Math.round(o.w / 20) * Math.round(o.h / 20);
-    });
-    return n;
-  };
-
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorG, spawnG] });
-  // первая порция — высоко, пусть летит
-  GAME.fillLiquid(200, 100, 260, 160, true);
-  const first = 4 * 4;
-  for (let i = 0; i < 8; i++) GAME.settle();          // ещё в полёте
-  // вторая порция, пока первая не улеглась
-  GAME.fillLiquid(500, 100, 560, 160, true);
-  for (let i = 0; i < 600; i++) GAME.settle();
-
-  check('объём не удваивается', cellsOf() === first * 2, cellsOf() + ' вместо ' + first * 2);
-  let highest = 1e9;
-  GAME.objects.filter(o => o.type === 'liquid').forEach(o => { if (o.y < highest) highest = o.y; });
-  check('старая вода не всплыла назад', highest > 300, 'верх на ' + highest);
-
-  // смена карты не притаскивает воду из прежней
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorG, spawnG] });
-  for (let i = 0; i < 20; i++) GAME.settle();
-  check('новая карта без чужой воды', cellsOf() === 0, cellsOf() + ' клеток');
-}
-
 // ---- финиш и точка старта ----
 if (GAME && GAME.restartRun) {
   const floorF = { id: 1, type: 'rect', x: 0, y: 400, w: 1400, h: 40, rot: 0, fill: '#111827' };
@@ -757,29 +353,22 @@ if (GAME && GAME.restartRun) {
   check('монеты собираются заново', GAME.coins === 1, GAME.coins);
   GAME.stop();
 
+  // жидкости из старых карт выбрасываются при загрузке
+  GAME.loadMap({ mode: 'race', objects: [
+    floorF, spawnF, finF,
+    { id: 90, type: 'liquid', liq: 'water', x: 300, y: 360, w: 20, h: 20, rot: 0 },
+    { id: 91, type: 'water', x: 340, y: 360, w: 20, h: 20, rot: 0 }
+  ]});
+  check('жидкость из старой карты выпала',
+        GAME.objects.every(o => o.type !== 'liquid' && o.type !== 'water'),
+        GAME.objects.map(o => o.type).join(','));
+  check('остальное на месте', GAME.objects.length === 3, GAME.objects.length);
+
   // старт вплотную к финишу карту не пускает
   const finNear = { id: 5, type: 'finishline', x: 140, y: 314, w: 42, h: 86, rot: 0, fill: '' };
   GAME.loadMap({ mode: 'race', objects: [floorF, spawnF, finNear] });
   check('старт рядом с финишем ловится', GAME.spawnTooClose() !== null,
         'расстояние ' + GAME.spawnTooClose());
-}
-
-// ---- нагрузка: большой бассейн на полный потолок частиц ----
-if (GAME) {
-  const big = [{ id: 1, type: 'rect', x: 0, y: 900, w: 2000, h: 40, rot: 0, fill: '#111827' },
-               { id: 2, type: 'spawn', x: 60, y: 840, w: 20, h: 60, rot: 0, fill: '#111827' }];
-  for (let r = 0; r < 30; r++)
-    big.push({ id: 100 + r, type: 'liquid', liq: 'water', x: 100, y: 300 + r * 20,
-               w: 1600, h: 20, rot: 0 });
-  GAME.loadMap({ mode: 'hideAndSeek', objects: big });
-  GAME.startPlay();
-  clearKeys();
-  const t0 = Date.now();
-  for (let i = 0; i < 300; i++) GAME.step();
-  const ms = (Date.now() - t0) / 300;
-  console.log(`Нагрузка: ${GAME.water.length} частиц, ${ms.toFixed(2)} мс на кадр физики`);
-  check('шаг физики укладывается в кадр', ms < 8, ms.toFixed(2) + ' мс');
-  GAME.stop();
 }
 
 console.log(`Физика: пройдено ${phys}, ошибок ${physFail}`);

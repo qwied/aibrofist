@@ -18,7 +18,6 @@ const DAILY_LIMIT = 3;                 // сколько новых карт м�
 const REWARD      = 10;                // монет за каждую новую опубликованную карту
 const COIN_LIMIT  = 3;                 // максимум монет в одной карте — защита от накрутки
 const OBJ_LIMIT   = 2000;              // максимум объектов в карте, одинаково во всех режимах
-const LIQ_LIMIT   = 6000;              // клеток жидкости — считается отдельно
 
 // у каждого режима свой набор объектов; общие доступны везде
 /* Платформа, ротатор, батут, яд и шипы стали свойствами обычных объектов,
@@ -26,7 +25,7 @@ const LIQ_LIMIT   = 6000;              // клеток жидкости — сч
    принимались: редактор превращает их в свойства при загрузке. */
 const TOOL_MODES = {
   rect:null, circle:null, triangle:null, text:null, coin:null,
-  gate:null, spawn:null, finishline:null, water:null, liquid:null,
+  gate:null, spawn:null, finishline:null,
   button:null, lever:null,
   cover:['hideAndSeek'],
   checkpoint:['race'],
@@ -35,7 +34,7 @@ const TOOL_MODES = {
   door:null, seeker:null
 };
 const TOOL_RU = {
-  liquid:'Жидкость', water:'Вода', cover:'Укрытие', seeker:'Ищущий', door:'Дверь', button:'Кнопка',
+  cover:'Укрытие', seeker:'Ищущий', door:'Дверь', button:'Кнопка',
   lever:'Рычаг', checkpoint:'Чекпоинт', finishline:'Финиш'
 };
 
@@ -139,24 +138,15 @@ function register(app, getUser, acc) {
 
     const list = objectsOf(mapData);
 
-    /* Жидкость в лимит не входит: внутри лужа хранится клетками, и
-       обычный разлив съедал бы весь запас, хотя по смыслу это один
-       объект. У неё свой потолок — он про нагрузку, а не про сложность. */
-    const hard = list.filter(o => o.type !== 'liquid').length;
-    const wet = list.length - hard;
-    if (hard > OBJ_LIMIT)
+    if (list.length > OBJ_LIMIT)
       return res.json({
         status: 'error',
-        message: 'В карте ' + hard + ' объектов. Разрешено не больше ' + OBJ_LIMIT + '.'
-      });
-    if (wet > LIQ_LIMIT)
-      return res.json({
-        status: 'error',
-        message: 'Жидкости в карте слишком много: ' + wet + ' клеток при пределе ' + LIQ_LIMIT + '.'
+        message: 'В карте ' + list.length + ' объектов. Разрешено не больше ' + OBJ_LIMIT + '.'
       });
 
     const coins = list.filter(o => o.type === 'coin').length;
-    if (coins > COIN_LIMIT)
+    // владельцу лимит монет не мешает: его карты для показов
+    if (coins > COIN_LIMIT && !isOwnerName(u.name))
       return res.json({
         status: 'error',
         message: 'В карте ' + coins + ' монет. Разрешено не больше ' + COIN_LIMIT +
@@ -422,4 +412,4 @@ function inGameList() {
                           mapType: m.mapType, modes: m.inGameModes.slice() }));
 }
 
-module.exports = { register, MODES, OWNER, COIN_LIMIT, OBJ_LIMIT, LIQ_LIMIT, REWARD, TOOL_MODES, find, setBoost, setInGame, inGameList, tally };
+module.exports = { register, MODES, OWNER, COIN_LIMIT, OBJ_LIMIT, REWARD, TOOL_MODES, find, setBoost, setInGame, inGameList, tally };

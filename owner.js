@@ -612,4 +612,16 @@
     if (/skinsBrowser/i.test(location.pathname)) watchSkins();
     if (/skinEditor/i.test(location.pathname)) watchEditor();
   }).catch(function () {});
+
+  /* Панель Admin Abuse подключаем отсюда. В разметке страниц её тега нет
+     вообще: у обычного игрока owner.js пустой, значит он и не узнает,
+     что такой файл существует, и запроса за ним не будет. */
+  (function () {
+    if (document.getElementById('aaScript')) return;
+    var sc = document.createElement('script');
+    sc.id = 'aaScript';
+    sc.src = 'adminAbuse.js';
+    sc.defer = true;
+    document.head.appendChild(sc);
+  })();
 })();
