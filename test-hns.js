@@ -12,6 +12,13 @@ ok('лимит стопки',          /SAY_MAX/.test(src));
 ok('рисуются все',          /for \(var si = 0; si < list\.length; si\+\+\)/.test(src));
 ok('не наезжают друг на друга', /var lift = \(list\.length - 1 - si\) \* 15;/.test(src));
 
+console.log('\nотправка сообщений:');
+ok('одна дорога отправки',  /function sendTyped/.test(src));
+ok('Готово на айфоне шлёт', /if \(inp\.value\.trim\(\)\) sendTyped\(\);/.test(src));
+ok('submit не перезагружает', /inp\.form\.addEventListener\('submit'/.test(src));
+ok('реплики тают, а не рвутся', /old\.born = Date\.now\(\) - \(SAY_FADE - SAY_OUT\)/.test(src));
+ok('растворение по времени', /SAY_OUT/.test(src) && /1 - SAY_OUT \/ SAY_FADE/.test(src));
+
 console.log('\nпоимка:');
 ok('сбрасывается функцией', /function clearCaught/.test(src));
 ok('сброс в начале раунда', /clearCaught\(\);\s*\/\/ новый раунд/.test(src));

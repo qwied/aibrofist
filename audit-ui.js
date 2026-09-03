@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DIR = '/home/claude/work';
+const DIR = __dirname;
 const pages = fs.readdirSync(DIR).filter(f => f.endsWith('.html'));
 
 let problems = 0;

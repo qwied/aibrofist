@@ -20,6 +20,17 @@
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
     }).then(function (r) { return r.json(); });
   }
+
+  /* Файл шлём как JSON, а не формой. В форме base64 приходится
+     процентно кодировать, и сорокамегабайтное видео разбухает втрое —
+     запрос отбивался лимитом, поэтому несколько файлов не проходили. */
+  function postJSON(url, data) {
+    return fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).then(function (r) { return r.json(); });
+  }
   function say(t) {
     var m = document.getElementById('aaMsg');
     if (m) m.textContent = t;
@@ -85,8 +96,10 @@
       +   '<input id="aaSpeed" type="number" value="4" min="1" max="40" title="скорость">'
       +   '<input id="aaSize" type="number" value="120" min="20" max="3000" title="размер, px">'
       + '</div>'
+      + '<label style="display:block;font-size:12px;margin:2px 0 6px">'
+      +   '<input id="aaFull" type="checkbox" style="width:auto;margin-right:6px">'
+      +   'во весь экран</label>'
       + '<button class="go" id="aaGo">Запустить всем</button>'
-      + '<button id="aaFull">Во весь экран</button>'
       + '<button id="aaClr">Убрать медиа</button>'
 
       + '<div class="aaH">Музыка</div>'
@@ -140,6 +153,7 @@
         dir: document.getElementById('aaDir').value,
         v: document.getElementById('aaSpeed').value,
         s: document.getElementById('aaSize').value,
+        full: document.getElementById('aaFull').checked,
         sound: document.getElementById('aaSound').checked
       };
     }
@@ -150,7 +164,8 @@
                                     vol: document.getElementById('aaVol').value })
                .then(function (r) { done(r, 'Играет у всех'); });
       return post('/abuse/set', { what: 'media', url: url, kind: kind,
-                                  dir: o.dir, v: o.v, s: o.s, sound: o.sound })
+                                  dir: o.dir, v: o.v, s: o.s,
+                                  full: o.full, sound: o.sound })
              .then(function (r) { done(r, 'Запущено у всех: ' + (r.count || '')); });
     }
 
@@ -178,7 +193,7 @@
         var f = list[i++], kind = kindOf(f.name, f.type);
         var fr = new FileReader();
         fr.onload = function () {
-          post('/abuse/upload', { data: fr.result }).then(function (r) {
+          postJSON('/abuse/upload', { data: fr.result }).then(function (r) {
             if (r.status !== 'success') {
               say(f.name + ': ' + (r.message || 'не загрузилось'));
               next();               // остальные всё равно грузим
@@ -220,11 +235,7 @@
       }).then(function (r) { done(r, 'У всех: ' + b.textContent); });
     };
 
-    // размер во весь экран — по ширине окна, дальше клиент подгонит сам
-    document.getElementById('aaFull').onclick = function () {
-      document.getElementById('aaSize').value = Math.round(window.innerWidth);
-      say('Размер: во весь экран');
-    };
+
 
     document.getElementById('aaTimeGo').onclick = function () {
       var h = parseInt(document.getElementById('aaHrs').value, 10) || 0;

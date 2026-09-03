@@ -137,7 +137,9 @@ function register(app, acc) {
         kind: String(req.body.kind || 'image'),
         dir: ['up', 'down', 'left', 'right'].indexOf(req.body.dir) === -1 ? 'right' : req.body.dir,
         v: Math.max(0.5, Math.min(60, parseFloat(req.body.v) || 4)),
-        s: Math.max(20, Math.min(1600, parseFloat(req.body.s) || 120)),
+        s: Math.max(20, Math.min(4000, parseFloat(req.body.s) || 120)),
+        // размер во весь экран каждый игрок считает по своему окну
+        full: String(req.body.full) === 'true',
         sound: String(req.body.sound) === 'true'
       });
       while (state.media.length > MAX_MEDIA) state.media.shift();

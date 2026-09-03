@@ -1,6 +1,6 @@
 // Проверяем, что перевод ложится на весь интерфейс и не смешивается
 const fs=require('fs');
-const src=fs.readFileSync('/home/claude/work/i18n.js','utf8');
+const src=fs.readFileSync(__dirname+'/i18n.js','utf8');
 const D=eval('('+src.match(/var D = (\{[\s\S]*?\n  \});/)[1]+')');
 const AUTO=eval('('+src.match(/var AUTO = (\{[\s\S]*?\n  \});/)[1]+')');
 const LANGS=eval(src.match(/var LANGS = (\[[^\]]*\]);/)[1]);

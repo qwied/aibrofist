@@ -94,26 +94,81 @@
   function fireNukes(n) {
     for (var i = 0; i < n; i++)
       booms.push({
-        t: -Math.round(Math.random() * Math.min(240, n * 6)),   // задержка старта
-        x: 0.12 + Math.random() * 0.76,
-        y: 0.62 + Math.random() * 0.24,
-        s: 0.55 + Math.random() * 0.7
+        // первая всегда крупная и по центру: это атомная бомба, а не салют
+        t: i === 0 ? 0 : -Math.round(20 + Math.random() * Math.min(300, n * 8)),
+        x: i === 0 ? 0.5 : 0.1 + Math.random() * 0.8,
+        y: i === 0 ? 0.82 : 0.66 + Math.random() * 0.2,
+        s: i === 0 ? 1.35 : 0.5 + Math.random() * 0.7
       });
   }
 
   /* Дождь из монет. Монета рисуется так же, как в игре: золотой кружок
      со светлой каймой, и «переворачивается» по ширине. */
+  /* Монету берём прямо из игры — coin.png, тот же файл, что лежит на
+     карте. Рисованный кружок рядом с настоящей монетой смотрелся чужим. */
+  var coinImg = null;
+  function coinSprite() {
+    if (coinImg) return coinImg;
+    coinImg = new Image();
+    coinImg.src = 'coin.png';
+    return coinImg;
+  }
+
+  /* Тучки, из которых сыплются монеты. Монеты рождаются под ними, а не
+     по всей ширине: так видно, откуда именно идёт дождь. */
+  var clouds = [];
   function fireCoins(n) {
+    coinSprite();
     var W = innerWidth;
-    for (var i = 0; i < n; i++)
+    var cn = Math.max(1, Math.min(6, Math.round(n / 12) || 1));
+    clouds.length = 0;
+    for (var c = 0; c < cn; c++)
+      clouds.push({
+        x: W * (c + 0.5) / cn + (Math.random() - 0.5) * W * 0.12,
+        y: 40 + Math.random() * 60,
+        s: 0.8 + Math.random() * 0.6,
+        life: 0
+      });
+
+    for (var i = 0; i < n; i++) {
+      var cl = clouds[i % clouds.length];
       coins.push({
-        x: Math.random() * W,
-        y: -30 - Math.random() * innerHeight,
+        x: cl.x + (Math.random() - 0.5) * 150 * cl.s,
+        y: cl.y - Math.random() * 40 - i * 6,
         v: 3 + Math.random() * 4,
-        r: 9 + Math.random() * 7,
+        r: 11 + Math.random() * 7,
         p: Math.random() * 6.28,
         sp: 0.06 + Math.random() * 0.08
       });
+    }
+  }
+
+  function drawClouds() {
+    if (!clouds.length) return;
+    var alive = coins.length > 0;
+    for (var i = 0; i < clouds.length; i++) {
+      var c = clouds[i];
+      c.life++;
+      // появились, повисели и растаяли вместе с монетами
+      var a = Math.min(1, c.life / 40) * (alive ? 1 : Math.max(0, 1 - (c.life % 1000) / 60));
+      if (!alive && c.life > 60) continue;
+      cx.globalAlpha = 0.85 * a;
+      cx.fillStyle = '#e8eef7';
+      var s = c.s;
+      cx.beginPath();
+      cx.ellipse(c.x, c.y, 70 * s, 26 * s, 0, 0, 6.2832);
+      cx.ellipse(c.x - 42 * s, c.y + 6 * s, 40 * s, 20 * s, 0, 0, 6.2832);
+      cx.ellipse(c.x + 44 * s, c.y + 5 * s, 44 * s, 21 * s, 0, 0, 6.2832);
+      cx.ellipse(c.x + 6 * s, c.y - 16 * s, 44 * s, 24 * s, 0, 0, 6.2832);
+      cx.fill();
+      cx.globalAlpha = 0.5 * a;
+      cx.fillStyle = '#c9d6e8';
+      cx.beginPath();
+      cx.ellipse(c.x, c.y + 16 * s, 74 * s, 12 * s, 0, 0, 6.2832);
+      cx.fill();
+    }
+    cx.globalAlpha = 1;
+    if (!alive && clouds.length && clouds[0].life > 60) clouds.length = 0;
   }
 
   function drawWeather() {
@@ -207,17 +262,24 @@
       cx.fillRect(0, 0, W, H);
     }
 
+    drawClouds();
+
     // монеты: падают, покачиваются и пропадают за нижним краем
+    var img = coins.length ? coinSprite() : null;
+    var ready = img && img.complete && img.naturalWidth;
     for (i = coins.length - 1; i >= 0; i--) {
       var c = coins[i];
       c.y += c.v;
       c.p += c.sp;
       if (c.y > H + 40) { coins.splice(i, 1); continue; }
       var w = Math.abs(Math.cos(c.p)) * c.r + 2;     // «переворот» по ширине
-      cx.fillStyle = '#f5b62b';
-      cx.beginPath(); cx.ellipse(c.x, c.y, w, c.r, 0, 0, 6.2832); cx.fill();
-      cx.fillStyle = '#ffd977';
-      cx.beginPath(); cx.ellipse(c.x, c.y, w * 0.55, c.r * 0.55, 0, 0, 6.2832); cx.fill();
+      if (ready) {
+        cx.drawImage(img, c.x - w, c.y - c.r, w * 2, c.r * 2);
+      } else {
+        // картинка ещё не загрузилась — рисуем кружок, чтобы не мигало
+        cx.fillStyle = '#f5b62b';
+        cx.beginPath(); cx.ellipse(c.x, c.y, w, c.r, 0, 0, 6.2832); cx.fill();
+      }
     }
   }
 
@@ -254,11 +316,16 @@
     /* Не загрузилось — выбрасываем. Иначе на экране висел бы пустой
        прямоугольник, а цикл двигал бы его до конца шоу. */
     el.onerror = function () { drop(el); };
-    el.style.cssText = 'position:absolute;left:0;top:0;width:' + m.s + 'px;height:auto;will-change:transform';
+    /* «Во весь экран» считает каждый игрок у себя: ширина окна у всех
+       разная, и подставлять сюда число с экрана владельца бессмысленно. */
+    var size = m.full ? Math.max(innerWidth, innerHeight) : m.s;
+    el.style.cssText = 'position:absolute;left:0;top:0;width:' + size + 'px;height:auto;'
+      + 'will-change:transform' + (m.full ? ';object-fit:cover' : '');
     layer.appendChild(el);
 
     var W = innerWidth, H = innerHeight;
-    var o = { el: el, dir: m.dir, v: m.v, s: m.s, x: 0, y: 0 };
+    var o = { el: el, dir: m.dir, v: m.v, s: size, x: 0, y: 0 };
+    m = { dir: m.dir, s: size };
     if (m.dir === 'right') { o.x = -m.s; o.y = Math.random() * Math.max(1, H - m.s); }
     if (m.dir === 'left')  { o.x = W;    o.y = Math.random() * Math.max(1, H - m.s); }
     if (m.dir === 'down')  { o.y = -m.s; o.x = Math.random() * Math.max(1, W - m.s); }
@@ -320,11 +387,15 @@
      звук не зависит от связи. */
   var actx = null, rainNode = null, rainGain = null, noiseBuf = null;
 
+  /* Контекст, созданный до первого касания, засыпает и сам не
+     просыпается. Раньше его будили только в момент касания: если звук
+     понадобился позже, контекст создавался уже спящим и оставался
+     немым — отсюда «звуков нет». Теперь будим при каждом обращении. */
   function audioCtx() {
-    if (actx) return actx;
     var C = window.AudioContext || window.webkitAudioContext;
     if (!C) return null;
-    actx = new C();
+    if (!actx) actx = new C();
+    if (actx.state === 'suspended') actx.resume();
     return actx;
   }
   function noise() {
@@ -368,34 +439,51 @@
 
   /* Взрыв: короткий удар шумом с быстрым спадом плюс низкий тон,
      съезжающий вниз. Громкость зависит от размера конкретного взрыва. */
+  /* Взрыв атомной бомбы: резкий удар, за ним долгий раскат, который
+     уезжает в инфразвук. Крупный взрыв звучит дольше и ниже мелкого. */
   function boomSound(scale) {
     var a = audioCtx();
     if (!a) return;
     var t = a.currentTime;
+    var len = 1.4 + 1.6 * scale;
 
+    // удар: шум с быстрым спадом и опускающимся срезом
     var src = a.createBufferSource();
     src.buffer = noise();
     var flt = a.createBiquadFilter();
     flt.type = 'lowpass';
-    flt.frequency.setValueAtTime(1800, t);
-    flt.frequency.exponentialRampToValueAtTime(120, t + 1.1);
+    flt.frequency.setValueAtTime(2600, t);
+    flt.frequency.exponentialRampToValueAtTime(90, t + len * 0.8);
     var g = a.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.55 * scale, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+    g.gain.exponentialRampToValueAtTime(0.6 * scale, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
     src.connect(flt); flt.connect(g); g.connect(a.destination);
-    src.start(t); src.stop(t + 1.5);
+    src.start(t); src.stop(t + len + 0.1);
 
+    // раскат: низкий тон, съезжающий почти в инфразвук
     var osc = a.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(120, t);
-    osc.frequency.exponentialRampToValueAtTime(28, t + 0.9);
+    osc.frequency.setValueAtTime(110, t);
+    osc.frequency.exponentialRampToValueAtTime(22, t + len * 0.75);
     var og = a.createGain();
     og.gain.setValueAtTime(0.0001, t);
-    og.gain.exponentialRampToValueAtTime(0.45 * scale, t + 0.03);
-    og.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    og.gain.exponentialRampToValueAtTime(0.5 * scale, t + 0.04);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + len * 0.9);
     osc.connect(og); og.connect(a.destination);
-    osc.start(t); osc.stop(t + 1.2);
+    osc.start(t); osc.stop(t + len);
+
+    // эхо: тот же шум тише и позже, отсюда ощущение простора
+    var e = a.createBufferSource();
+    e.buffer = noise();
+    var ef = a.createBiquadFilter();
+    ef.type = 'lowpass'; ef.frequency.value = 400;
+    var eg = a.createGain();
+    eg.gain.setValueAtTime(0.0001, t + 0.35);
+    eg.gain.exponentialRampToValueAtTime(0.2 * scale, t + 0.45);
+    eg.gain.exponentialRampToValueAtTime(0.0001, t + len + 0.6);
+    e.connect(ef); ef.connect(eg); eg.connect(a.destination);
+    e.start(t + 0.35); e.stop(t + len + 0.7);
   }
 
   // короткий звонкий блик, когда поймал монету
@@ -498,7 +586,7 @@
     }
     if (cx) { cx.clearRect(0, 0, innerWidth, innerHeight); drawWeather(); }
     moveMedia();
-    if (weather !== 'none' || media.length || booms.length || coins.length) start();
+    if (weather !== 'none' || media.length || booms.length || coins.length || clouds.length) start();
   }
   function start() { if (!raf) raf = requestAnimationFrame(loop); }
 

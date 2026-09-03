@@ -28,10 +28,10 @@ global.setInterval=()=>0;
 
 // подсовываем настоящий рисовальщик
 const host={};
-new Function('window', fs.readFileSync('/home/claude/work/skinRender.js','utf8'))(host);
+new Function('window', fs.readFileSync(__dirname+'/skinRender.js','utf8'))(host);
 global.window.BFSkin=host.BFSkin;
 
-const src=fs.readFileSync('/home/claude/work/skinAvatar.js','utf8');
+const src=fs.readFileSync(__dirname+'/skinAvatar.js','utf8');
 new Function(src)();
 const A=global.window.BFAvatar;
 

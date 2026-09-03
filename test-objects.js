@@ -88,7 +88,7 @@ ok('Alt и потащить',        /down\(p\.x, p\.y, e\.altKey\)/.test(src) &
 // стены, топление, буфер обмена
 console.log('\nстены:');
 ok('карабканья нет',        !/pl\.vx = -pl\.wall\*wallVX\(\)/.test(src) && !/pl\.vx = -pl\.wall\*wallVX\(\)/.test(game));
-ok('скольжение осталось',   /pl\.wall !== 0 && pl\.vy > WALL_SLIDE/.test(src));
+ok('скольжение только в воздухе', /!inWater && pl\.wall !== 0 && pl\.vy > WALL_SLIDE/.test(src) && /!inWater && pl\.wall !== 0 && pl\.vy > WALL_SLIDE/.test(game));
 
 console.log('\nбатут:');
 ok('сила настраивается',    /rng\("Сила отскока"/.test(src));
@@ -115,10 +115,43 @@ ok('Ctrl+V вставляет',      /mod && e\.code === "KeyV"/.test(src) && /f
 ok('копия по центру мыши',  /c\.x = snapN\(x - c\.w\/2\)/.test(src));
 ok('курсор отслеживается',  /mouseW = p;/.test(src));
 
+console.log('\nинтерфейс:');
+ok('зум без границ',        /Math\.min\(4000, Math\.max\(0\.0005/.test(src) && /Math\.min\(4000, Math\.max\(0\.0005/.test(game));
+ok('колесо работает в игре', !/if\(playing\) return; e\.preventDefault\(\);\s*\n\s*zoomAt/.test(src)
+   && !/if\(playing\) return; e\.preventDefault\(\);\s*\n\s*zoomAt/.test(game));
+ok('в игре панелей нет',    /body\.play #scene/.test(src) && /body\.play #bfPublish/.test(src));
+ok('панель помощника тоже', /body\.play #genBox/.test(src));
+ok('HUD в правом нижнем',   /#hud\{display:none;position:fixed;right:14px;bottom:14px/.test(src));
+ok('HUD компактный',        /padding:6px 7px/.test(src));
+ok('кнопка публикации своя', /#bfPublish\{position:fixed/.test(src) && /linear-gradient\(180deg,#2f8bff,#1667e0\)/.test(src));
+ok('на кнопке значок',      /<svg viewBox="0 0 24 24"><path d="M12 16V5"/.test(src));
+
 console.log('\nодна модель игрока:');
 ok('метка старта скрыта в игре', /if\(playing && ro\.type === "spawn"\) continue;/.test(src));
 ok('то же в игре',              /if\(playing && ro\.type === "spawn"\) continue;/.test(game));
-ok('жидкости выбрасываются',    /o\.type !== "liquid" && o\.type !== "water"/.test(src) && /o\.type !== "liquid" && o\.type !== "water"/.test(game));
+
+// вода: палитра, модель, физика и миграция старых жидкостей
+console.log('\nвода:');
+ok('инструмент в палитре',   tools.some(x => x.t === 'water' && x.n === 'Вода'));
+ok('модель воды в редакторе', /water: function\(o\)/.test(src));
+ok('модель воды в игре',     /water: function\(o\)/.test(game));
+ok('верхний проход в редакторе', /function waterOver\(/.test(src) && /waterOver\(wo2?\);/.test(src));
+ok('верхний проход в игре',  /function waterOver\(/.test(game) && /waterOver\(wo2?\);/.test(game));
+ok('волна общая для проходов', /function waterTop\(o, x\)/.test(src) && /function waterTop\(o, x\)/.test(game));
+ok('в воде гравитация слабее', /pl\.vy \+= G\(\)\*\(inWater \? WTR_GRAV : 1\)/.test(src) && /pl\.vy \+= G\(\)\*\(inWater \? WTR_GRAV : 1\)/.test(game));
+ok('вязкость воды',         /pl\.vx \*= WTR_VXDRAG/.test(src) && /pl\.vy \*= WTR_VYDRAG/.test(game));
+ok('гребки при удержании прыжка', /pl\.vy -= G\(\)\*WTR_SWIM/.test(src) && /pl\.vy -= G\(\)\*WTR_SWIM/.test(game));
+ok('выпрыгивание у поверхности', /jumpV\(\)\*WTR_KICK/.test(src) && /jumpV\(\)\*WTR_KICK/.test(game));
+ok('всплеск при входе',     /function splash\(x, y, v\)/.test(src) && /splash\(pl\.x\+pl\.w\/2, wtr\.top, pl\.vy\)/.test(game));
+ok('пузыри всплывают',      /if\(p\.f\)\{ p\.vy -= 0\.014/.test(src) && /if\(p\.f\)\{ p\.vy -= 0\.014/.test(game));
+ok('кислота — галочка воды', /Кислота \(убивает\)/.test(src) && /Кислота \(убивает\)/.test(game));
+ok('вода не блок',          !/SOLID\.indexOf\("water"\)/.test(src) && !/"water".*SOLID/.test(src));
+ok('старая жидкость становится водой', /if\(o\.type === "liquid"\)\{ o\.type = "water"; delete o\.liq; \}/.test(src)
+   && /if\(o\.type === "liquid"\)\{ o\.type = "water"; delete o\.liq; \}/.test(game));
+ok('выбрасывание воды убрано', !/o\.type !== "liquid" && o\.type !== "water"/.test(src)
+   && !/o\.type !== "liquid" && o\.type !== "water"/.test(game));
+const maps=fs.readFileSync(__dirname+'/maps.js','utf8');
+ok('сервер принимает воду', /water:null/.test(maps));
 
 console.log('\nразмер игрока:');
 ok('ручек у старта нет',    /sel\.type === "spawn"\) return null/.test(src));

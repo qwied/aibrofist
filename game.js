@@ -176,6 +176,7 @@
 
   var SAY_FADE = 2600;
   var SAY_MAX = 4;
+  var SAY_OUT = 500;            // сколько миллисекунд длится растворение
   /* Реплики копятся стопкой: новая не стирает предыдущую, а встаёт под
      ней. Раньше здесь лежала одна запись на игрока, поэтому второе
      сообщение затирало первое ещё до того, как его успевали прочитать. */
@@ -184,7 +185,15 @@
     if (!text) return;
     var list = spoken[who] || (spoken[who] = []);
     list.push({ text: text, born: Date.now() });
-    while (list.length > SAY_MAX) list.shift();
+    /* Лишние не выкидываем разом: при частой отправке реплики пропадали
+       рывком прямо на глазах. Вместо этого состариваем самую старую —
+       она доживает свои полсекунды и растворяется как обычно. */
+    for (var i = 0; i < list.length - SAY_MAX; i++) {
+      var old = list[i], age = Date.now() - old.born;
+      if (age < SAY_FADE - SAY_OUT) old.born = Date.now() - (SAY_FADE - SAY_OUT);
+    }
+    // совсем уж отжившие убираем, чтобы список не рос без конца
+    while (list.length > SAY_MAX + 3) list.shift();
   }
 
   function banner(title, text, show) {
@@ -530,7 +539,11 @@
         var k = (now - sp.born) / SAY_FADE;        // 0 → 1
         // каждая следующая реплика висит ниже предыдущей и не наезжает
         var lift = (list.length - 1 - si) * 15;
-        ctx.globalAlpha = k < 0.75 ? 1 : (1 - (k - 0.75) / 0.25);
+        /* Растворение занимает последние полсекунды жизни, а не четверть
+           срока: так оно одинаково плавное и у долгих, и у состаренных
+           досрочно реплик. */
+        var outFrom = 1 - SAY_OUT / SAY_FADE;
+        ctx.globalAlpha = k < outFrom ? 1 : Math.max(0, 1 - (k - outFrom) / (1 - outFrom));
         ctx.fillStyle = '#3a3a3a';
         ctx.fillText(sp.text, cx, topY - 16 - lift - k * 46);
       }
@@ -558,6 +571,17 @@
   function stopTyping() {
     clearTyping(); inp.blur();
   }
+  /* Одна дорога для всех способов отправки: Enter, кнопка и «Готово» на
+     клавиатуре айфона. Раньше «Готово» просто снимало фокус, текст молча
+     пропадал, а поле после этого не принимало ввод. */
+  function sendTyped() {
+    var v = inp.value.trim();
+    clearTyping();
+    if (!v) return false;
+    speak(me.name, v);                      // своя реплика сразу уплывает
+    if (socket) socket.emit('sendChat', { text: v });
+    return true;
+  }
   // крестик/Escape — единственный способ выбросить черновик
 
   inp.addEventListener('input', function () { typing = inp.value; });
@@ -573,12 +597,7 @@
     if (!move) e.stopPropagation();
     if (e.key === 'Enter') {
       e.preventDefault();
-      var v = inp.value.trim();
-      clearTyping();                        // гасим набор, но фокус не теряем
-      if (v) {
-        speak(me.name, v);                  // своя реплика сразу уплывает
-        if (socket) socket.emit('sendChat', { text: v });
-      }
+      sendTyped();                          // гасим набор, но фокус не теряем
     } else if (e.key === 'Escape') {
       e.preventDefault();
       stopTyping();
@@ -589,8 +608,21 @@
      поэтому набранное сообщение пропадало прямо во время печати.
      Теперь черновик сохраняется: над головой он просто перестаёт
      показываться, пока игрок не вернётся в поле. Стереть — Escape. */
-  inp.addEventListener('blur', function () { typing = ''; });
+  /* «Готово» на айфоне не даёт ни Enter, ни submit — только blur. Поэтому
+     на blur отправляем то, что набрано: иначе текст исчезал бесследно.
+     Escape и крестик перед уходом чистят поле сами, так что случайно
+     отправить пустой черновик нельзя. */
+  inp.addEventListener('blur', function () {
+    if (inp.value.trim()) sendTyped();
+    typing = '';
+  });
   inp.addEventListener('focus', function () { typing = inp.value; });
+
+  /* На айфоне поле в форме реагирует на «Готово» ещё и submit — гасим
+     его, чтобы страница не перезагрузилась и ввод не залипал. */
+  if (inp.form) inp.form.addEventListener('submit', function (e) {
+    e.preventDefault(); sendTyped();
+  });
 
   // на телефоне клавиатуры нет — вызываем её кнопкой
   var talk = $('gTalk');
