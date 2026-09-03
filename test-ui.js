@@ -367,33 +367,41 @@ if (GAME && GAME.startPour) {
   const bowlR = { id: 10, type: 'rect', x: 600, y: 400, w: 20, h: 120, rot: 0, fill: '#111827' };
   const spawnP = { id: 12, type: 'spawn', x: 60, y: 440, w: 20, h: 60, rot: 0, fill: '#111827' };
 
-  // 13. струя из курсора: капли падают, оседают и поднимают уровень
+  // 13. струя из курсора: капли оседают ЧАСТИЦАМИ жидкости, куча сама
+  //     растекается по дну ёмкости, вода не вылезает за стенки
   GAME.loadMap({ mode: 'hideAndSeek', objects: [bowlFloor, bowlL, bowlR, spawnP] });
   GAME.startPour(400, 320, '#38bdf8', false);
   check('струя включилась', !!GAME.pour);
   for (let i = 0; i < 300; i++) GAME.stepAlways();
   GAME.stopPour();
-  for (let i = 0; i < 600 && GAME.pourParts.length; i++) GAME.stepAlways();
-  const pools = GAME.objects.filter(o => o.type === 'water');
-  check('налитая вода стала лужей', pools.length >= 1);
+  for (let i = 0; i < 900 && (GAME.pourParts.length || GAME.liq.some(p => Math.abs(p.vy) > 0.6)); i++) GAME.stepAlways();
+  for (let i = 0; i < 600; i++) GAME.stepAlways();   // даём жидкости успокоиться
   check('капли осели и исчезли', GAME.pourParts.length === 0, GAME.pourParts.length);
-  if (pools.length) {
-    const top = Math.min(...pools.map(o => o.y));
-    const bot = Math.max(...pools.map(o => o.y + o.h));
-    check('лужа легла на дно ёмкости', bot > 470 && bot <= 503, 'низ ' + bot.toFixed(0));
-    check('уровень заметно поднялся', top < 460, 'верх ' + top.toFixed(0));
-    check('лужа не вылезла за стенки', pools.every(o => o.x >= 178 && o.x + o.w <= 622));
-    check('лужи слились без мусора', pools.length <= 5, pools.length);
-    check('обычная вода не ядовита', pools.every(o => !o.deadly));
-  }
+  const L = GAME.liq;
+  check('налитая вода стала жидкостью-частицами', L.length > 100, L.length);
+  check('лужа легла на дно ёмкости', L.length && L.every(p => p.y <= 500) && L.some(p => p.y > 470),
+        'макс.низ ' + (L.length ? Math.max(...L.map(p => p.y)).toFixed(0) : '-'));
+  check('вода не вылезла за стенки', L.every(p => p.x >= 178 && p.x <= 622),
+        'x ' + (L.length ? Math.min(...L.map(p => p.x)).toFixed(0) + '..' + Math.max(...L.map(p => p.x)).toFixed(0) : '-'));
+  // течение: куча растеклась в широкую лужу по дну чаши
+  const wid = Math.max(...L.map(p => p.x)) - Math.min(...L.map(p => p.x));
+  check('лужа растеклась по дну', wid > 200, wid.toFixed(0));
+  // поверхность ровная: верх кучи по 20px-колонкам почти на одной высоте
+  const cols = {};
+  for (const p of L) { const c = Math.floor(p.x/20)*20; if (!(c in cols) || p.y < cols[c]) cols[c] = p.y; }
+  const tops = Object.values(cols);
+  const spread = Math.max(...tops) - Math.min(...tops);
+  check('лужа уровнялась (горбов нет)', spread < 8, 'разброс ' + spread.toFixed(1));
+  check('обычная вода не ядовита', L.every(p => !p.deadly));
 
   // 14. кислота из кисти: наливается отдельно и остаётся смертельной
   GAME.loadMap({ mode: 'hideAndSeek', objects: [bowlFloor, bowlL, bowlR, spawnP] });
   GAME.startPour(300, 380, '#84cc16', true);
   for (let i = 0; i < 120; i++) GAME.stepAlways();
   GAME.stopPour();
-  for (let i = 0; i < 600 && GAME.pourParts.length; i++) GAME.stepAlways();
-  check('кисть умеет кислоту', GAME.objects.some(o => o.type === 'water' && o.deadly));
+  for (let i = 0; i < 600 && (GAME.pourParts.length || GAME.liq.some(p => Math.abs(p.vy) > 0.6)); i++) GAME.stepAlways();
+  check('кисть умеет кислоту', GAME.liq.length >= 50 && GAME.liq.every(p => p.deadly),
+        'частиц ' + GAME.liq.length);
 } else if (GAME) {
   check('мост литья доступен', false);
 }

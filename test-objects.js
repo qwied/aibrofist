@@ -83,7 +83,7 @@ ok('отражение снизу',       /if\(o\.ricochet && Math\.abs\(pl\.vy\
 
 console.log('\nдублирование:');
 ok('Ctrl+D на месте',       /mod && e\.code === "KeyD"/.test(src));
-ok('Alt и потащить',        /down\(p\.x, p\.y, e\.altKey\)/.test(src) && /if\(alt && !overLimit\(1\)\)/.test(src));
+ok('Alt и потащить',        /down\(p\.x, p\.y, e\.altKey/.test(src) && /if\(alt && !overLimit\(1\)\)/.test(src));
 
 // стены, топление, буфер обмена
 console.log('\nстены:');
@@ -116,7 +116,7 @@ ok('копия по центру мыши',  /c\.x = snapN\(x - c\.w\/2\)/.test(
 ok('курсор отслеживается',  /mouseW = p;/.test(src));
 
 console.log('\nинтерфейс:');
-ok('зум без границ',        /Math\.min\(4000, Math\.max\(0\.0005/.test(src) && /Math\.min\(4000, Math\.max\(0\.0005/.test(game));
+ok('отдаление ограничено',  /Math\.min\(4000, Math\.max\(0\.2/.test(src) && /Math\.min\(4000, Math\.max\(0\.2/.test(game));
 ok('колесо работает в игре', !/if\(playing\) return; e\.preventDefault\(\);\s*\n\s*zoomAt/.test(src)
    && !/if\(playing\) return; e\.preventDefault\(\);\s*\n\s*zoomAt/.test(game));
 ok('в игре панелей нет',    /body\.play #scene/.test(src) && /body\.play #bfPublish/.test(src));
