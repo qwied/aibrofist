@@ -33,8 +33,12 @@ function register(app, acc) {
     const u = currentUser(req);
     if (!isOwner(u)) return res.json({ status: 'error', message: 'Только для владельца' });
 
-    const mins = Math.max(0, Math.min(60 * 24 * 30, parseInt(req.body.minutes, 10) || 0));
-    const at = mins ? Date.now() + mins * 60000 : 0;
+    /* Принимаем и секунды, и минуты: панель шлёт секунды, но старые
+       вызовы с минутами тоже должны работать. */
+    let secs = parseInt(req.body.seconds, 10);
+    if (!Number.isFinite(secs)) secs = (parseInt(req.body.minutes, 10) || 0) * 60;
+    secs = Math.max(0, Math.min(60 * 60 * 24 * 30, secs || 0));
+    const at = secs ? Date.now() + secs * 1000 : 0;
     save({ at: at });
     res.json({ status: 'success', at: at });
   });

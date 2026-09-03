@@ -120,9 +120,10 @@
       + '<div class="aaRow">'
       +   '<input id="aaHrs" type="number" value="3" min="0" max="999" title="часы">'
       +   '<input id="aaMin" type="number" value="0" min="0" max="59" title="минуты">'
+      +   '<input id="aaSec" type="number" value="0" min="0" max="59" title="секунды">'
       + '</div>'
-      + '<button class="go" id="aaTimeGo">Поставить</button>'
-      + '<button id="aaTimeOff">Убрать</button>'
+      + '<button class="go" id="aaTimeGo">Запустить таймер до обновления</button>'
+      + '<button id="aaTimeOff">Убрать таймер</button>'
 
       + '<div class="aaH">Разное</div>'
       + '<button id="aaAll">Убрать всё шоу</button>'
@@ -228,13 +229,14 @@
     document.getElementById('aaTimeGo').onclick = function () {
       var h = parseInt(document.getElementById('aaHrs').value, 10) || 0;
       var m = parseInt(document.getElementById('aaMin').value, 10) || 0;
-      post('/update/set', { minutes: h * 60 + m }).then(function (r) {
+      var sc = parseInt(document.getElementById('aaSec').value, 10) || 0;
+      post('/update/set', { seconds: h * 3600 + m * 60 + sc }).then(function (r) {
         say(r.status === 'success' ? 'Таймер поставлен' : (r.message || 'Ошибка'));
         if (window.BFUpdate) BFUpdate.refresh();
       });
     };
     document.getElementById('aaTimeOff').onclick = function () {
-      post('/update/set', { minutes: 0 }).then(function () {
+      post('/update/set', { seconds: 0 }).then(function () {
         say('Таймер убран');
         if (window.BFUpdate) BFUpdate.refresh();
       });

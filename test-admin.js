@@ -68,7 +68,12 @@ ok('монеты без лимита',   /window\.BFAdminAbuse = true/.test(src)
 
 console.log('\nтаймер обновления:');
 ok('отсчёт виден всем',   /До обновления: /.test(shell));
-ok('часы и минуты',       /' ч ' \+ m \+ ' мин'/.test(shell));
+ok('часы, минуты, секунды', /' ч ' \+ two\(m\) \+ ' мин ' \+ two\(sec\) \+ ' сек'/.test(shell));
+ok('тикает каждую секунду', /if \(left > 0\) \{ left -= 1000; paint\(\); \}/.test(shell) && /\}, 1000\);/.test(shell));
+ok('сам гаснет по нулю',   /if \(left <= 0\) \{\s*\n\s*if \(box\) \{ box\.remove\(\); box = null; \}/.test(shell));
+ok('кнопка запуска',       /Запустить таймер до обновления/.test(src));
+ok('можно убрать вручную', /Убрать таймер/.test(src));
+ok('поле секунд',          /id="aaSec"/.test(src));
 
 const routes = {};
 const app = { get: (p, h) => routes['GET ' + p] = h, post: (p, h) => routes['POST ' + p] = h };
@@ -80,22 +85,28 @@ require('./updateTimer.js').register(app, {
 const call = (k, body) => new Promise(r => routes[k]({ body: body || {} }, { json: d => r(d) }));
 
 (async () => {
-  let r = await call('POST /update/set', { minutes: 180 });
+  let r = await call('POST /update/set', { seconds: 180 * 60 });
   ok('владелец ставит таймер', r.status === 'success');
   r = await call('GET /update/get');
   ok('осталось около трёх часов', Math.abs(r.left - 180 * 60000) < 5000, Math.round(r.left / 60000) + ' мин');
 
   user = { name: 'qwied' };
-  r = await call('POST /update/set', { minutes: 999 });
+  r = await call('POST /update/set', { seconds: 999 * 60 });
   ok('чужому ставить нельзя', r.status === 'error', r.message);
   r = await call('GET /update/get');
   ok('читать может любой', r.left > 0);
   ok('чужой не сбил таймер', Math.abs(r.left - 180 * 60000) < 5000);
 
   user = { name: 'System' };
-  await call('POST /update/set', { minutes: 0 });
+  await call('POST /update/set', { seconds: 0 });
   r = await call('GET /update/get');
   ok('таймер снимается', r.left === 0);
+  r = await call('POST /update/set', { seconds: 45 });
+  r = await call('GET /update/get');
+  ok('секунды принимаются', Math.abs(r.left - 45000) < 3000, Math.round(r.left / 1000) + ' сек');
+  r = await call('POST /update/set', { minutes: 2 });
+  r = await call('GET /update/get');
+  ok('минуты тоже работают', Math.abs(r.left - 120000) < 3000, Math.round(r.left / 1000) + ' сек');
 
   console.log('\nправа на шоу:');
   const R2 = {};

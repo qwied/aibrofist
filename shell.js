@@ -276,16 +276,21 @@
     return box;
   }
 
+  /* Отсчёт идёт по секундам, поэтому и показываем секунды: без них
+     последняя минута выглядела бы застывшей. */
   function human(ms) {
-    var m = Math.max(0, Math.round(ms / 60000));
-    var h = Math.floor(m / 60);
-    m = m % 60;
-    if (h && m) return h + ' ч ' + m + ' мин';
-    if (h) return h + ' ч';
-    return m + ' мин';
+    var t = Math.max(0, Math.floor(ms / 1000));
+    var h = Math.floor(t / 3600);
+    var m = Math.floor((t % 3600) / 60);
+    var sec = t % 60;
+    var two = function (n) { return n < 10 ? '0' + n : String(n); };
+    if (h) return h + ' ч ' + two(m) + ' мин ' + two(sec) + ' сек';
+    if (m) return m + ' мин ' + two(sec) + ' сек';
+    return sec + ' сек';
   }
 
   function paint() {
+    // время вышло — плашка убирается сама, отдельной команды не нужно
     if (left <= 0) {
       if (box) { box.remove(); box = null; }
       return;
