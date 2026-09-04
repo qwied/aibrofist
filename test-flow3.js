@@ -125,7 +125,15 @@ console.log('1) налитая куча растекается в ровную �
   const tops = Object.values(cols);
   const uneven = tops.length ? Math.max(...tops) - Math.min(...tops) : 0;
   check('куча стала частицами жидкости', GAME.liq.length > 100, GAME.liq.length);
-  check('лужа расползлась шире кучи', span > midSpan0 * 2.2, midSpan0.toFixed(0) + ' → ' + span.toFixed(0));
+  /* спокойная физика (v80): куча ровняется прямо во время литья, поэтому
+     старый критерий «×2.2 от промежуточного» устарел — проверяем физику
+     напрямую: лужа широкая и неглубокая (не куб, а плёнка) */
+  const colLoad = (() => { const t = {}; let m = 0;
+    for (const p of GAME.liq) { const c = Math.floor(p.x / 6); t[c] = (t[c] || 0) + 1; }
+    for (const k in t) if (t[k] > m) m = t[k];
+    return m; })();
+  check('лужа расползлась шире кучи', span > 380, midSpan0.toFixed(0) + ' → ' + span.toFixed(0));
+  check('лужа — не куб (колонки ≤ 10 капель)', colLoad <= 10, colLoad);
   check('лужа широкая (плёнка по полу)', span > 200, span.toFixed(0));
   check('поверхность ровная (разброс < 12px)', uneven < 12, uneven.toFixed(1));
   check('лужа лежит на полу (за краем пола капает в пустоту)',
@@ -135,13 +143,17 @@ function pileSpan() {
   if (!GAME.liq.length) return 0;
   return Math.max(...GAME.liq.map(p => p.x)) - Math.min(...GAME.liq.map(p => p.x));
 }
-function surfaceCols(step) {
+function surfaceCols(step, arr) {
   const cols = {};
-  for (const p of GAME.liq) {
+  for (const p of (arr || GAME.liq)) {
     const c = Math.floor(p.x / step) * step;
     if (!(c in cols) || p.y < cols[c]) cols[c] = p.y;
   }
   return cols;
+}
+function median(arr) {
+  const a = arr.slice().sort((x, y) => x - y);
+  return a.length ? a[a.length >> 1] : NaN;
 }
 
 console.log('2) объём не теряется: капли превращаются в частицы');
@@ -170,13 +182,15 @@ console.log('3) вода выравнивается в U-образном сос
   GAME.stopPour();
   for (let k = 0; k < 600 && GAME.pourParts.length; k++) ticks(16);
   ticks(900);
+  /* медианы, а не средние: 2-3 физичные капли на верхушке стенки не
+     должны портить оценку поверхности озера */
   const cols = surfaceCols(40);
   const xs = Object.keys(cols).map(Number).sort((a, b) => a - b);
   const leftTops = xs.filter(x => x < 500).map(x => cols[x]);
   const rightTops = xs.filter(x => x >= 500).map(x => cols[x]);
   const both = leftTops.length && rightTops.length;
-  const lAvg = leftTops.reduce((s, v) => s + v, 0) / Math.max(1, leftTops.length);
-  const rAvg = rightTops.reduce((s, v) => s + v, 0) / Math.max(1, rightTops.length);
+  const lAvg = median(leftTops);
+  const rAvg = median(rightTops);
   check('вода перетекла в обе половины', both, 'слева ' + leftTops.length + ' колонок, справа ' + rightTops.length);
   if (both) {
     const diff = Math.abs(lAvg - rAvg);
