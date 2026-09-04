@@ -1307,10 +1307,10 @@ function dropHit(x, y){
    рождаются быстрее, чем гаснут, и не должны съесть кадр. */
 function dropSplash(x, y, fill, s){
   if(parts.length > 800) return;
-  for(var i=0;i<3;i++){
-    var a = -1.5708 + (Math.random()-.5)*1.9;
-    parts.push({x:x, y:y, vx:Math.cos(a)*s*(0.6+Math.random()*0.8),
-                vy:Math.sin(a)*s*(0.5+Math.random()*0.7),
+  for(var i=0;i<2;i++){
+    var a = -1.5708 + (Math.random()-.5)*1.0;
+    parts.push({x:x, y:y, vx:Math.cos(a)*s*(0.5+Math.random()*0.6),
+                vy:Math.sin(a)*s*(0.5+Math.random()*0.5),
                 life:16+Math.random()*8|0, max:22,
                 c:mixHex(fill, "#e0f2fe", 0.4), r:1+Math.random()*1.4});
   }
@@ -1340,6 +1340,8 @@ var LIQ_RHO = 2.6;          // покойная плотность (вес со�
 var LIQ_K = 0.055;          // жёсткость давления
 var LIQ_KN = 0.16;          // жёсткость ближнего давления (не слипаться)
 var LIQ_CELL = 12;          // клетка пространственного хэша
+var LIQ_SLEEP = 40;         // тиков покоя с опорой — и капля засыпает
+                            // щели до ~4.8px заперты (liqSealedAt)
 var liqHash = {}, liqHashFresh = false, liqCapped = false;
 var liqTmp = [];            // общий буфер запросов — без GC-мусора
 function liqSpawn(x, y, vx, vy, fill, deadly){
@@ -1352,7 +1354,7 @@ function liqSpawn(x, y, vx, vy, fill, deadly){
       setTimeout(hideMsg, 2200);
     }
   }
-  liq.push({x:x, y:y, vx:vx||0, vy:vy||0, px:x, py:y,
+  liq.push({x:x, y:y, vx:vx||0, vy:vy||0, px:x, py:y, calm:0,
             fill:fill||"", deadly:!!deadly, dead:false});
 }
 function liqSer(){
@@ -1369,7 +1371,7 @@ function liqDe(arr){
   for(var i=0;i<arr.length && i<LIQ_MAX;i++){
     var a = arr[i];
     if(!a || a.length < 4) continue;
-    liq.push({x:+a[0]||0, y:+a[1]||0, vx:0, vy:0, px:+a[0]||0, py:+a[1]||0,
+    liq.push({x:+a[0]||0, y:+a[1]||0, vx:0, vy:0, px:+a[0]||0, py:+a[1]||0, calm:0,
               fill:a[2]||"", deadly:!!a[3], dead:false});
   }
 }
@@ -1427,10 +1429,23 @@ function liqNear(x, y, w, h, out){
   }
   return out;
 }
-/* Подшаговое перемещение частицы: капля не прошивает тонкие блоки. */
+/* Микро-щель: точка не внутри блока, но зажата твёрдым с двух
+   противоположных сторон — стык двух блоков, волосяная трещина в
+   полу или стене. Для воды такая дырка непроницаема: сквозь швы
+   карты жидкость просачиваться не должна. Пробы на двух радиусах
+   (1.4 и 2.4): у кромки щели одиночная проба промахивалась мимо
+   грани на сотые доли пикселя, и капли пролезали в стык. */
+function liqSealedAt(x, y){
+  return (liqSolidAt(x - 1.4, y) && liqSolidAt(x + 1.4, y)) ||
+         (liqSolidAt(x, y - 1.4) && liqSolidAt(x, y + 1.4)) ||
+         (liqSolidAt(x - 2.4, y) && liqSolidAt(x + 2.4, y)) ||
+         (liqSolidAt(x, y - 2.4) && liqSolidAt(x, y + 2.4));
+}
+/* Подшаговое перемещение частицы: капля не прошивает тонкие блоки
+   и не пролезает в микро-щели — запертая точка считается твёрдой. */
 function liqMove(p){
   var sp = Math.max(Math.abs(p.vx), Math.abs(p.vy));
-  var steps = Math.max(1, Math.ceil(sp/5));
+  var steps = Math.max(1, Math.ceil(sp/3));
   var sx = p.vx/steps, sy = p.vy/steps;
   for(var t=0;t<steps;t++){
     var ny = p.y + sy;
@@ -1441,13 +1456,14 @@ function liqMove(p){
         p.y = (spY ? spY[0] : ny) - LIQ_R;
         p.vy = 0;
         sy = 0;
-      } else p.y = ny;
+      } else if(liqSealedAt(p.x, ny)){ p.vy = 0; sy = 0; }   // щель — стоп
+      else p.y = ny;
     } else if(sy < 0){
-      if(liqSolidAt(p.x, ny)){ p.vy = 0; sy = 0; }   // потолок — просто стоп
+      if(liqSolidAt(p.x, ny) || liqSealedAt(p.x, ny)){ p.vy = 0; sy = 0; }
       else p.y = ny;
     }
     var nx = p.x + sx;
-    if(sx && liqSolidAt(nx, p.y)){ p.vx = -p.vx*0.3; sx = 0; }
+    if(sx && (liqSolidAt(nx, p.y) || liqSealedAt(nx, p.y))){ p.vx = -p.vx*0.15; sx = 0; }
     else p.x = nx;
   }
 }
@@ -1465,6 +1481,7 @@ function liqStep(){
     if(p.vx > 16) p.vx = 16; else if(p.vx < -16) p.vx = -16;
     p.px = p.x; p.py = p.y;
     liqMove(p);
+    p.qx = p.x; p.qy = p.y;    // где частица оказалась ходом, до давления
   }
   liqHashBuild();
   var H2 = LIQ_H*LIQ_H;
@@ -1483,7 +1500,10 @@ function liqStep(){
     }
     var P = LIQ_K*(rho - LIQ_RHO), Pn = LIQ_KN*rhoN;
     if(P <= 0 && Pn <= 0) continue;          // разрежено — давление не толкает
-    /* проход 2: расталкивание по давлению */
+    /* проход 2: расталкивание по давлению. Пара, где кто-то уснул,
+       двигается втрое мягче: дрожь осевшей лужи гаснет, а вода остаётся
+       текучей. Сильный толчок (струя, пловец) будит спящих. */
+    var pk = p.calm > LIQ_SLEEP;
     liqNear(p.x - LIQ_H, p.y - LIQ_H, LIQ_H*2, LIQ_H*2, liqTmp);
     for(j=0;j<liqTmp.length;j++){
       s = liqTmp[j];
@@ -1495,7 +1515,8 @@ function liqStep(){
       var D = (P*q2 + Pn*q2*q2)*0.5;
       if(D < 0.005 && D > -0.005) continue;
       var ux = dx/d, uy = dy/d;
-      if(D > 2.5) D = 2.5;
+      if(D > 1.6) D = 1.6;       // мягкая релаксация: куча не взрывается
+      if(pk || s.calm > LIQ_SLEEP) D *= 0.3;   // спящая пара — втрое мягче
       s.x += ux*D; s.y += uy*D;
       p.x -= ux*D; p.y -= uy*D;
     }
@@ -1509,19 +1530,59 @@ function liqStep(){
       var sp2 = spanY(polyOf(stuck), p.x-1, p.x+1);
       if(sp2 && p.y > sp2[0] - LIQ_R - 2 && p.y < sp2[0] + 14) p.y = sp2[0] - LIQ_R;
       else { p.x = p.px; p.y = p.py; }
+    } else if((p.x !== p.qx || p.y !== p.qy) && liqSealedAt(p.x, p.y)){
+      p.x = p.qx; p.y = p.qy;    // давление втиснуло в щель — откат
     }
-    p.vx = p.x - p.px; p.vy = p.y - p.py;
-    /* стоит на твёрдом — трение и покой; в полёте — вязкий воздух */
-    if(liqSolidAt(p.x, p.y + LIQ_R + 0.5)){
+    /* Скорость = ход физики + вклад давления (растекание несёт
+       импульс — вода ползёт с уступов, как в v79), но вертикальный
+       вклад давления ослаблен и зажат: вверх лужа не плюётся
+       (за тик не глубже -1.0, итого не быстрее -1.2). */
+    var rvx = (p.x - p.qx), rvy = (p.y - p.qy)*0.75;
+    if(rvy < -1.0) rvy = -1.0; else if(rvy > 1.0) rvy = 1.0;
+    if(rvx > 2.0) rvx = 2.0; else if(rvx < -2.0) rvx = -2.0;
+    p.vx = (p.qx - p.px) + rvx;
+    p.vy = (p.qy - p.py) + rvy;
+    if(p.vy < -1.2) p.vy = -1.2;
+    /* опора снизу: твердь или другая вода — у кучи то же трение, что у
+       пола; в чистом полёте — вязкий воздух, вверх вода гаснет быстрее */
+    var solidBelow = liqSolidAt(p.x, p.y + LIQ_R + 0.5);
+    var sup = solidBelow;
+    if(!sup){
+      var nb = liqNear(p.x - 5, p.y + 1, 10, 7, liqTmp);
+      for(var k2=0;k2<nb.length;k2++){
+        var s2 = nb[k2];
+        if(s2 !== p && s2.y > p.y + 0.5 && s2.y - p.y < 7){
+          var ddx = s2.x - p.x;
+          if(ddx < 0) ddx = -ddx;
+          if(ddx < 5){ sup = s2; break; }
+        }
+      }
+    }
+    /* уснувшую будит только её собственное заметное смещение: глубокая
+       вода под большим, но СБАЛАНСИРОВАННЫМ давлением спит дальше */
+    if(p.calm > LIQ_SLEEP && Math.abs(p.x - p.qx) + Math.abs(p.y - p.qy) > 0.9) p.calm = 0;
+    var agit = Math.abs(p.x - p.qx) + Math.abs(p.y - p.qy) > 1.3;
+    if(sup){
       p.vx *= 0.86;
-      if(p.vy > 0.4) p.vy = 0.4;
-    } else { p.vx *= 0.995; p.vy *= 0.995; }
+      /* на твёрдом вертикаль зажат наглухо (отскоков нет), сквозь воду
+         капля проседает быстро — струя не висит в толще */
+      if(p.vy > (solidBelow ? 0.4 : 2.2)) p.vy = solidBelow ? 0.4 : 2.2;
+      if(p.vy < 0) p.vy *= 0.85;
+      /* отложенный микросон: спокойные тики с опорой — капля замирает,
+         лужа не дрожит; струя и склоны счётчик сбрасывают */
+      if(agit || p.vx*p.vx + p.vy*p.vy > 1.0) p.calm = 0;
+      else if(++p.calm > LIQ_SLEEP){ p.vx = 0; p.vy = 0; }
+    } else {
+      p.calm = 0;
+      p.vx *= 0.995; p.vy *= 0.995;
+      if(p.vy < 0) p.vy *= 0.90;      // вверх вода не летит — вязко гасим
+    }
     /* частица под поверхностью авторского бассейна впитывается в него */
     var pool = liqPoolAt(p.x, p.y);
     if(pool){
       var compat = (pool.fill||"") === (p.fill||"") && !!pool.deadly === !!p.deadly;
       if(compat && pool.h < POUR_MAX_H && (!pour || pool.y >= pour.y - 2)){
-        pool.y -= 0.3; pool.h += 0.3; disturb(pool, p.x, 0.7, 2);
+        pool.y -= 0.3; pool.h += 0.3; disturb(pool, p.x, 0.45, 2);
       }
       p.dead = true; killed = true;          // чужая вода исчезает — не мешаем
     } else if(p.y > 5000){ p.dead = true; killed = true; }
@@ -1531,6 +1592,82 @@ function liqStep(){
     for(i=0;i<liq.length;i++) if(!liq[i].dead) w2.push(liq[i]);
     liq = w2;
   }
+  /* выравнивание рельефа: узкие высокие колонны перекатывают верхние
+     капли в соседние низкие — вода.leveling без хаоса, лужа ползёт
+     плоско даже там, где давления колонки не хватает */
+  if(++liqTick % 4 === 0) liqLevelPass();
+}
+var liqTick = 0;
+/* Раз в 4 тика: колонки 6px; у пары соседок с перепадом верхов > 6px
+   верхняя капля высокой уезжает на 2-3px в сторону низкой, в том числе
+   в ПУСТУЮ соседнюю колонку — край лужи ползёт дальше, растекание не
+   запирается. Стенки не прошиваем (точечная проверка тверди). */
+function liqLevelPass(){
+  var CW = 6, tab = {}, keys = [], i;
+  for(i=0;i<liq.length;i++){
+    var q = liq[i], kq = Math.floor(q.x/CW);
+    var a = tab[kq]; if(!a){ a = tab[kq] = []; keys.push(kq); }
+    a.push(q);
+  }
+  keys.sort(function(a,b){ return a-b; });
+  var moved = 0;
+  for(var ki=0; ki<keys.length && moved<60; ki++){
+    var ka = keys[ki], A = tab[ka];
+    var topA = 1e9, qi, q2;
+    for(qi=0;qi<A.length;qi++) if(A[qi].y < topA) topA = A[qi].y;
+    for(var dr=-1; dr<=1; dr+=2){
+      var B = tab[ka+dr];
+      if(!B){
+        /* пустая соседка: перекатываем край, если колонка не одна капля */
+        if(A.length < 2) continue;
+        var tp = null;
+        for(qi=0;qi<A.length;qi++){ q2 = A[qi]; if(q2.y === topA){ tp = q2; break; } }
+        if(!tp) continue;
+        var nx3 = tp.x + dr*3;
+        if(liqSolidAt(nx3, tp.y) || liqSolidAt(nx3, tp.y + 4) || liqSealedAt(nx3, tp.y)) continue;
+        tp.x = nx3; tp.vx += dr*0.5; tp.calm = 0; moved++;
+        continue;
+      }
+      var topB = 1e9;
+      for(qi=0;qi<B.length;qi++) if(B[qi].y < topB) topB = B[qi].y;
+      var hi, dir;
+      if(topA < topB - 6){ hi = A; dir = dr; }
+      else if(topB < topA - 6){ hi = B; dir = -dr; }
+      else if(A.length <= 3){
+        /* полка стекает: брызги на стенке/полке ищут воду в 3 колонках —
+           иначе капли вечно сидят на верхушках стен */
+        var far = null, fdir = 0, ftop = 1e9;
+        for(var st=1; st<=3; st++){
+          var FC = tab[ka + dr*st];
+          if(FC){
+            var tF = 1e9;
+            for(qi=0;qi<FC.length;qi++) if(FC[qi].y < tF) tF = FC[qi].y;
+            if(tF > topA + 8 && tF < ftop){ far = FC; fdir = dr; ftop = tF; }
+            break;                         // ближняя занятая колонка — дальше смотрим только в ту же сторону
+          }
+        }
+        if(!far) continue;
+        dir = fdir;
+        var tp3 = null;
+        for(qi=0;qi<A.length;qi++){ q2 = A[qi]; if(q2.y === topA){ tp3 = q2; break; } }
+        if(!tp3) continue;
+        var nx4 = tp3.x + dir*3;
+        if(liqSolidAt(nx4, tp3.y) || liqSolidAt(nx4, tp3.y + 4) || liqSealedAt(nx4, tp3.y)) continue;
+        tp3.x = nx4; tp3.vx += dir*0.5; tp3.calm = 0; moved++;
+        continue;
+      }
+      else continue;
+      /* тонкая плёнка и монослой тоже ровняются — иначе мелкое озеро
+         навсегда остаётся с уклоном; одиночек двигаем мягко, по 2px */
+      var step = hi.length >= 4 ? 3 : 2;
+      var top = null;
+      for(qi=0;qi<hi.length;qi++){ q2 = hi[qi]; if(q2.y === (dir > 0 ? topA : topB)){ top = q2; break; } }
+      if(!top) continue;
+      var nx2 = top.x + dir*step;
+      if(liqSolidAt(nx2, top.y) || liqSolidAt(nx2, top.y + 4) || liqSealedAt(nx2, top.y)) continue;
+      top.x = nx2; top.vx += dir*0.6; top.calm = 0; moved++;
+    }
+  }
 }
 /* Пловец толкает воду: частицы рядом с игроком получают его скорость. */
 function liqPlow(x, y, w, h, vx, vy){
@@ -1538,6 +1675,7 @@ function liqPlow(x, y, w, h, vx, vy){
     var p = liq[i];
     if(p.x < x || p.x > x+w || p.y < y || p.y > y+h) continue;
     p.vx += vx; p.vy += vy;
+    p.calm = 0;                // толчок будит уснувшую каплю
   }
 }
 /* Где поверхность жидкой лужи вокруг игрока: пять колонок, в каждой —
@@ -1986,8 +2124,8 @@ function stepPour(){
     if(pourParts.length < 300){
       for(var e=0;e<2;e++)
         pourParts.push({
-          x: pour.x + (Math.random()-.5)*7, y: pour.y + (Math.random()-.5)*3,
-          vx: (Math.random()-.5)*1.1, vy: 2.1 + Math.random()*1.5,
+          x: pour.x + (Math.random()-.5)*3, y: pour.y + (Math.random()-.5)*1.5,
+          vx: (Math.random()-.5)*0.3, vy: 2.1 + Math.random()*1.5,
           r: 1.7 + Math.random()*1.5, life: 500,
           fill: pour.fill, deadly: pour.deadly, above: true
         });
@@ -2013,22 +2151,38 @@ function stepPour(){
        — капля на полной скорости прошивала плиты насквозь и вылетала
        СНИЗУ объектов, хотя они не декорация, а твёрдые. */
     var steps = Math.max(1, Math.ceil(Math.abs(ny - p.y)/5));
-    var pool = null, hitO = null, cy = ny, inPile = false;
+    var pool = null, hitO = null, cy = ny, inPile = false, sealed = false;
     for(var st=1; st<=steps; st++){
       cy = p.y + (ny - p.y)*st/steps;
       pool = poolAt(p.x, cy);
       if(pool) break;
       hitO = dropHit(p.x, cy);
       if(hitO) break;
+      /* микро-щель (стык блоков): капля не проваливается в шов —
+         гаснет о него и становится частицей жидкости над щелью */
+      if(p.vy > 0 && liqSealedAt(p.x, cy)){ sealed = true; break; }
       /* куча жидкости встречает каплю как вода: капля сливается с ней
-         на лету, а не пробивает её до самого пола */
-      if(liq.length && liqNear(p.x - 4, cy - 3, 8, 10, liqTmp).length >= 2){ inPile = true; break; }
+         на лету, а не пробивает её до самого пола. Считаются только
+         СПОКОЙНЫЕ частицы НИЖЕ капли — медленное зерно падающей струи
+         кучей не является: иначе струя забивала сама себя и ползла
+         ручьём, выплёвывая капли вбок. */
+      var mates = 0;
+      if(liq.length){
+        liqNear(p.x - 4, cy - 3, 8, 10, liqTmp);
+        for(var lm=0; lm<liqTmp.length; lm++){
+          var s3 = liqTmp[lm];
+          if(s3.y <= cy) continue;                    // только ниже капли
+          if(s3.vx*s3.vx + s3.vy*s3.vy > 0.09) continue; // только почти неподвижная куча (зерно струи после конвертации ещё быстрое)
+          mates++;
+        }
+      }
+      if(mates >= 2){ inPile = true; break; }
     }
     if(pool){
       p.y = cy;
       if(p.above){                               // вошла сверху — плеск
-        disturb(pool, p.x, Math.min(2.2, p.vy*0.5), 2.5);
-        if(p.vy > 3) dropSplash(p.x, pool.y + waterTop(pool, p.x-pool.x), pool.fill, 1.2);
+        disturb(pool, p.x, Math.min(1.4, p.vy*0.3), 2.5);
+        if(p.vy > 3) dropSplash(p.x, pool.y + waterTop(pool, p.x-pool.x), pool.fill, 0.8);
         /* капля принесла объём: лужа сразу чуть полнеет. Без этого
            быстрая капля прошивала тонкую лужу насквозь и гасла в ней
            без следа — налитое исчезало, а не росло. */
@@ -2055,11 +2209,11 @@ function stepPour(){
     if(hitO){
       var sp = spanY(polyOf(hitO), p.x-1, p.x+1);
       var topY = sp ? sp[0] : cy - p.vy;
-      if(p.vy > 2.6){                            // сильный удар — отскок и брызги
-        dropSplash(p.x, topY, p.fill, Math.min(2.4, p.vy*0.4));
-        p.vy = -p.vy*0.26; p.vx = p.vx*0.8 + (Math.random()-.5)*0.6;
+      if(p.vy > 2.6){                            // сильный удар — гасим, чуть брызг
+        dropSplash(p.x, topY, p.fill, Math.min(1.4, p.vy*0.22));
+        p.vy = -p.vy*0.08; p.vx = p.vx*0.7 + (Math.random()-.5)*0.3;
         p.y = topY - p.r;
-        if(Math.abs(p.vy) < 1.1){
+        if(Math.abs(p.vy) < 2.2){
           /* капля стала частицей жидкости: дальше она живёт давлением
              соседей и растекается, как настоящая вода */
           liqSpawn(p.x, topY - LIQ_R, p.vx*0.4, 0, p.fill, p.deadly);
@@ -2069,9 +2223,14 @@ function stepPour(){
         liqSpawn(p.x, topY - LIQ_R, p.vx*0.4, 0, p.fill, p.deadly);
         kill = true;
       }
+    } else if(sealed){
+      if(p.vy > 2.6) dropSplash(p.x, cy, p.fill, 0.7);
+      liqSpawn(p.x, cy - LIQ_R, p.vx*0.4, 0, p.fill, p.deadly);
+      kill = true;
     } else if(inPile){
-      liqSpawn(p.x, cy, p.vx*0.6, Math.min(p.vy, 3)*0.5, p.fill, p.deadly);
-      dropSplash(p.x, cy, p.fill, 0.9);
+      var side = Math.random() < 0.5 ? -1 : 1;   // капля растекается вбок,
+      liqSpawn(p.x + side*3, cy, side*0.8, Math.min(p.vy, 3)*0.2, p.fill, p.deadly);
+      dropSplash(p.x, cy, p.fill, 0.5);
       kill = true;
     } else {
       p.y = ny;
