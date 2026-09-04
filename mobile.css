@@ -560,8 +560,10 @@ html[data-page="editor"] #c { touch-action: none; }
   html, body { max-width: 100%; overflow-x: hidden; }
   .bfWrap, .bfPanel, .sbCard, .bfCard { max-width: 100%; }
 
-  /* нижние панели не залезают под системную полосу жестов */
-  #tools, #pad, .ow-fab { padding-bottom: env(safe-area-inset-bottom, 0); }
+  /* нижние панели не залезают под системную полосу жестов.
+     #pad не трогаем: у игрового пада своя safe-area-обвязка (лево/право/низ)
+     прямо в game.html, а правило ниже перебивало её нулём. */
+  #tools, .ow-fab { padding-bottom: env(safe-area-inset-bottom, 0); }
   .bfWrap { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)); }
 }
 

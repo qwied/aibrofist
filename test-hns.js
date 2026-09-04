@@ -10,7 +10,10 @@ ok('копятся стопкой',       /var list = spoken\[who\] \|\| \(spoke
 ok('старая не затирается',  !/spoken\[who\] = \{ text: text, born: Date\.now\(\) \};/.test(src));
 ok('лимит стопки',          /SAY_MAX/.test(src));
 ok('рисуются все',          /for \(var si = 0; si < list\.length; si\+\+\)/.test(src));
-ok('не наезжают друг на друга', /var lift = \(list\.length - 1 - si\) \* 15;/.test(src));
+ok('не наезжают друг на друга', /var lift = \(list\.length - 1 - si\) \* 15 \* tk;/.test(src));
+ok('перенос длинных реплик',  /function wrapSay/.test(src) && /wrapSay\(sp\.text/.test(src));
+ok('bidi-символы чистятся',   /BIDI_RE/.test(src) && /cleanSay\(text\)/.test(src));
+ok('ник белый с обводкой',    /strokeText\(name/.test(src) && /#ffffff/.test(src));
 
 console.log('\nотправка сообщений:');
 ok('одна дорога отправки',  /function sendTyped/.test(src));

@@ -58,6 +58,7 @@
     + 'width:52px;height:52px;border-radius:50%;border:none;background:rgba(33,150,243,.85);'
     + 'color:#fff;font-size:22px;cursor:pointer}'
     + 'html.is-mobile #gTalk,html.is-tablet #gTalk{display:block}'
+    + 'html.is-mobile #gTalk,html.is-tablet #gTalk{width:58px;height:58px;font-size:21px;touch-action:manipulation}'
     // на телефоне: шапка компактнее, карточка карты уходит наверх, чтобы не мешать кнопкам
     + 'html.is-mobile #gTop,html.is-tablet #gTop{padding:5px 9px;gap:8px;font-size:12px}'
     + 'html.is-mobile #gExit,html.is-tablet #gExit{padding:9px 14px;font-size:13px}'
@@ -65,6 +66,16 @@
     + 'padding:6px 10px;font-size:11.5px}'
     + 'html.is-mobile #gBanner h2,html.is-tablet #gBanner h2{font-size:20px}'
     + 'html.is-mobile #gBanner p,html.is-tablet #gBanner p{font-size:14px}'
+    /* безопасные зоны iPhone (чёлка/жесты): в альбомной панели прижимаются
+       к краям, env() не поддерживается — строка игнорируется, остаётся базовая */
+    + '#gTop{padding-left:calc(12px + env(safe-area-inset-left,0px));'
+    + 'padding-right:calc(12px + env(safe-area-inset-right,0px))}'
+    + '#gTalk{right:calc(14px + env(safe-area-inset-right,0px));touch-action:manipulation}'
+    + '#gMap{right:calc(12px + env(safe-area-inset-right,0px))}'
+    + 'html.is-mobile #gMap,html.is-tablet #gMap{right:calc(8px + env(safe-area-inset-right,0px))}'
+    // у мобильной шапки падинг компактнее — безопасные зоны добавляем к нему же
+    + 'html.is-mobile #gTop,html.is-tablet #gTop{padding-left:calc(9px + env(safe-area-inset-left,0px));'
+    + 'padding-right:calc(9px + env(safe-area-inset-right,0px))}'
     ;
 
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
@@ -196,6 +207,7 @@
   var spoken = {};
   function speak(who, text) {
     if (!text) return;
+    text = cleanSay(text);   // невидимые bidi-символы не переворачивают слова на экране
     var list = spoken[who] || (spoken[who] = []);
     list.push({ text: text, born: Date.now() });
     /* Лишние не выкидываем разом: при частой отправке реплики пропадали
@@ -531,14 +543,52 @@
     }
   };
 
-  // имя — под игроком зелёным, реплика — над головой
+  /* Ник теперь белый с лёгкой серой обводкой (просится и на светлый,
+     и на тёмный фон карты). Реплики рисуются стопкой с переносом строк:
+     раньше длинное сообщение шло одной строкой через весь экран, а размер
+     текста зависел от зума — на телефоне при наезде пальцем реплика
+     превращалась в плакат во всю ширину. На сенсорных экранах текст
+     живёт в экранных пикселях и от масштаба карты не меняется. */
+  var BIDI_RE = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;  // невидимые символы-перевороты
+  function cleanSay(t) { return String(t == null ? '' : t).replace(BIDI_RE, ''); }
+
+  function wrapSay(text, maxChars) {
+    var words = cleanSay(text).split(/\s+/).filter(Boolean);
+    var lines = [], cur = '';
+    for (var i = 0; i < words.length; i++) {
+      var t = cur ? cur + ' ' + words[i] : words[i];
+      if (t.length > maxChars && cur) { lines.push(cur); cur = words[i]; }
+      else cur = t;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // тёмный текст со светлым ореолом: читается и на светлом, и на тёмном фоне
+  function paintSay(ctx, t, x, y, tk, color) {
+    ctx.lineWidth = 3 * tk;
+    ctx.strokeStyle = 'rgba(255,255,255,.85)';
+    ctx.strokeText(t, x, y);
+    ctx.fillStyle = color || '#3a3a3a';
+    ctx.fillText(t, x, y);
+  }
+
   function drawTag(ctx, name, say, cx, topY, h) {
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.font = '15px sans-serif';
+    ctx.lineJoin = 'round';
+    ctx.direction = 'ltr';               // чужие bidi-символы не переворачивают строку
+    // на сенсорных экранах текст — постоянного экранного размера, независимо от зума
+    var touch = document.documentElement.classList.contains('is-touch');
+    var tk = touch ? 1 / Math.max(0.25, (GAME && GAME.viewScale) || 1) : 1;
 
-    ctx.fillStyle = '#2e9b2e';
-    ctx.fillText(name, cx, topY + h + 17);
+    ctx.font = (15 * tk) + 'px sans-serif';
+    // имя — под игроком: белый с чуть серой обводкой
+    ctx.lineWidth = 3 * tk;
+    ctx.strokeStyle = 'rgba(122,130,142,.85)';
+    ctx.strokeText(name, cx, topY + h + 17 * tk);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(name, cx, topY + h + 17 * tk);
 
     // отправленная реплика плавно уплывает вверх и тает —
     // и не пропадает от того, что игрок уже набирает следующую
@@ -552,22 +602,26 @@
         var sp = list[si];
         var k = (now - sp.born) / SAY_FADE;        // 0 → 1
         // каждая следующая реплика висит ниже предыдущей и не наезжает
-        var lift = (list.length - 1 - si) * 15;
+        var lift = (list.length - 1 - si) * 15 * tk;
         /* Растворение занимает последние полсекунды жизни, а не четверть
            срока: так оно одинаково плавное и у долгих, и у состаренных
            досрочно реплик. */
         var outFrom = 1 - SAY_OUT / SAY_FADE;
         ctx.globalAlpha = k < outFrom ? 1 : Math.max(0, 1 - (k - outFrom) / (1 - outFrom));
-        ctx.fillStyle = '#3a3a3a';
-        ctx.fillText(sp.text, cx, topY - 16 - lift - k * 46);
+        ctx.font = (15 * tk) + 'px sans-serif';
+        var lines = wrapSay(sp.text, touch ? 24 : 34);
+        for (var li = 0; li < lines.length; li++) {
+          var ly = topY - (16 + (lines.length - 1 - li) * 16) * tk - lift - k * 46 * tk;
+          paintSay(ctx, lines[li], cx, ly, tk);
+        }
       }
       ctx.globalAlpha = 1;
     }
 
     // то, что печатают прямо сейчас — ниже уплывающей реплики, чтобы не наложились
     if (say) {
-      ctx.fillStyle = '#6b7280';
-      ctx.fillText(say + '▏', cx, topY - 14);
+      ctx.font = (15 * tk) + 'px sans-serif';
+      paintSay(ctx, cleanSay(say) + '▏', cx, topY - 14 * tk, tk, '#6b7280');
     }
     ctx.restore();
   }
@@ -589,7 +643,7 @@
      клавиатуре айфона. Раньше «Готово» просто снимало фокус, текст молча
      пропадал, а поле после этого не принимало ввод. */
   function sendTyped() {
-    var v = inp.value.trim();
+    var v = cleanSay(inp.value).trim();    // чистим от символов-переворотов ещё на отправке
     clearTyping();
     if (!v) return false;
     speak(me.name, v);                      // своя реплика сразу уплывает
