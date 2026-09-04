@@ -70,9 +70,9 @@
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
   document.body.insertAdjacentHTML('beforeend',
-      '<div id="gTop"><span id="gRoleBox" style="display:none">Роль: <b id="gRole"></b></span>'
-    + '<span>Игроков: <b id="gCount">1</b></span>'
-    + '<span id="gTimeBox">Время: <b id="gTime">—</b></span>'
+      '<div id="gTop"><span id="gRoleBox" style="display:none"><span id="gLblRole">Роль</span>: <b id="gRole"></b></span>'
+    + '<span><span id="gLblPlayers">Игроков</span>: <b id="gCount">1</b></span>'
+    + '<span id="gTimeBox"><span id="gLblTime">Время</span>: <b id="gTime">—</b></span>'
     + '<button id="gExit">Меню</button></div>'
     + '<div id="gMap"><div class="n" id="gMapName">Загрузка карты…</div>'
     + '<div class="a" id="gMapAuthor"></div><div class="rate" id="gRate" style="display:none">'
@@ -83,7 +83,20 @@
     + '<button id="gTalk">Чат</button>'
 );
 
+  /* надписи верхней панели обновляются при смене языка */
+  function refreshGameLabels() {
+    $('gLblPlayers').textContent = TR('gPlayers', 'Игроков');
+    $('gLblTime').textContent = TR('gTimeLbl', 'Время');
+    $('gLblRole').textContent = TR('roleLbl', 'Роль');
+    $('gExit').textContent = TR('menu', 'Меню');
+  }
+  window.addEventListener('bf-lang', refreshGameLabels);
+
   var $ = function (id) { return document.getElementById(id); };
+  /* переводы игрового экрана; i18n.js подгружается позже — поэтому запасной вариант */
+  var TR = function (k, f) {
+    return (window.I18N && window.I18N.t(k) !== k) ? window.I18N.t(k) : (f || k);
+  };
   $('gExit').onclick = function () { location.href = 'index.html'; };
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) {
@@ -206,22 +219,22 @@
   function showMap(m) {
     currentMap = m;
     if (!m) {
-      $('gMapName').textContent = 'Карт пока нет';
-      $('gMapAuthor').textContent = 'Опубликуй карту в Map Editor';
+      $('gMapName').textContent = TR('noMapsYet', 'Карт пока нет');
+      $('gMapAuthor').textContent = TR('publishHint', 'Опубликуй карту в Map Editor');
       GAME.clear();                       // убираем демо-сцену редактора
-      banner('Здесь пока пусто', 'Никто ещё не опубликовал карту для этого режима. Открой Map Editor и выложи свою.', true);
+      banner(TR('emptyTitle', 'Здесь пока пусто'), TR('emptyText', 'Никто ещё не опубликовал карту для этого режима. Открой Map Editor и выложи свою.'), true);
       return;
     }
     banner('', '', false);
     $('gMapName').textContent = m.mapName;
-    $('gMapAuthor').textContent = 'автор: ' + m.author;
+    $('gMapAuthor').textContent = TR('mapBy', 'автор: ') + m.author;
     try {
       GAME.loadMap(m.mapData);
       GAME.startPlay();
       coinsSent = 0;
       applyColor();
     } catch (e) {
-      $('gMapAuthor').textContent = 'карта повреждена';
+      $('gMapAuthor').textContent = TR('brokenMap', 'карта повреждена');
     }
   }
 
@@ -230,7 +243,7 @@
           + (currentMap ? '&not=' + encodeURIComponent(currentMap.mapName) : '');
     fetch(u).then(function (r) { return r.json(); }).then(function (m) {
       showMap(m);
-      if (m) log('Карта: <b>' + esc(m.mapName) + '</b> от ' + esc(m.author), 's');
+      if (m) log(TR('mapLog', 'Карта: ') + '<b>' + esc(m.mapName) + '</b>' + TR('byWord', ' от ') + esc(m.author), 's');
       if (cb) cb(m);
     }).catch(function () { showMap(null); if (cb) cb(null); });
   }
@@ -254,7 +267,7 @@
   function setRole(role) {
     me.role = role; me.caught = false;
     $('gRoleBox').style.display = 'inline';
-    $('gRole').textContent = role === 'seeker' ? 'Искатель' : 'Прячется';
+    $('gRole').textContent = role === 'seeker' ? TR('roleSeeker', 'Искатель') : TR('roleHider', 'Прячется');
     applyColor();
   }
 
@@ -277,19 +290,19 @@
         phase = 'round'; phaseEnds = Date.now() + ROUND_MS;
         clearCaught();               // новый раунд — все снова не пойманы
         banner('', '', false);
-        log('Раунд начался! 2 минуты', 's');
+        log(TR('roundStart', 'Раунд начался! 2 минуты'));
         if (socket) socket.emit('sendChat', { text: 'Раунд начался' });
       } else {
         phase = 'lobby'; phaseEnds = Date.now() + LOBBY_MS;
         clearCaught();
         nextMap();
-        banner('Раунд окончен', 'Новая карта. До старта 30 секунд.', true);
+        banner(TR('roundOver', 'Раунд окончен'), TR('newMapText', 'Новая карта. До старта 30 секунд.'), true);
         setTimeout(function () { banner('', '', false); }, 3000);
       }
     } else {
       phaseEnds = Date.now() + ROUND_MS;
       nextMap();
-      log('Время вышло — следующая карта');
+      log(TR('timeUp', 'Время вышло — следующая карта'));
     }
   }
 
@@ -315,7 +328,7 @@
 
     if (MODE === 'hideAndSeek') {
       phase = 'lobby'; phaseEnds = Date.now() + LOBBY_MS;
-      banner('Ожидание игроков', 'Роли распределятся через 30 секунд.', true);
+      banner(TR('waitTitle', 'Ожидание игроков'), TR('waitText', 'Роли распределятся через 30 секунд.'), true);
       setTimeout(function () { banner('', '', false); }, 3500);
     } else {
       phase = 'round'; phaseEnds = Date.now() + ROUND_MS;
@@ -336,7 +349,8 @@
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: 'coins=' + delta
     }).then(function (r) { return r.json(); }).then(function (r) {
-      if (r && r.status === 'success') log('+' + delta + ' монет (всего ' + r.coins + ')');
+      if (r && r.status === 'success')
+        log(TR('coinsGain', '+{n} монет (всего {t})').replace('{n}', delta).replace('{t}', r.coins));
     }).catch(function () {});
   }, 2500);
 
@@ -453,7 +467,7 @@
     for (var i = 0; i < ids.length; i++) if (!others[ids[i]].caught) return;
 
     switching = true;
-    log('Все пойманы — раунд окончен!');
+    log(TR('allCaughtT', 'Все пойманы — раунд окончен!'));
     if (socket) socket.emit('sendChat', { text: 'Все пойманы' });
     setTimeout(function () { switching = false; advance(); }, 1200);
   }
@@ -483,7 +497,7 @@
     for (var i = 0; i < ids.length; i++) if (!others[ids[i]].fin) return;
 
     switching = true;
-    log(ids.length ? 'Все на финише — новая карта!' : 'Финиш! Новая карта');
+    log(ids.length ? TR('allFinished', 'Все на финише — новая карта!') : TR('finishSolo', 'Финиш! Новая карта'));
     setTimeout(function () {
       nextMap(function () {
         phaseEnds = Date.now() + ROUND_MS;
@@ -659,8 +673,10 @@
             '&mapName=' + encodeURIComponent(currentMap.mapName) +
             '&vote=' + b.dataset.v
     }).then(function (r) { return r.json(); }).then(function (r) {
-      $('gRating').textContent = (r.status === 'success') ? ('рейтинг: ' + r.rating) : (r.message || 'ошибка');
-    }).catch(function () { $('gRating').textContent = 'сервер недоступен'; });
+      $('gRating').textContent = (r.status === 'success')
+        ? (TR('ratingLbl', 'рейтинг: ') + r.rating)
+        : (r.message || TR('errorTxt', 'ошибка'));
+    }).catch(function () { $('gRating').textContent = TR('serverDown', 'сервер недоступен'); });
   });
 
   // сенсорное управление берёт на себя движок:
@@ -668,4 +684,5 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+  refreshGameLabels();
 })();

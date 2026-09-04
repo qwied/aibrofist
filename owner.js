@@ -6,8 +6,9 @@
 
   var me = { owner: false, name: '', ownerName: 'AIBrofist' };
   var inGame = {};          // "автор::карта" -> [режимы]
-  var MODES = ['hideAndSeek', 'twoPlayer', 'race', 'sandbox'];
-  var MODE_RU = { hideAndSeek: 'Прятки', twoPlayer: 'На двоих', race: 'Гонка', sandbox: 'Песочница' };
+  // режимы twoPlayer и sandbox удалены из игры — кнопок для них больше нет
+  var MODES = ['hideAndSeek', 'race'];
+  var MODE_RU = { hideAndSeek: 'Прятки', race: 'Гонка' };
   var T = function (k, fallback) {
     return (window.I18N && window.I18N.t(k) !== k) ? I18N.t(k) : (fallback || k);
   };

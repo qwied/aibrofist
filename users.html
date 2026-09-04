@@ -61,7 +61,8 @@
 .upSkin{border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;background:#fff}
 .upSkin .art{background:var(--soft);border-radius:9px;padding:8px 0;margin-bottom:8px}
 .upSkin .nm{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.upSkin .rt{color:var(--muted);font-size:12.5px}
+.upSkin .rt{font-size:12.5px;font-weight:700}
+.upSkin .rt.pos{color:var(--green)} .upSkin .rt.neg{color:var(--red)}
 
 @media (max-width:640px){
   .upTop{gap:14px}
@@ -70,11 +71,11 @@
   .upGrid{grid-template-columns:repeat(2,1fr)}
 }
 </style>
-	<link rel="icon" href="/favicon.ico" sizes="32x32">
-	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-	<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-	<link rel="manifest" href="/site.webmanifest">
-	<meta name="theme-color" content="#111827">
+        <link rel="icon" href="/favicon.ico" sizes="32x32">
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="manifest" href="/site.webmanifest">
+        <meta name="theme-color" content="#111827">
 </head>
 <body>
 
@@ -249,7 +250,7 @@
           : (window.BFSkin ? BFSkin.svg(s.skin, byId, { height: 132 }) : '');
         return '<div class="upSkin"><div class="art">' + art + '</div>'
           + '<div class="nm">' + esc(s.skinName) + '</div>'
-          + '<div class="rt">' + (s.rating > 0 ? '+' : '') + s.rating + '</div></div>';
+          + '<div class="rt ' + (s.rating > 0 ? 'pos' : (s.rating < 0 ? 'neg' : '')) + '">' + s.rating + '</div></div>';
       }).join('') + '</div>';
     }).catch(function () { box.innerHTML = '<div class="bfHint">' + T('serverDown', 'Сервер недоступен') + '</div>'; });
   }

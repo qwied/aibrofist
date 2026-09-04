@@ -1,5 +1,6 @@
 // ============ СКИНЫ ИГРОКОВ: публикация, оценки, витрина Avatar ============
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 
 const DATA_DIR = path.join(__dirname, 'data');
@@ -72,6 +73,11 @@ function pub(s, me) {
     img: s.img || '',
     myVote: me ? (s.votes || {})[low(me)] || 0 : 0
   };
+}
+
+// отпечаток картинки скина — по нему ловим повторные публикации рисунка
+function imgSig(buf) {
+  return 'img:' + crypto.createHash('md5').update(buf).digest('hex');
 }
 
 // отрисовка скина на сервере — нужна, чтобы отдавать картинку по ссылке
@@ -149,8 +155,32 @@ function register(app, acc, skinsApi) {
     return u;
   };
 
+  // ---------- скин, нарисованный в редакторе: сразу надеваем на игрока ----------
+  app.post('/skin/drawing', (req, res) => {
+    const u = currentUser(req);
+    if (!u) return res.json({ status: 'error', message: 'Сначала войдите в аккаунт' });
+
+    const raw = String(req.body.img || '').trim();
+    if (!raw) return res.json({ status: 'error', message: 'Картинка не передана' });
+
+    const got = fromDataUrl(raw);
+    if (!got) return res.json({ status: 'error', message: 'Картинка не распознана' });
+    if (got.bad) return res.json({ status: 'error', message: got.bad });
+
+    const id = 'd' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+    let img;
+    try { img = saveImage(got.buf, got.ext, id); }
+    catch (e) { return res.json({ status: 'error', message: 'Не удалось сохранить: ' + e.message }); }
+
+    u.skin = skinsApi.normalize(null);
+    u.skinImg = img;
+    u.wearing = '';
+    saveUsers();
+    res.json({ status: 'success', img, message: 'Скин сохранён' });
+  });
+
   // ---------- публикация ----------
-  app.post('/skins/publish', (req, res) => {
+  app.post('/skins/publish', async (req, res) => {
     const u = currentUser(req);
     if (!u) return res.json({ status: 'error', message: 'Сначала войдите в аккаунт' });
 
@@ -161,18 +191,34 @@ function register(app, acc, skinsApi) {
     let raw = null;
     try { raw = JSON.parse(String(req.body.skin || 'null')); } catch (e) {}
     const skin = skinsApi.normalize(raw || skinsApi.skinOf(u));
-    const sig = skinsApi.signature(skin);
+
+    /* скин может быть рисунком из редактора, а не набором деталей.
+       Картинку сохраняем к себе, чтобы она не пропала вместе с чужим сервером. */
+    let imgPath = '', sigExtra = '';
+    const rawImg = String(req.body.img || '').trim();
+    if (rawImg) {
+      const got = /^data:/i.test(rawImg) ? fromDataUrl(rawImg) : await fromUrl(rawImg);
+      if (!got) return res.json({ status: 'error', message: 'Картинка не распознана' });
+      if (got.bad) return res.json({ status: 'error', message: got.bad });
+      try { imgPath = saveImage(got.buf, got.ext, 's' + Date.now().toString(36) +
+                                Math.floor(Math.random() * 1e4).toString(36)); }
+      catch (e) { return res.json({ status: 'error', message: 'Не удалось сохранить: ' + e.message }); }
+      sigExtra = imgSig(got.buf);
+    }
+
+    const sig = sigExtra || skinsApi.signature(skin);
 
     if (list.some(s => low(s.skinName) === low(skinName) && low(s.author) === low(u.name)))
       return res.json({ status: 'error', message: 'У вас уже есть скин с таким названием' });
 
     // каждый скин должен отличаться от уже выложенных
-    const twin = list.find(s => skinsApi.signature(s.skin) === sig);
+    const twin = list.find(s =>
+      sigExtra ? s.imgSig === sigExtra : skinsApi.signature(s.skin) === sig && !s.img);
     if (twin)
       return res.json({
         status: 'error',
-        message: 'Такой набор уже выложен — «' + twin.skinName + '» от ' + twin.author +
-                 '. Поменяйте хотя бы одну деталь.'
+        message: 'Такой скин уже выложен — «' + twin.skinName + '» от ' + twin.author +
+                 '. Нарисуйте что-нибудь другое.'
       });
 
     const used = publishedToday(u);
@@ -193,6 +239,7 @@ function register(app, acc, skinsApi) {
       votes: {}, boostLikes: 0, boostDislikes: 0, rating: 0,
       inAvatar: false, price: 0
     };
+    if (imgPath) { item.img = imgPath; item.imgSig = sigExtra; }
     list.push(item);
     save();
 

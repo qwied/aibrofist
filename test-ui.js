@@ -321,120 +321,20 @@ else {
   const tilted = bounceTop(1.6, 35);
   check('наклонный батут кидает вбок', tilted.side > 2, tilted.side.toFixed(1));
 
-  // 12. вода: вязкость, плавание и выпрыгивание
+  // 12. вода удалена: старые карты с водой грузятся без неё, игрок падает нормально
   const poolFloor = { id: 5, type: 'rect', x: 0, y: 560, w: 600, h: 20, rot: 0, fill: '#111827' };
   const pool = { id: 6, type: 'water', x: 0, y: 420, w: 600, h: 140, rot: 0, fill: '#38bdf8' };
   GAME.loadMap({ mode: 'hideAndSeek', objects: [poolFloor, spawn, pool] });
+  check('вода из старой карты выброшена', GAME.objects.length === 2,
+        GAME.objects.map(o => o.type).join(','));
   GAME.startPlay();
   clearKeys();
   GAME.pl.x = 300; GAME.pl.y = 300; GAME.pl.vy = 6;
-  for (let i = 0; i < 60 && GAME.pl.y + GAME.pl.h < 420; i++) GAME.step();
-  check('игрок дошёл до воды', GAME.pl.y + GAME.pl.h >= 420);
-  let maxSink = 0;
-  for (let i = 0; i < 120; i++) { GAME.step(); if (GAME.pl.vy > maxSink) maxSink = GAME.pl.vy; }
-  check('в воде тонем медленно', maxSink < 8, maxSink.toFixed(2));
-  check('предел погружения низкий', GAME.pl.vy < 4.5, GAME.pl.vy.toFixed(2));
-  // удержание прыжка в воде — гребки вверх
-  GAME.keys.u = true;
-  let swamUp = false;
-  for (let i = 0; i < 40 && !swamUp; i++) { GAME.step(); if (GAME.pl.vy < -2) swamUp = true; }
-  check('удержание прыжка плывёт вверх', swamUp);
-  clearKeys();
-  for (let i = 0; i < 30; i++) GAME.step();
-  // выпрыгивание у поверхности
-  GAME.pl.x = 300; GAME.pl.y = 400; GAME.pl.vy = 0;
-  GAME.keys.u = true;
-  let out = false;
-  for (let i = 0; i < 50 && !out; i++) { GAME.step(); if (GAME.pl.y + GAME.pl.h < 416) out = true; }
-  check('из воды можно выпрыгнуть', out);
-  clearKeys();
-  // кислота: та же вода, но с галочкой «убивает»
-  const acid = { id: 7, type: 'water', x: 700, y: 380, w: 100, h: 60, rot: 0, fill: '#84cc16', deadly: true };
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [poolFloor, spawn, acid] });
-  GAME.startPlay();
-  clearKeys();
-  GAME.pl.x = 740; GAME.pl.y = 330; GAME.pl.vy = 2;
-  for (let i = 0; i < 10; i++) GAME.step();
-  check('кислота убивает', GAME.pl.dead);
-
+  let landed = false;
+  for (let i = 0; i < 120; i++) { GAME.step(); if (GAME.pl.ground) landed = true; }
+  check('где была вода — игрок свободно падает на пол', landed, GAME.pl.y.toFixed(0));
   GAME.stop();
 }
-
-// ---- литьё воды из курсора и пружинные волны ----
-if (GAME && GAME.startPour) {
-  const bowlFloor = { id: 8, type: 'rect', x: 200, y: 500, w: 400, h: 20, rot: 0, fill: '#111827' };
-  const bowlL = { id: 9, type: 'rect', x: 180, y: 400, w: 20, h: 120, rot: 0, fill: '#111827' };
-  const bowlR = { id: 10, type: 'rect', x: 600, y: 400, w: 20, h: 120, rot: 0, fill: '#111827' };
-  const spawnP = { id: 12, type: 'spawn', x: 60, y: 440, w: 20, h: 60, rot: 0, fill: '#111827' };
-
-  // 13. струя из курсора: капли оседают ЧАСТИЦАМИ жидкости, куча сама
-  //     растекается по дну ёмкости, вода не вылезает за стенки
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [bowlFloor, bowlL, bowlR, spawnP] });
-  GAME.startPour(400, 320, '#38bdf8', false);
-  check('струя включилась', !!GAME.pour);
-  for (let i = 0; i < 300; i++) GAME.stepAlways();
-  GAME.stopPour();
-  for (let i = 0; i < 900 && (GAME.pourParts.length || GAME.liq.some(p => Math.abs(p.vy) > 0.6)); i++) GAME.stepAlways();
-  for (let i = 0; i < 600; i++) GAME.stepAlways();   // даём жидкости успокоиться
-  check('капли осели и исчезли', GAME.pourParts.length === 0, GAME.pourParts.length);
-  const L = GAME.liq;
-  check('налитая вода стала жидкостью-частицами', L.length > 100, L.length);
-  check('лужа легла на дно ёмкости', L.length && L.every(p => p.y <= 500) && L.some(p => p.y > 470),
-        'макс.низ ' + (L.length ? Math.max(...L.map(p => p.y)).toFixed(0) : '-'));
-  check('вода не вылезла за стенки', L.every(p => p.x >= 178 && p.x <= 622),
-        'x ' + (L.length ? Math.min(...L.map(p => p.x)).toFixed(0) + '..' + Math.max(...L.map(p => p.x)).toFixed(0) : '-'));
-  // течение: куча растеклась в широкую лужу по дну чаши
-  const wid = Math.max(...L.map(p => p.x)) - Math.min(...L.map(p => p.x));
-  check('лужа растеклась по дну', wid > 200, wid.toFixed(0));
-  // поверхность ровная: верх кучи по 20px-колонкам почти на одной высоте
-  const cols = {};
-  for (const p of L) { const c = Math.floor(p.x/20)*20; if (!(c in cols) || p.y < cols[c]) cols[c] = p.y; }
-  const tops = Object.values(cols);
-  const spread = Math.max(...tops) - Math.min(...tops);
-  check('лужа уровнялась (горбов нет)', spread < 8, 'разброс ' + spread.toFixed(1));
-  check('обычная вода не ядовита', L.every(p => !p.deadly));
-
-  // 14. кислота из кисти: наливается отдельно и остаётся смертельной
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [bowlFloor, bowlL, bowlR, spawnP] });
-  GAME.startPour(300, 380, '#84cc16', true);
-  for (let i = 0; i < 120; i++) GAME.stepAlways();
-  GAME.stopPour();
-  for (let i = 0; i < 600 && (GAME.pourParts.length || GAME.liq.some(p => Math.abs(p.vy) > 0.6)); i++) GAME.stepAlways();
-  check('кисть умеет кислоту', GAME.liq.length >= 50 && GAME.liq.every(p => p.deadly),
-        'частиц ' + GAME.liq.length);
-} else if (GAME) {
-  check('мост литья доступен', false);
-}
-
-// ---- пружинные волны ----
-if (GAME && GAME.disturb && GAME.waterTopAt) {
-  const floorW = { id: 1, type: 'rect', x: 0, y: 400, w: 600, h: 40, rot: 0, fill: '#111827' };
-  const spawnW = { id: 2, type: 'spawn', x: 60, y: 340, w: 20, h: 60, rot: 0, fill: '#111827' };
-  const lake = { id: 11, type: 'water', x: 300, y: 200, w: 300, h: 80, rot: 0, fill: '#38bdf8' };
-  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorW, spawnW, lake] });
-  const lo = GAME.objects.find(o => o.type === 'water');
-  for (let i = 0; i < 10; i++) GAME.stepAlways();
-  const base = GAME.waterTopAt(lo, 150);
-  GAME.disturb(lo, lo.x + 30, 10, 4);              // удар слева
-  let seen = 0, maxW = 0;
-  for (let i = 0; i < 40; i++) {
-    GAME.stepAlways();
-    const d = Math.abs(GAME.waterTopAt(lo, 150) - base);
-    if (d > 1.2) seen++;
-    if (d > maxW) maxW = d;
-  }
-  check('волна докатилась до середины', seen > 3, 'кадров: ' + seen + ', размах ' + maxW.toFixed(1));
-  for (let i = 0; i < 600; i++) GAME.stepAlways();
-  const rest = Math.abs(GAME.waterTopAt(lo, 150) - base);
-  check('волны затухают', rest < 0.8, 'остаток ' + rest.toFixed(2));
-  const snapW = JSON.stringify(GAME.objects.map(o => {
-    const c = {}; for (const k in o) if (k[0] !== '_') c[k] = o[k]; return c;
-  }));
-  check('волны не пишутся в карту', !snapW.includes('_sy'));
-} else if (GAME) {
-  check('мост волн доступен', false);
-}
-// ---- финиш и точка старта ----
 if (GAME && GAME.restartRun) {
   const floorF = { id: 1, type: 'rect', x: 0, y: 400, w: 1400, h: 40, rot: 0, fill: '#111827' };
   const spawnF = { id: 2, type: 'spawn', x: 60, y: 340, w: 20, h: 60, rot: 0, fill: '#111827' };
@@ -464,19 +364,23 @@ if (GAME && GAME.restartRun) {
   check('монеты собираются заново', GAME.coins === 1, GAME.coins);
   GAME.stop();
 
-  // жидкости из старых карт снова становятся водой
+  // вода и «жидкости» из старых карт выбрасываются при загрузке
   GAME.loadMap({ mode: 'race', objects: [
     floorF, spawnF, finF,
     { id: 90, type: 'liquid', liq: 'water', x: 300, y: 360, w: 20, h: 20, rot: 0 },
-    { id: 91, type: 'water', x: 340, y: 360, w: 20, h: 20, rot: 0 }
+    { id: 91, type: 'water', x: 340, y: 360, w: 20, h: 20, rot: 0, fill: '#38bdf8' }
   ]});
-  check('старая жидкость стала водой',
-        GAME.objects.some(o => o.type === 'water' && o.x === 300),
+  check('старой воды в карте нет',
+        !GAME.objects.some(o => o.type === 'water' || o.type === 'liquid'),
         GAME.objects.map(o => o.type).join(','));
-  check('вода не выбрасывается из карты',
-        GAME.objects.filter(o => o.type === 'water').length === 2,
-        GAME.objects.length);
-  check('остальное на месте', GAME.objects.length === 5, GAME.objects.length);
+  check('остальное на месте', GAME.objects.length === 3, GAME.objects.length);
+  GAME.startPlay();
+  clearKeys();
+  GAME.pl.x = 300; GAME.pl.y = 200; GAME.pl.vy = 4;
+  let fell = false;
+  for (let i = 0; i < 120 && !fell; i++) { GAME.step(); if (GAME.pl.ground) fell = true; }
+  check('игрок проходит карту без воды', fell);
+  GAME.stop();
 
   // старт вплотную к финишу карту не пускает
   const finNear = { id: 5, type: 'finishline', x: 140, y: 314, w: 42, h: 86, rot: 0, fill: '' };

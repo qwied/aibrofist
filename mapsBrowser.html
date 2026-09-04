@@ -19,10 +19,10 @@
   align-items:center;border:1px solid var(--line);border-radius:13px;padding:12px 14px;background:#fff}
 .mbRow:hover{border-color:var(--blue)}
 .mbName{font-weight:700;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* Рейтинг — два отдельных числа: зелёное это лайки, красное дизлайки.
-   Суммарных «+1» и «-1» больше нет. */
-.mbRate{font-weight:700;display:flex;gap:9px;align-items:baseline}
-.mbRate .up{color:var(--green)} .mbRate .down{color:var(--red)}
+/* Рейтинг — одно число: лайки минус дизлайки.
+   Выше нуля — зелёным, ниже нуля — красным, ноль — нейтральный. */
+.mbRate{font-weight:700;font-size:16.5px;text-align:center}
+.mbRate.pos{color:var(--green)} .mbRate.neg{color:var(--red)} .mbRate.zero{color:var(--muted)}
 .mbAuthor{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mbAuthor a{color:var(--blue);text-decoration:none}
 .mbDate{color:var(--muted);font-size:13.5px;white-space:nowrap}
@@ -38,6 +38,26 @@
   background:#fff;color:var(--blue);cursor:pointer;font-weight:600}
 .mbPlay:hover{background:var(--blue);color:#fff}
 .mbExtra{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* Проигрывание карты прямо в Maps Browser: страница не покидается,
+   адрес остаётся прежним, карта открыта в модальном окне. */
+.mbOverlay{position:fixed;inset:0;z-index:1000;display:none;background:rgba(15,23,42,.72)}
+.mbOverlay.open{display:block}
+.mbWindow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(1100px,96vw);height:min(92vh,760px);background:#fff;border-radius:14px;
+  overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.4);display:flex;flex-direction:column}
+.mbWindowBar{display:flex;align-items:center;gap:10px;padding:8px 12px;
+  background:var(--soft,#f1f5f9);border-bottom:1px solid var(--line,#e5e7eb)}
+.mbWindowBar .t{font-weight:700;font-size:14.5px;color:#111827;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.mbWindowBar .a{font-size:12.5px;color:#6b7280;white-space:nowrap}
+.mbClose{margin-left:auto;border:1px solid var(--red,#e74c3c);background:#fff;color:var(--red,#e74c3c);
+  border-radius:8px;padding:6px 13px;font-weight:700;cursor:pointer;font-size:13px}
+.mbClose:hover{background:var(--red,#e74c3c);color:#fff}
+.mbFrame{flex:1;border:0;width:100%}
+@media (max-width:760px){
+  .mbWindow{width:100vw;height:100vh;top:0;left:0;transform:none;border-radius:0}
+}
 .mbDel{border:1px solid var(--red);color:var(--red);background:#fff;border-radius:8px;
   padding:9px 15px;font-size:13px;cursor:pointer}
 .mbDel:hover{background:var(--red);color:#fff}
@@ -55,11 +75,11 @@
   .mbPlay{grid-column:1/-1;margin-top:8px}
 }
 </style>
-	<link rel="icon" href="/favicon.ico" sizes="32x32">
-	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-	<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-	<link rel="manifest" href="/site.webmanifest">
-	<meta name="theme-color" content="#111827">
+        <link rel="icon" href="/favicon.ico" sizes="32x32">
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="manifest" href="/site.webmanifest">
+        <meta name="theme-color" content="#111827">
 </head>
 <body>
 
@@ -71,9 +91,7 @@
     <select class="bfSelect" id="mbMode">
       <option value="" data-i18n="modeAll">Режим: все</option>
       <option value="hideAndSeek" data-i18n="hideAndSeek">Прятки</option>
-      <option value="twoPlayer" data-i18n="twoPlayer">Игра на двоих</option>
       <option value="race" data-i18n="race">Гонка</option>
-      <option value="sandbox" data-i18n="sandbox">Песочница</option>
     </select>
     <input class="bfInput" id="mbAuthor" data-i18n-ph="colAuthor" placeholder="Автор">
     <select class="bfSelect" id="mbSort">
@@ -89,7 +107,7 @@
 
   <div class="mbHead">
     <div data-i18n="colName">Название</div>
-    <div data-i18n="colRating">Рейтинг</div>
+    <div data-i18n="colRating" style="text-align:center">Рейтинг</div>
     <div data-i18n="colAuthor">Автор</div>
     <div data-i18n="colDate">Дата</div>
     <div data-i18n="colRating">Оценка</div>
@@ -97,6 +115,17 @@
   </div>
   <div id="mbList"><div class="bfHint" data-i18n="loading">Загрузка…</div></div>
   <div class="bfMsg" id="mbMsg"></div>
+</div>
+
+<div class="mbOverlay" id="mbOverlay">
+  <div class="mbWindow">
+    <div class="mbWindowBar">
+      <span class="t" id="mbWinName"></span>
+      <span class="a" id="mbWinAuthor"></span>
+      <button class="mbClose" id="mbWinClose" data-i18n="close">Закрыть</button>
+    </div>
+    <iframe class="mbFrame" id="mbFrame" title="Map"></iframe>
+  </div>
 </div>
 
 <link rel="stylesheet" href="mobile.css">
@@ -143,10 +172,10 @@
   function row(m) {
     var mine = me && !me.guest &&
                String(me.name).toLowerCase() === String(m.author).toLowerCase();
+    var rc = m.rating > 0 ? 'pos' : (m.rating < 0 ? 'neg' : 'zero');
     return '<div class="mbRow" data-map="' + esc(m.mapName) + '" data-author="' + esc(m.author) + '">'
       + '<div class="mbName" title="' + esc(m.mapName) + '">' + esc(m.mapName) + '</div>'
-      + '<div class="mbRate"><span class="up">' + m.likes + '</span>'
-      +   '<span class="down">' + m.dislikes + '</span></div>'
+      + '<div class="mbRate ' + rc + '">' + m.rating + '</div>'
       + '<div class="mbAuthor"><a href="users.html?name=' + encodeURIComponent(m.author) + '">'
       +   esc(m.author) + '</a></div>'
       + '<div class="mbDate">' + when(m.date) + '</div>'
@@ -193,8 +222,7 @@
     if (!r) return;
 
     if (e.target.closest('[data-play]')) {
-      location.href = 'game.html?view=' + encodeURIComponent(r.dataset.map)
-                    + '&author=' + encodeURIComponent(r.dataset.author);
+      openPlay(r.dataset.map, r.dataset.author);
       return;
     }
 
@@ -229,6 +257,31 @@
         })
         .catch(function () { msg(T('serverDown', 'Сервер недоступен')); });
     }
+  });
+
+  /* ---- проигрывание карты внутри Maps Browser ----
+     Раньше PLAY уводил на game.html — ссылка в адресной строке менялась.
+     Теперь карта открывается в модальном окне поверх списка, страница
+     и адрес остаются Maps Browser. */
+  function openPlay(mapName, author) {
+    $('mbWinName').textContent = mapName;
+    $('mbWinAuthor').textContent = T('colAuthor', 'Автор') + ': ' + author;
+    $('mbFrame').src = 'game.html?view=' + encodeURIComponent(mapName)
+                     + '&author=' + encodeURIComponent(author);
+    $('mbOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closePlay() {
+    $('mbOverlay').classList.remove('open');
+    $('mbFrame').src = 'about:blank';   // игра в кадре останавливается
+    document.body.style.overflow = '';
+  }
+  $('mbWinClose').onclick = closePlay;
+  $('mbOverlay').addEventListener('click', function (e) {
+    if (e.target === this) closePlay();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && $('mbOverlay').classList.contains('open')) closePlay();
   });
 
   $('mbGo').onclick = function () { page = 1; load(); };
