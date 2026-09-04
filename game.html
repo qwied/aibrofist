@@ -1527,27 +1527,30 @@ function liqCoverPlayer(){
   if(hits < 3) return null;
   return { top: sum/hits, acid: acid };
 }
-/* ── РЕНДЕР ЖИДКОСТИ: КАПСУЛЬНОЕ ТЕЛО, ПРЕЖНИЙ ДИЗАЙН ──
-   Прежнюю воду любят за вид: полупрозрачное тело с градиентом
-   «светлая кромка → глубина», волнистая поверхность, пена, пузыри.
-   Этот вид остался. Собирается тело теперь НАДЁЖНО и без canvas-
-   фильтров (в Safari их нет): каждая частица рисует отрезок своего
-   пути за кадр со скруглёнными концами (капсулу), все капсулы —
-   один общий контур и одна заливка:
-   · осевшая капля — просто круглый конец капсулы (кружок);
-   · струя и водопад — капсулы срастаются в сплошную ленту;
-   · лужа — union перекрывающихся кружков, ровное жидкое тело;
-   · наложение капсул не темнит картинку: stroke() за один проход
-     красит каждый пиксель один раз;
-   · геометрия строго локальна — дальние сцепки точек невозможны,
-     диагональные клинья из старого конструктора контура исчезли;
-   · градиент, светлая полоса, волнистая кромка и пузыри — те же,
-     что у прямоугольных бассейнов: налитая вода выглядит как они. */
+/* ── РЕНДЕР ЖИДКОСТИ: ОСЕВШАЯ ВОДА = ТАКОЙ ЖЕ БАССЕЙН, КАК У АВТОРА ──
+   Эталон вида — прямоугольная вода: чистое полупрозрачное тело
+   «светлая кромка → глубина», волнистая поверхность, полоса света,
+   пена на гребне, пузыри. Налитая вода собирается ровно в такие
+   бассейны, а не в бугристую гусеницу из капсул:
+   · колонки 6px -> вертикальные ОТРЕЗКИ частиц; у осевшего отрезка
+     своя опора на твёрдом (три точки под дном — слой «парит» над
+     опорой на 1-7px) или сосед-бассейн (край лужи держится боком);
+   · у одной колонки может быть ДВА бассейна на разных уровнях:
+     плёнка на полке и лужа на земле под ней — поэтому осевших
+     отрезков у колонки несколько, по одному на уровень;
+   · соседние осевшие отрезки со схожим верхом срастаются в дорожку:
+     бассейн рисуется одним контуром «волнистый верх — ровное дно по
+     опоре — вертикальные бока» и красится тем же градиентом, полосой
+     света, пеной и пузырями, что прямоугольная вода;
+   · вода в полёте (струя, водопад, брызги) — капсулы-ленты; тихая
+     пыль над бассейном — мягкие капли, без бугров на кромке;
+   · без canvas-фильтров — одинаково в Chrome и Safari. */
 var liqCvs = [];                 // холсты [тело] — по одному на цвет воды
 var liqGroupsVis = [];           // группы, нарисованные в текущем кадре
 var liqPainted = -1;
-var LIQ_RW = 8;                  // толщина капсулы = размер капли (px карты)
-var LIQ_COLW2 = 4;               // ширина колонки поверхности (px карты)
+var LIQ_RW = 8;                  // толщина капсулы падающей воды
+var LIQ_COLW2 = 6;               // ширина колонки бассейна (px карты)
+var LIQ_SEG = 13;                // разрыв, режущий колонку на отрезки
 function liqLayer(i){
   var t = liqCvs[i];
   if(!t){
@@ -1565,7 +1568,7 @@ function liqLayer(i){
 function liqSmooth(arr, key, thr){
   var ys = [], j;
   for(j=0;j<arr.length;j++) ys.push(arr[j][key]);
-  for(var ps=0; ps<2; ps++)
+  for(var ps=0; ps<3; ps++)
     for(j=0;j<ys.length;j++){
       var l2 = ys[j>0 ? j-1 : 0], r2 = ys[j<ys.length-1 ? j+1 : j];
       if(Math.abs(l2 - ys[j]) > thr) l2 = ys[j];
@@ -1602,80 +1605,263 @@ function liqPaintLayer(){
     bc.setTransform(k, 0, 0, k, sX, sY);     // рисуем в координатах карты
     var top  = mixHex(g.fill, "#e0f2fe", 0.42);
     var deep = mixHex(g.fill, "#082f49", 0.55);
-    /* — 1. тело: капсула = отрезок пути частицы за кадр. У частиц
-       жидкости путь честный (px,py), у капель струи оценивается по
-       скорости — струя сращивается в ленту на подлёте. — */
-    bc.beginPath();
-    var x0m = 1e9, x1m = -1e9, y0m = 1e9, y1m = -1e9;
-    for(i=0;i<g.parts.length;i++){
-      var p = g.parts[i];
-      var xa = p.px !== undefined ? p.px : p.x - (p.vx||0)*1.5;
-      var ya = p.py !== undefined ? p.py : p.y - (p.vy||0)*1.5;
-      bc.moveTo(xa, ya);
-      bc.lineTo(p.x, p.y);
-      var l = xa < p.x ? xa : p.x, r = xa > p.x ? xa : p.x;
-      if(l < x0m) x0m = l; if(r > x1m) x1m = r;
-      var ty = ya < p.y ? ya : p.y, by = ya > p.y ? ya : p.y;
-      if(ty < y0m) y0m = ty;
-      if(by > y1m) y1m = by;
-    }
-    if(x1m < vx0 || x0m > vx1 || y1m < vy0 || y0m > vy1) continue;
-    /* тот же градиент и те же альфы, что у прямоугольного бассейна;
-       размах ограничен 320px — брызги в небе не растягивают градиент
-       лужи */
-    var gy1 = Math.min(y1m, y0m + 320);
-    var grd = bc.createLinearGradient(0, y0m - LIQ_RW/2 - 4, 0, Math.max(gy1, y0m - 5));
-    grd.addColorStop(0, hexA(top, 0.36));
-    grd.addColorStop(0.5, hexA(g.fill, 0.44));
-    grd.addColorStop(1, hexA(deep, 0.6));
-    bc.lineCap = "round";
-    bc.lineJoin = "round";
-    bc.lineWidth = LIQ_RW;
-    bc.strokeStyle = grd;
-    bc.stroke();
-    /* — 2. поверхность для светлой полосы и пены: верхняя частица
-       каждой колонки 4px. Колонка «падает» (пены нет, как у
-       водопада), если она глубокая и рядом на её верхнем ряду никого.
-       Формат колонок — прежний, liqSurface его читает без правок. — */
-    var ctab = {}, colKeys = [];
+    /* — 1. колонки: в клетку 6px собираем частицы группы — */
+    var CW = LIQ_COLW2, ctab = {}, colKeys = [];
     for(i=0;i<g.parts.length;i++){
       var q = g.parts[i];
-      var cq = Math.floor(q.x/LIQ_COLW2);
-      var e = ctab[cq];
-      if(!e){ e = ctab[cq] = {top: q.y, bot: q.y}; colKeys.push(cq); }
-      if(q.y < e.top) e.top = q.y;
-      if(q.y > e.bot) e.bot = q.y;
+      var cq = Math.floor(q.x/CW);
+      if(!ctab[cq]){ ctab[cq] = []; colKeys.push(cq); }
+      ctab[cq].push(q);
     }
     colKeys.sort(function(a,b){ return a-b; });
-    g._runs = [];
-    var runCols = null, prevCx = -1000;
+    /* — 2. отрезки колонок: стопки частиц без разрывов > LIQ_SEG — */
+    var segsOf = {};
     for(i=0;i<colKeys.length;i++){
-      var cxk = colKeys[i], e2 = ctab[cxk];
-      var ln = ctab[cxk-1], rn = ctab[cxk+1];
-      var fast = (e2.bot - e2.top >= 8) &&
-                 !(ln && ln.top <= e2.top + 6) &&
-                 !(rn && rn.top <= e2.top + 6);
-      if(runCols && (cxk !== prevCx + 1 || fast || runCols[runCols.length-1][4] ||
-         Math.abs(e2.top - runCols[runCols.length-1][1]) > 10)){
-        if(runCols.length >= 2) g._runs.push({cols: runCols});
-        runCols = null;
+      var cxk = colKeys[i], ps = ctab[cxk];
+      ps.sort(function(a,b){ return a.y-b.y; });
+      var list = [];
+      for(var yj=0; yj<ps.length;){
+        var yj2 = yj;
+        while(yj2 + 1 < ps.length && ps[yj2+1].y - ps[yj2].y <= LIQ_SEG) yj2++;
+        /* [верх, низ, скорость нижней частицы] */
+        list.push([ps[yj].y, ps[yj2].y,
+                   ps[yj2].vx*ps[yj2].vx + ps[yj2].vy*ps[yj2].vy]);
+        yj = yj2 + 1;
       }
-      if(!fast){
-        if(!runCols) runCols = [];
-        runCols.push([cxk*LIQ_COLW2 + LIQ_COLW2/2,
-                      e2.top,
-                      e2.bot - e2.top + LIQ_RW,
-                      e2.bot + LIQ_RW - 2,
-                      0, null]);
+      segsOf[cxk] = list;
+    }
+    /* — 3. оседание ПО ОТРЕЗКАМ (снизу вверх в колонке, два свипа
+       L→R и R→L между колонками): опора в трёх точках под дном,
+       мениск над бассейном ниже (разрыв ≤ 16px) или сосед-бассейн.
+       Быстрая вода отлична по скорости: капли и струи не оседают,
+       пока летят. — */
+    var sett = {};
+    for(var pass=0; pass<2; pass++){
+      var seq = pass === 0 ? colKeys : colKeys.slice().reverse();
+      for(i=0;i<seq.length;i++){
+        var cx2 = seq[i], arr2 = segsOf[cx2];
+        var st2 = sett[cx2];
+        if(!st2){
+          st2 = sett[cx2] = [];
+          for(var z2=0; z2<arr2.length; z2++) st2.push(false);
+        }
+        for(var sj=arr2.length-1; sj>=0; sj--){
+          if(st2[sj]) continue;
+          var bB = arr2[sj][1], tB = arr2[sj][0];
+          var spd2 = arr2[sj][2];
+          /* ворот только против ЛЕТЯЩЕЙ воды (падает 5-16, у стены
+             врёт проба): дрожь давления осевшей кучи — до 3.5 */
+          var ok = spd2 < 25;
+          if(ok){
+            var yb = bB + LIQ_R,
+                xa1 = cx2*CW + 1.5, xa2 = cx2*CW + CW - 1.5;
+            ok = liqSolidAt(xa1, yb + 3) || liqSolidAt(xa2, yb + 3) ||
+                 liqSolidAt(xa1, yb + 7) || liqSolidAt(xa2, yb + 7) ||
+                 liqSolidAt(xa1, yb + 11) || liqSolidAt(xa2, yb + 11);
+            if(!ok && sj + 1 < arr2.length && st2[sj+1] &&
+               arr2[sj+1][0] - bB <= 16) ok = true;
+            if(!ok){
+              var nx2 = pass === 0 ? cx2-1 : cx2+1;
+              var nr2 = sett[nx2];
+              if(nr2){
+                var na2 = segsOf[nx2];
+                for(var qj=0; qj<nr2.length; qj++)
+                  if(nr2[qj] && bB > na2[qj][0] - 10 && bB < na2[qj][1] + 10){
+                    ok = true; break;
+                  }
+              }
+            }
+            /* высокий одинокий отрезок — не бассейн, а всплеск/струя
+               над поверхностью: у соседей верх далеко ниже — шпиль
+               над лужей в точке удара струи не строим */
+            if(ok && bB - tB > 26){
+              var q1 = null, q2 = null, nq;
+              nq = sett[cx2-1];
+              if(nq) for(var qk=0; qk<nq.length; qk++)
+                if(nq[qk]){ q1 = segsOf[cx2-1][qk][0]; break; }
+              nq = sett[cx2+1];
+              if(nq) for(qk=0; qk<nq.length; qk++)
+                if(nq[qk]){ q2 = segsOf[cx2+1][qk][0]; break; }
+              if((!q1 || q1 > tB + 12) && (!q2 || q2 > tB + 12)) ok = false;
+            }
+          }
+          st2[sj] = ok;
+        }
       }
-      prevCx = cxk;
     }
-    if(runCols && runCols.length >= 2) g._runs.push({cols: runCols});
-    for(i=0;i<g._runs.length;i++){
-      liqSmooth(g._runs[i].cols, 1, 9);
-      liqSmooth(g._runs[i].cols, 3, 9);
+    /* — 4. дорожки-бассейны: соседние колонки, чьи осевшие отрезки
+       схожи верхом (≤ 14px). У колонки несколько уровней — каждый
+       отрезок продолжает СВОЮ дорожку или заводит новую. — */
+    var pools = [], drops = [];
+    var active = [];
+    for(i=0;i<colKeys.length;i++){
+      var cx3 = colKeys[i], arr3 = segsOf[cx3], st3 = sett[cx3];
+      var used3 = [];
+      for(var u3=0; u3<arr3.length; u3++) used3.push(false);
+      var still = [];
+      for(var aj=0; aj<active.length; aj++){
+        var rn = active[aj], took = false;
+        if(rn.cx1 === cx3 - 1){
+          for(var sj2=0; sj2<arr3.length; sj2++){
+            if(!st3[sj2] || used3[sj2]) continue;
+            if(Math.abs(arr3[sj2][0] - rn.top) <= 14){
+              rn.cols.push([cx3*CW + CW/2, arr3[sj2][0], arr3[sj2][1]]);
+              rn.cx1 = cx3; rn.top = arr3[sj2][0];
+              used3[sj2] = true; took = true;
+              break;
+            }
+          }
+        }
+        if(took) still.push(rn);
+        else (rn.cols.length >= 2 ? pools : drops).push(rn);
+      }
+      for(var sj3=0; sj3<arr3.length; sj3++)
+        if(st3[sj3] && !used3[sj3])
+          still.push({ cols: [[cx3*CW + CW/2, arr3[sj3][0], arr3[sj3][1]]],
+                       cx1: cx3, top: arr3[sj3][0] });
+      active = still;
     }
-    g._top = top;
+    for(i=0;i<active.length;i++)
+      (active[i].cols.length >= 2 ? pools : drops).push(active[i]);
+    /* — 5. рисуем бассейны: тот же вид, что у прямоугольной воды — */
+    for(i=0;i<pools.length;i++){
+      var pc = pools[i].cols, pj;
+      /* сглаживание верха и дна: частицы дрожат — бассейн спокоен */
+      liqSmooth(pc, 1, 9);
+      liqSmooth(pc, 2, 9);
+      var dsum = 0;
+      for(pj=0; pj<pc.length; pj++) dsum += pc[pj][2] - pc[pj][1];
+      var davg = dsum/pc.length;
+      var ampK = Math.max(0.3, Math.min(1, davg/12));
+      var bandH = Math.max(3, Math.min(7, davg*0.5));
+      var y0p = 1e9, y1p = -1e9;
+      for(pj=0; pj<pc.length; pj++){
+        var tw = pc[pj][1] - 1 + liqWob(pc[pj][0])*ampK;
+        if(tw < y0p) y0p = tw;
+        if(pc[pj][2] + 3 > y1p) y1p = pc[pj][2] + 3;
+      }
+      if(y1p < vy0 || y0p > vy1) continue;     // бассейн за экраном
+      /* тело: волнистый верх, дно по опоре, бока вертикально */
+      bc.beginPath();
+      bc.moveTo(pc[0][0], pc[0][1] - 1 + liqWob(pc[0][0])*ampK);
+      for(pj=1; pj<pc.length; pj++)
+        bc.lineTo(pc[pj][0], pc[pj][1] - 1 + liqWob(pc[pj][0])*ampK);
+      for(pj=pc.length-1; pj>=0; pj--) bc.lineTo(pc[pj][0], pc[pj][2] + 3);
+      bc.closePath();
+      var grd = bc.createLinearGradient(0, y0p - 4, 0, Math.max(y1p, y0p + 5));
+      grd.addColorStop(0, hexA(top, 0.36));
+      grd.addColorStop(0.5, hexA(g.fill, 0.44));
+      grd.addColorStop(1, hexA(deep, 0.6));
+      bc.fillStyle = grd; bc.fill();
+      /* полоса света сразу под поверхностью — как у бассейна */
+      bc.beginPath();
+      bc.moveTo(pc[0][0], pc[0][1] - 1 + liqWob(pc[0][0])*ampK);
+      for(pj=1; pj<pc.length; pj++)
+        bc.lineTo(pc[pj][0], pc[pj][1] - 1 + liqWob(pc[pj][0])*ampK);
+      for(pj=pc.length-1; pj>=0; pj--)
+        bc.lineTo(pc[pj][0], pc[pj][1] - 1 + liqWob(pc[pj][0])*ampK + bandH);
+      bc.closePath();
+      bc.fillStyle = hexA(top, 0.3); bc.fill();
+      /* блик-кромка: пена на гребне волны */
+      bc.strokeStyle = "rgba(241,249,255,.7)";
+      bc.lineWidth = 1.5;
+      bc.lineJoin = "round";
+      bc.beginPath();
+      bc.moveTo(pc[0][0], pc[0][1] - 1 + liqWob(pc[0][0])*ampK);
+      for(pj=1; pj<pc.length; pj++)
+        bc.lineTo(pc[pj][0], pc[pj][1] - 1 + liqWob(pc[pj][0])*ampK);
+      bc.stroke();
+      /* пузыри в глубине: у каждого своя дорожка и скорость */
+      var nb2 = Math.min(14, Math.round(pc.length/6) + 2);
+      for(var b3=0; b3<nb2; b3++){
+        var colB = pc[(b3*5 + 2) % pc.length];
+        var dB = colB[2] - colB[1];
+        if(dB < 16) continue;
+        var seed = Math.abs((colB[0]*13 + gi*57 + b3*101)|0);
+        var spanB = Math.max(6, dB*0.72);
+        var by = colB[2] - ((anim*0.5 + (seed % 89)) % spanB) - 3;
+        var rel = Math.max(0, Math.min(1, (by - colB[1])/(dB + 1)));
+        bc.fillStyle = hexA("#f0f9ff", 0.34*Math.max(0.15, rel));
+        bc.beginPath();
+        bc.arc(colB[0] + (seed%5) - 2, by, 1.1 + (b3%3)*0.7, 0, 6.2832);
+        bc.fill();
+      }
+    }
+    /* — 6. одинокая осевшая колонка — капля на месте — */
+    for(i=0;i<drops.length;i++){
+      var dcol = drops[i].cols[0];
+      bc.fillStyle = hexA(g.fill, 0.5);
+      bc.beginPath();
+      bc.arc(dcol[0], dcol[1] + 2.6, 3, 0, 6.2832);
+      bc.fill();
+    }
+    /* — 7. вода в полёте: капсулы пути за кадр — струя и водопад
+       срастаются в ленту, капли долетают и достраивают бассейн.
+       Тихая пыль над бассейном — мягкие капли: капсула тихой частицы
+       вылезала бы буграми из кромки бассейна. — */
+    bc.beginPath();
+    var x0m = 1e9, x1m = -1e9, y0m = 1e9, y1m = -1e9, anyFly = false;
+    var dots = [], fly = [];
+    for(i=0;i<g.parts.length;i++){
+      var p = g.parts[i];
+      var pcx = Math.floor(p.x/LIQ_COLW2);
+      var stc = sett[pcx], segc = segsOf[pcx], covered = false;
+      if(stc) for(var cj=0; cj<stc.length; cj++)
+        if(stc[cj] && p.y >= segc[cj][0] - 6 && p.y <= segc[cj][1] + 7){
+          covered = true; break;
+        }
+      if(covered) continue;                      // в бассейне
+      var spd3 = (p.vx||0)*(p.vx||0) + (p.vy||0)*(p.vy||0);
+      if(spd3 < 4){ dots.push(p); continue; }    // тихая — мягкая капля
+      var xa = p.px !== undefined ? p.px : p.x - (p.vx||0)*1.5;
+      var ya = p.py !== undefined ? p.py : p.y - (p.vy||0)*1.5;
+      fly.push(p);
+      anyFly = true;
+      var l = xa < p.x ? xa : p.x, r = xa > p.x ? xa : p.x;
+      if(l < x0m) x0m = l; if(r > x1m) x1m = r;
+      var ty = ya < p.y ? ya : p.y, by2 = ya > p.y ? ya : p.y;
+      if(ty < y0m) y0m = ty;
+      if(by2 > y1m) y1m = by2;
+    }
+    /* струя и водопад — СПЛОШНАЯ ЛЕНТА: каплю дотягиваем до ближайшей
+       ниже (|dx| ≤ 8, dy ≤ 16) — иначе падающие капли выглядят
+       отдельными шариками */
+    fly.sort(function(a,b){ return a.y-b.y; });
+    for(i=0;i<fly.length;i++){
+      var f1 = fly[i], f2 = null;
+      for(var fj=i+1; fj<fly.length; fj++){
+        var f3 = fly[fj];
+        if(f3.y - f1.y > 16) break;
+        if(Math.abs(f3.x - f1.x) <= 8 &&
+           (!f2 || f3.y < f2.y)) f2 = f3;
+      }
+      if(f2){ bc.moveTo(f1.x, f1.y); bc.lineTo(f2.x, f2.y); }
+      else{
+        var xa2 = f1.px !== undefined ? f1.px : f1.x - (f1.vx||0)*1.5;
+        var ya2 = f1.py !== undefined ? f1.py : f1.y - (f1.vy||0)*1.5;
+        bc.moveTo(xa2, ya2); bc.lineTo(f1.x, f1.y);
+      }
+    }
+    if(anyFly && fly.length && x1m >= vx0 && x0m <= vx1 && y1m >= vy0 && y0m <= vy1){
+      var gy1 = Math.min(y1m, y0m + 320);
+      var fgrd = bc.createLinearGradient(0, y0m - LIQ_RW/2 - 4, 0, Math.max(gy1, y0m - 5));
+      fgrd.addColorStop(0, hexA(top, 0.36));
+      fgrd.addColorStop(0.5, hexA(g.fill, 0.44));
+      fgrd.addColorStop(1, hexA(deep, 0.6));
+      bc.lineCap = "round";
+      bc.lineJoin = "round";
+      bc.lineWidth = LIQ_RW;
+      bc.strokeStyle = fgrd;
+      bc.stroke();
+    }
+    if(dots.length){
+      bc.fillStyle = hexA(g.fill, 0.5);
+      for(i=0;i<dots.length;i++){
+        bc.moveTo(dots[i].x + 2.6, dots[i].y);
+        bc.arc(dots[i].x, dots[i].y, 2.6, 0, 6.2832);
+      }
+      bc.fill();
+    }
     g._cv = t.body;
     liqGroupsVis.push(g);
   }
@@ -1689,94 +1875,13 @@ function drawLiquid(alpha){
   for(var i=0;i<liqGroupsVis.length;i++)
     ctx.drawImage(liqGroupsVis[i]._cv, 0, 0);
   ctx.restore();
-  if(alpha < 1) return;                      // плёнка на пловце — только тело
-  liqSurface();
 }
 /* Та же волна поверхности, что у прямоугольной воды: оба вида воды
    качаются в такт, кромки выглядят одинаково. */
 function liqWob(x){
   return Math.sin(x*0.05 + anim*0.052)*2.3 + Math.sin(x*0.017 - anim*0.03)*1.5;
 }
-/* Пена и пузыри идут по готовым дорожкам тела (g._runs из
-   liqPaintLayer) — светлая полоса всегда лежит ровно на кромке.
-   Там, где вода льётся или падает (быстрые колонки), пены нет — как
-   у настоящего водопада; дорожки пены рвутся на обрывах высоты. */
-function liqSurface(){
-  if(!liqGroupsVis.length) return;
-  var k = view.s*DPR, sX = view.x*DPR, sY = view.y*DPR;
-  var bubbles = 0;
-  ctx.save();
-  ctx.setTransform(k, 0, 0, k, sX, sY);      // рисуем в координатах карты
-  for(var gi=0; gi<liqGroupsVis.length; gi++){
-    var g = liqGroupsVis[gi];
-    if(!g._runs) continue;
-    for(var j=0;j<g._runs.length;j++){
-      var rc = g._runs[j].cols, i;
-      /* пена — только по спокойным колонкам дорожки */
-      var fs = null, fss = [];
-      for(i=0;i<=rc.length;i++){
-        var c2 = i < rc.length ? rc[i] : null;
-        var ok = c2 && !c2[4];
-        if(ok && fs && Math.abs(c2[1] - fs.ly) > 14){ fss.push(fs); fs = null; }
-        if(ok){
-          if(!fs) fs = { cols: [], ly: c2[1] };
-          fs.cols.push([c2[0], c2[1], c2[2]]);
-          fs.ly = c2[1];
-        } else if(fs){ fss.push(fs); fs = null; }
-      }
-      for(var f2=0; f2<fss.length; f2++){
-        var fc = fss[f2].cols;
-        if(fc.length < 2) continue;
-        /* полоса и волна — по глубине: у тонкой плёнки они меньше,
-           у глубокой воды — во всю силу, как у бассейна */
-        var dsum = 0;
-        for(i=0;i<fc.length;i++) dsum += fc[i][2];
-        var davg = dsum/fc.length;
-        drawLiquidTop(fc, g._top,
-          Math.max(0.25, Math.min(1, davg/14)),
-          Math.max(3, Math.min(7, davg*0.5)));
-      }
-    }
-    /* пузыри в глубине: редкие восходящие точки, как в бассейнах */
-    for(j=0;j<g._runs.length && bubbles<36;j++){
-      var rc2 = g._runs[j].cols;
-      for(var b2=0; b2<rc2.length && bubbles<36; b2+=6){
-        var cB = rc2[b2];
-        if(cB[4] || cB[2] < 16) continue;
-        var seed = Math.abs((cB[0]*13 + gi*57)|0);   // без знака: x<0 ломал % и радиус
-        var span = Math.max(4, cB[2] - 8);
-        var by = cB[3] - 3 - ((anim*0.5 + (seed % 89)) % span);
-        var br = 0.8 + (seed % 3)*0.5;
-        ctx.fillStyle = hexA("#f0f9ff", 0.3);
-        ctx.beginPath(); ctx.arc(cB[0] + (seed%5) - 2, by, br, 0, 6.2832); ctx.fill();
-        bubbles++;
-      }
-    }
-  }
-  ctx.restore();
-}
-/* Светлая полоса и пена на дорожке поверхности — те же, что у
-   прямоугольного бассейна: полоса под верхом, кромка на гребне.
-   ampK и bandH масштабируют волну и полосу по глубине воды. */
-function drawLiquidTop(cols, top, ampK, bandH){
-  var i, w0 = liqWob(cols[0][0])*ampK;
-  ctx.beginPath();
-  ctx.moveTo(cols[0][0], cols[0][1] + w0 - 0.5);
-  for(i=1;i<cols.length;i++)
-    ctx.lineTo(cols[i][0], cols[i][1] + liqWob(cols[i][0])*ampK - 0.5);
-  for(i=cols.length-1;i>=0;i--)
-    ctx.lineTo(cols[i][0], cols[i][1] + liqWob(cols[i][0])*ampK + bandH);
-  ctx.closePath();
-  ctx.fillStyle = hexA(top, 0.3); ctx.fill();
-  ctx.strokeStyle = "rgba(241,249,255,.7)";
-  ctx.lineWidth = 1.5;
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(cols[0][0], cols[0][1] + w0 - 0.5);
-  for(i=1;i<cols.length;i++)
-    ctx.lineTo(cols[i][0], cols[i][1] + liqWob(cols[i][0])*ampK - 0.5);
-  ctx.stroke();
-}
+
 /* Слияние соседних луж одного цвета: налитые рядом капли собираются
    в один объект, чтобы карта не забивалась мелкими клетками.
    Пары ищутся по бакетам 260px: лужи ближе 10px всегда попадают в
