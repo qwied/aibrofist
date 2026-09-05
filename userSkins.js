@@ -2,6 +2,7 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const path = require('path');
+const dns = require('dns').promises;
 
 const DATA_DIR = path.join(__dirname, 'data');
 const FILE = path.join(DATA_DIR, 'userskins.json');
@@ -9,11 +10,17 @@ const FILE = path.join(DATA_DIR, 'userskins.json');
 const DAILY_LIMIT = 5;      // сколько скинов можно выложить за сутки
 const IMG_DIR = path.join(DATA_DIR, 'skinimg');
 const IMG_MAX = 3 * 1024 * 1024;   // 3 МБ на картинку
+/* SVG больше не принимаем: внутри него может лежать скрипт.
+   Остальные форматы безопасны — это растровые картинки. */
 const IMG_TYPES = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg',
-  'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg'
+  'image/gif': 'gif', 'image/webp': 'webp'
 };
 const REWARD = 10;          // монет за каждый опубликованный скин
+
+// управляющие и невидимые символы в названиях недопустимы
+const BAD_CHARS = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g;
+const cleanText = (v, max) => String(v == null ? '' : v).replace(BAD_CHARS, '').trim().slice(0, max);
 
 // Картинку принимаем только как ссылку http(s) или как data:image/*.
 // Всё остальное отбрасываем, чтобы в базу не попало что попало.
@@ -115,16 +122,32 @@ function fromDataUrl(raw) {
 }
 
 // адрес в интернете. Забираем сами, но с ограничениями: только http(s),
-// не локальная сеть, ограничение на размер и тип.
+// стандартный порт, не локальная сеть — причём проверяется УЖЕ разрешённый
+// адрес, а не только имя: подмену DNS в локальную сеть так не провести.
 const PRIVATE_HOST = /^(localhost$|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1)|^172\.(1[6-9]|2\d|3[01])\./i;
+const PRIVATE_IP = /^(127\.|10\.|192\.168\.|169\.254\.|0\.|172\.(1[6-9]|2\d|3[01])\.)/;
+
+async function assertPublicHost(hostname) {
+  if (PRIVATE_HOST.test(hostname)) throw new Error('локальная сеть запрещена');
+  // имя хоста разрешаем и проверяем все полученные адреса
+  const addrs = await dns.lookup(hostname, { all: true, verbatim: true });
+  addrs.forEach(a => {
+    if (PRIVATE_IP.test(a.address) || a.address === '::1')
+      throw new Error('этот адрес ведёт в локальную сеть');
+  });
+}
 
 async function fromUrl(raw) {
   let u;
   try { u = new URL(String(raw).trim()); } catch (e) { return { bad: 'Это не адрес' }; }
   if (u.protocol !== 'http:' && u.protocol !== 'https:')
     return { bad: 'Нужна ссылка http или https' };
-  if (PRIVATE_HOST.test(u.hostname))
-    return { bad: 'Ссылки на локальную сеть запрещены' };
+  if (u.port && u.port !== '80' && u.port !== '443')
+    return { bad: 'Нестандартный порт в ссылке запрещён' };
+  if (u.username || u.password)
+    return { bad: 'Логины и пароли в ссылке запрещены' };
+  try { await assertPublicHost(u.hostname); }
+  catch (e) { return { bad: 'Ссылки на локальную сеть запрещены' }; }
 
   let r;
   try {
@@ -133,6 +156,10 @@ async function fromUrl(raw) {
     r = await fetch(u.href, { redirect: 'follow', signal: ctl.signal });
     clearTimeout(t);
   } catch (e) { return { bad: 'Не удалось скачать: ' + (e.message || e) }; }
+
+  // после редиректов адрес мог переехать в локальную сеть — проверяем ещё раз
+  try { await assertPublicHost(new URL(r.url).hostname); }
+  catch (e) { return { bad: 'Ссылки на локальную сеть запрещены' }; }
 
   if (!r.ok) return { bad: 'Сервер картинки ответил ' + r.status };
   const ct = String(r.headers.get('content-type') || '').split(';')[0].toLowerCase();
@@ -184,7 +211,7 @@ function register(app, acc, skinsApi) {
     const u = currentUser(req);
     if (!u) return res.json({ status: 'error', message: 'Сначала войдите в аккаунт' });
 
-    const skinName = String(req.body.skinName || '').trim();
+    const skinName = cleanText(req.body.skinName, 30);
     if (skinName.length < 2 || skinName.length > 30)
       return res.json({ status: 'error', message: 'Название скина: от 2 до 30 символов' });
 
@@ -263,7 +290,7 @@ function register(app, acc, skinsApi) {
     if (!ownerOnly(req, res)) return;
     const u = currentUser(req);
 
-    const skinName = String(req.body.skinName || '').trim();
+    const skinName = cleanText(req.body.skinName, 30);
     if (skinName.length < 2 || skinName.length > 30)
       return res.json({ status: 'error', message: 'Название скина: от 2 до 30 символов' });
 

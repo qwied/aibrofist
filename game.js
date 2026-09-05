@@ -384,6 +384,12 @@
       });
     });
 
+    // сервер мог поправить имя: сессия сильнее присланного, а гостю
+    // нельзя сидеть под чужим зарегистрированным ником
+    socket.on('nameFixed', function (d) {
+      if (d && d.name) me.name = d.name;
+    });
+
     socket.on('playersList', function (list) {
       var seen = {};
       list.forEach(function (p) {

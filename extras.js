@@ -27,7 +27,7 @@ function save() {
 load();
 
 function register(app, acc) {
-  const { currentUser, isOwner, getDb, save: saveUsers, newSession, hash, key, checkName } = acc;
+  const { currentUser, isOwner, getDb, save: saveUsers, newSession, verifyPassword, key, checkName } = acc;
 
   const ownerOnly = (req, res) => {
     const u = currentUser(req);
@@ -60,12 +60,24 @@ function register(app, acc) {
   });
 
   // ---------- монеты ----------
+  /* Монеты за игру капают маленькими порциями, поэтому окно жёсткое:
+   * спам запросами больше не поднимет баланс — за час максимум 120. */
+  const COIN_WINDOW = 60 * 60 * 1000;   // час
+  const COIN_MAX = 120;                 // максимум монет из игры за час
   app.post('/addCoins', (req, res) => {
     const u = currentUser(req);
     if (!u) return res.json({ status: 'guest', coins: 0 });
     let n = parseInt(req.body.coins) || 0;
     if (n <= 0) return res.json({ status: 'success', coins: u.coins || 0 });
     if (n > 50) n = 50;                       // защита от накрутки за один заход
+    if (!u.coinWin || Date.now() - u.coinWin > COIN_WINDOW) {
+      u.coinWin = Date.now();
+      u.coinSum = 0;
+    }
+    if ((u.coinSum || 0) >= COIN_MAX)
+      return res.json({ status: 'success', coins: u.coins || 0 });
+    if ((u.coinSum || 0) + n > COIN_MAX) n = COIN_MAX - (u.coinSum || 0);
+    u.coinSum = (u.coinSum || 0) + n;
     u.coins = (u.coins || 0) + n;
     saveUsers();
     res.json({ status: 'success', coins: u.coins });
@@ -203,7 +215,7 @@ function register(app, acc) {
     const pass = String(req.body.password || '');
     const target = db.users[key(name)];
     if (!target) return res.json({ status: 'error', message: 'Аккаунт не найден' });
-    if (hash(pass, target.salt) !== target.hash)
+    if (!verifyPassword(pass, target.salt, target.hash))
       return res.json({ status: 'error', message: 'Неверный пароль от этого аккаунта' });
     u.linked = u.linked || [];
     if (!u.linked.some(n => key(n) === key(target.name))) u.linked.push(target.name);

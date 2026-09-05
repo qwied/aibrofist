@@ -39,8 +39,35 @@ load();
 
 const key = n => String(n || '').toLowerCase();
 
-function hash(password, salt) {
+/* Пароли: scrypt с повышенной стойкостью (N=2^15). Старые хеши
+   проверяются по прежним параметрам и молча пересохраняются новыми
+   при первом же удачном входе — никто не разлогинивается. */
+const SCRYPT = { N: 32768, r: 8, p: 1, keylen: 64, maxmem: 96 * 1024 * 1024 };
+function hashNew(password, salt) {
+  const h = crypto.scryptSync(String(password), salt, SCRYPT.keylen,
+                              { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p, maxmem: SCRYPT.maxmem });
+  return 'v2$' + h.toString('hex');
+}
+function hash(password, salt) {   // старый формат — только для проверки унаследованных хешей
   return crypto.scryptSync(String(password), salt, 32).toString('hex');
+}
+function verifyPassword(password, salt, stored) {
+  try {
+    if (typeof stored === 'string' && stored.indexOf('v2$') === 0) {
+      const want = Buffer.from(stored.slice(3), 'hex');
+      const got = crypto.scryptSync(String(password), salt, want.length,
+                                    { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p, maxmem: SCRYPT.maxmem });
+      return want.length === got.length && crypto.timingSafeEqual(want, got);
+    }
+    const want = Buffer.from(stored, 'hex');
+    const got = crypto.scryptSync(String(password), salt, want.length);
+    return crypto.timingSafeEqual(want, got);
+  } catch (e) { return false; }
+}
+function rehashIfNeeded(u, password) {
+  if (typeof u.hash === 'string' && u.hash.indexOf('v2$') !== 0) {
+    u.hash = hashNew(password, u.salt);
+  }
 }
 
 // логин: 2-20 символов, русские и английские буквы, цифры, - _ .
@@ -58,32 +85,103 @@ function checkPassword(pw) {
   if (typeof pw !== 'string' || pw.length === 0) return 'Введите пароль';
   return '';
 }
+// для новой регистрации пароль не пустой и не короче 4 символов
+function checkNewPassword(pw) {
+  let err = checkPassword(pw);
+  if (err) return err;
+  if (pw.length < 4) return 'Пароль должен быть не короче 4 символов';
+  if (pw.length > 100) return 'Пароль должен быть не длиннее 100 символов';
+  return '';
+}
+
+// реальный адрес игрока за прокси: Cloudflare отдаёт его в CF-Connecting-IP,
+// а первый элемент X-Forwarded-For клиент рисует себе сам
+function clientIp(req) {
+  const cf = String(req.headers['cf-connecting-ip'] || '').trim();
+  if (cf) return cf;
+  const xff = String(req.headers['x-forwarded-for'] || '');
+  if (xff) return xff.split(',').pop().trim();
+  return (req.socket && req.socket.remoteAddress) || '';
+}
 
 // один аккаунт на устройство: IP храним хешем, сам адрес не сохраняем
 function ipKey(req) {
-  const raw = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
-           || (req.socket && req.socket.remoteAddress) || '';
+  const raw = clientIp(req);
   return raw ? crypto.createHash('sha256').update(raw).digest('hex').slice(0, 24) : '';
 }
 
+/* ---------- защита от брутфорса ----------
+   После серии неудачных попыток вход на аккаунт и с адреса
+   временно закрыт. Блокировка копится отдельно по нику и по IP. */
+const LOCK_WINDOW = 15 * 60 * 1000;   // окно 15 минут
+const LOCK_MAX = 8;                   // столько неудач подряд терпим
+const LOCK_TIME = 15 * 60 * 1000;     // само запирание — 15 минут
+const loginTries = new Map();         // "ip|name" -> {n, until}
+function loginBlocked(k) {
+  const t = loginTries.get(k);
+  return t && t.until > Date.now() ? t.until : 0;
+}
+function loginFail(k) {
+  const t = loginTries.get(k) || { n: 0, until: 0 };
+  t.n++;
+  if (t.n >= LOCK_MAX) { t.until = Date.now() + LOCK_TIME; t.n = 0; }
+  loginTries.set(k, t);
+}
+function loginOk(k) { loginTries.delete(k); }
+setInterval(() => {
+  const now = Date.now();
+  loginTries.forEach((t, k) => { if (t.until && t.until < now) loginTries.delete(k); });
+  if (loginTries.size > 5000) loginTries.clear();
+}, 60000).unref();
+
 function parseCookies(req) {
   const out = {};
-  (req.headers.cookie || '').split(';').forEach(p => {
+  const src = (req && req.headers && req.headers.cookie) || req || '';
+  String(src).split(';').forEach(p => {
     const i = p.indexOf('=');
     if (i > 0) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
   });
   return out;
 }
+
+/* Сессии: срок 90 дней, при каждом заходе продлевается.
+   Старые записи (строка "ник") мигрируют в новый формат при чтении. */
+const SESSION_TTL = 90 * 864e5;
+function sessionOf(sid) {
+  let s = db.sessions[sid];
+  if (!s) return null;
+  if (typeof s === 'string') { s = { name: s, created: Date.now(), seen: Date.now() }; db.sessions[sid] = s; }
+  if (!s.name) return null;
+  const now = Date.now();
+  if (s.created && now - s.created > SESSION_TTL) { delete db.sessions[sid]; return null; }
+  s.seen = now;
+  return s;
+}
+function dropUserSessions(name, exceptSid) {
+  Object.keys(db.sessions).forEach(sid => {
+    const s = db.sessions[sid];
+    const n = typeof s === 'string' ? s : s.name;
+    if (key(n) === key(name) && sid !== exceptSid) delete db.sessions[sid];
+  });
+}
 function currentUser(req) {
   const sid = parseCookies(req).sid;
   if (!sid) return null;
-  const name = db.sessions[sid];
-  if (!name) return null;
-  return db.users[key(name)] || null;
+  const s = sessionOf(sid);
+  if (!s) return null;
+  return db.users[key(s.name)] || null;
 }
+function sessionNameBySid(sid) {           // для сокетов: ник из куки рукопожатия
+  const s = sessionOf(sid);
+  return s ? s.name : null;
+}
+const nameIsTaken = n => !!db.users[key(n)];
 function newSession(res, name, req) {
-  const sid = crypto.randomBytes(24).toString('hex');
-  db.sessions[sid] = name;
+  const sid = crypto.randomBytes(32).toString('hex');
+  // старую куку гасим: фиксация сессии через подсунутый sid невозможна
+  const old = parseCookies(req).sid;
+  if (old) delete db.sessions[old];
+  db.sessions[sid] = { name: name, created: Date.now(), seen: Date.now() };
   // На своём домене сайт работает по HTTPS — помечаем куку Secure,
   // иначе браузер может отдать её по незащищённому соединению.
   const src = req || res.req || {};
@@ -109,7 +207,7 @@ function register(app) {
   app.post('/signUp', (req, res) => {
     const name = String(req.body.name || '').trim();
     const password = String(req.body.password || '');
-    let err = checkName(name) || checkPassword(password);
+    let err = checkName(name) || checkNewPassword(password);
     if (err) return res.json({ status: 'error', message: err });
     if (db.users[key(name)]) return res.json({ status: 'error', message: 'Такой логин уже занят' });
 
@@ -123,8 +221,8 @@ function register(app) {
 
     const salt = crypto.randomBytes(16).toString('hex');
     db.users[key(name)] = {
-      name, salt, hash: hash(password, salt),
-      joined: Date.now(), lastSeen: Date.now(), ip: ipKey(req),
+      name, salt, hash: hashNew(password, salt),
+      joined: Date.now(), lastSeen: Date.now(), ip: ip,
       coins: 0, about: '', avatar: '0',
       items: [], skin: {}, lang: '',
       friends: [], incoming: [], outgoing: []
@@ -137,10 +235,19 @@ function register(app) {
   const doLogin = (req, res) => {
     const name = String(req.body.username || req.body.name || '').trim();
     const password = String(req.body.password || '');
+    const k = ipKey(req) + '|' + key(name);
+    const blocked = loginBlocked(k);
+    if (blocked)
+      return res.json({ status: 'error',
+                        message: 'Слишком много попыток. Подождите ' +
+                                 Math.ceil((blocked - Date.now()) / 60000) + ' мин' });
     const u = db.users[key(name)];
-    if (!u) return res.json({ status: 'error', message: 'Неверный логин или пароль' });
-    if (hash(password, u.salt) !== u.hash)
+    if (!u || !verifyPassword(password, u.salt, u.hash)) {
+      loginFail(k);
       return res.json({ status: 'error', message: 'Неверный логин или пароль' });
+    }
+    loginOk(k);
+    rehashIfNeeded(u, password);       // старый хеш тихо заменяется стойким
     u.lastSeen = Date.now();
     newSession(res, u.name, req);
     save();
@@ -149,9 +256,37 @@ function register(app) {
   app.post('/login/password', doLogin);
   app.post('/signIn', doLogin);
 
+  // ---------- смена пароля ----------
+  app.post('/changePassword', (req, res) => {
+    const u = currentUser(req);
+    if (!u) return res.json({ status: 'error', message: 'Войдите в аккаунт' });
+    const oldPw = String(req.body.oldPassword || '');
+    const newPw = String(req.body.newPassword || '');
+    if (!verifyPassword(oldPw, u.salt, u.hash))
+      return res.json({ status: 'error', message: 'Текущий пароль неверный' });
+    const err = checkNewPassword(newPw);
+    if (err) return res.json({ status: 'error', message: err });
+    u.salt = crypto.randomBytes(16).toString('hex');
+    u.hash = hashNew(newPw, u.salt);
+    // на всех других устройствах выкидываем: после смены пароля там придётся войти заново
+    const sid = parseCookies(req).sid;
+    dropUserSessions(u.name, sid);
+    save();
+    res.json({ status: 'success', message: 'Пароль изменён' });
+  });
+
   app.post('/logOut', (req, res) => {
     const sid = parseCookies(req).sid;
     if (sid) delete db.sessions[sid];
+    res.setHeader('Set-Cookie', 'sid=; Path=/; Max-Age=0');
+    save();
+    res.json({ status: 'success' });
+  });
+
+  // выход на всех устройствах сразу
+  app.post('/logOutAll', (req, res) => {
+    const u = currentUser(req);
+    if (u) dropUserSessions(u.name, null);
     res.setHeader('Set-Cookie', 'sid=; Path=/; Max-Age=0');
     save();
     res.json({ status: 'success' });
@@ -374,4 +509,4 @@ function register(app) {
   app.get('/captcha/getCaptcha', (req, res) => res.json({}));
 }
 
-module.exports = { register, currentUser, isOwner, OWNER, OWNER_ALIASES, getDb: () => db, save, newSession, hash, key, checkName };
+module.exports = { register, currentUser, isOwner, OWNER, OWNER_ALIASES, getDb: () => db, save, newSession, hash, hashNew, verifyPassword, sessionNameBySid, nameIsTaken, dropUserSessions, key, checkName, clientIp };

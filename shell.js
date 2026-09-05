@@ -9,10 +9,8 @@
   var LINKS = [
     { key: 'leaderboard',  href: 'leaderboard.html',  txt: 'Leaderboard' },
     { key: 'mapEditor',    href: 'editor.html',       txt: 'Map Editor' },
-    { key: 'skinEditor',   href: 'skinEditor.html',   txt: 'Skin Editor' },
-    { key: 'mapsBrowser',  href: 'mapsBrowser.html',  txt: 'Maps Browser' },
-    { key: 'skinsBrowser', href: 'skinsBrowser.html', txt: 'Skins Browser' },
     { key: 'avatar',       href: 'avatar.html',       txt: 'Avatar' },
+    { key: 'mapsBrowser',  href: 'mapsBrowser.html',  txt: 'Maps Browser' },
     { key: 'logs',         href: 'logs.html',         txt: 'Logs' }
   ];
 
@@ -21,9 +19,9 @@
     { key: 'hideAndSeek', href: 'hide-and-seek.html',  txt: 'Hide and Seek' },
     { key: 'race',        href: 'race.html',           txt: 'Race' },
     { sep: true },
-    { key: 'skinsBrowser', href: 'skinsBrowser.html',  txt: 'Skins Browser' },
-    { key: 'themes',       href: 'themes.html',        txt: 'Темы' },
-    { key: 'logs',         href: 'logs.html',          txt: 'Logs' },
+    { key: 'avatar',      href: 'avatar.html',         txt: 'Avatar' },
+    { key: 'themes',      href: 'themes.html',         txt: 'Темы' },
+    { key: 'logs',        href: 'logs.html',           txt: 'Logs' },
     { txt: 'Telegram', href: 'https://t.me/aibrofist', ext: true }
   ];
 

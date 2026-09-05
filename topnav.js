@@ -6,14 +6,15 @@
   'use strict';
 
   // куда реально ведут разделы в нашей сборке
+  // (Skin Editor и Skins Browser переехали на страницу Avatar)
   var MAP = {
     'editor':        'editor.html',
     'map editor':    'editor.html',
-    'skin editor':   'skinEditor.html',
-    'редактор скинов':'skinEditor.html',
+    'skin editor':   'avatar.html',
+    'редактор скинов':'avatar.html',
     'maps browser':  'mapsBrowser.html',
     'browser':       'mapsBrowser.html',
-    'skins browser': 'skinsBrowser.html',
+    'skins browser': 'avatar.html',
     'avatar':        'avatar.html',
     'shop':          'avatar.html',
     'магазин':       'avatar.html',

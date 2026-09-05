@@ -4,9 +4,10 @@ const socketIo = require('socket.io');
 const path = require('path');
 
 const app = express();
+app.disable('x-powered-by');
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: { origin: "*" },
+  cors: { origin: true, credentials: true },   // только собственный домен: куки идут вместе с рукопожатием
   maxHttpBufferSize: 1e6,
   pingInterval: 5000,
   pingTimeout: 12000,
@@ -45,6 +46,75 @@ app.use((req, res, next) => {
   next();
 });
 
+/* ================== БЕЗОПАСНОСТЬ ================== */
+
+/* Заголовки защиты: чужие сайты не встраивают игру в iframe,
+   браузеру запрещено «догадываться» о типе файла, а посторонние
+   скрипты и стили не исполняются — даже если их вписали в поле ввода. */
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.set('Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: blob: https:; " +
+    "media-src 'self' data: blob:; " +
+    "font-src 'self' data:; " +
+    "connect-src 'self' ws: wss:; " +
+    "frame-src 'self'; " +
+    "object-src 'none'; " +
+    "base-uri 'self'; " +
+    "form-action 'self'; " +
+    "frame-ancestors 'self'");
+  next();
+});
+
+/* Мини-лимитер запросов: без него один скрипт способен забомбить сервер
+   тысячами обращений. Обычному игроку лимит не виден никогда. */
+const RL_BUCKETS = new Map();
+setInterval(() => {
+  const now = Date.now();
+  RL_BUCKETS.forEach((b, k) => { if (now - b.start > 120000) RL_BUCKETS.delete(k); });
+}, 60000).unref();
+function clientKey(req) {
+  // за Cloudflare реальный адрес приходит в CF-Connecting-IP;
+  // крайний левый элемент X-Forwarded-For подделывается клиентом
+  const cf = String(req.headers['cf-connecting-ip'] || '').trim();
+  if (cf) return cf;
+  const xff = String(req.headers['x-forwarded-for'] || '');
+  if (xff) return xff.split(',').pop().trim();
+  return (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+function rateLimit(limit, windowMs) {
+  return (req, res, next) => {
+    const k = clientKey(req);
+    const now = Date.now();
+    let b = RL_BUCKETS.get(k);
+    if (!b || now - b.start > windowMs) { b = { start: now, n: 0 }; RL_BUCKETS.set(k, b); }
+    b.n++;
+    if (b.n > limit) return res.status(429).json({ status: 'error', message: 'Слишком много запросов, попробуйте позже' });
+    next();
+  };
+}
+app.use(rateLimit(240, 60000));   // 240 запросов в минуту с одного адреса
+
+/* CSRF: POST-запросы принимаем только со своего сайта.
+   Кука и так SameSite=Lax, это вторая линия обороны. */
+app.use((req, res, next) => {
+  if (req.method !== 'POST') return next();
+  const host = String(req.headers.host || '').toLowerCase();      // хост с портом
+  const src = String(req.headers.origin || req.headers.referer || '').toLowerCase();
+  if (!src) return next();            // старые клиенты без заголовков — пропускаем
+  let hostOrigin = '';
+  try { hostOrigin = new URL(src).host || ''; } catch (e) { return res.status(403).json({ status: 'error', message: 'Запрещено' }); }
+  if (hostOrigin && hostOrigin !== host)
+    return res.status(403).json({ status: 'error', message: 'Запрещено' });
+  next();
+});
+
 // owner.js отдаём ТОЛЬКО владельцу. Обычный игрок получает пустой файл,
 // поэтому у него нет ни кнопок, ни разметки, ни адресов служебных запросов.
 app.get('/owner.js', (req, res) => {
@@ -71,8 +141,13 @@ app.get('/adminAbuse.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'adminAbuse.js'));
 });
 
-// картинки скинов лежат в data/skinimg — отдаём только их, остальная data закрыта
-app.use('/skinimg', express.static(path.join(__dirname, 'data', 'skinimg'), {
+// картинки скинов лежат в data/skinimg — отдаём только их.
+// sandbox+CSP: даже подложенный в картинку SVG-скрипт не исполнится никогда.
+app.use('/skinimg', (req, res, next) => {
+  res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+  res.set('X-Content-Type-Options', 'nosniff');
+  next();
+}, express.static(path.join(__dirname, 'data', 'skinimg'), {
   maxAge: '7d', fallthrough: true
 }));
 
@@ -85,10 +160,18 @@ app.get('/favicon.ico', (req, res) => {
 app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
+/* Старые разделы переехали: Skin Editor и Skins Browser теперь вместе
+   на странице Avatar. Редиректы спасают закладки и старые ссылки. */
+app.get('/skinEditor.html', (req, res) => res.redirect(301, '/avatar.html'));
+app.get('/skinsBrowser.html', (req, res) => res.redirect(301, '/avatar.html'));
+
 /* Владелец грузит видео и гифки для общего шоу — они приходят в base64,
-   поэтому тело запроса должно вмещать десятки мегабайт. */
-app.use(express.urlencoded({ extended: false, limit: '60mb' }));
-app.use(express.json({ limit: '60mb' }));
+   поэтому для ЭТОГО маршрута тело должно вмещать десятки мегабайт.
+   Остальные маршруты получают скромный лимит: огромные тела —
+   это лазейка для забивания памяти. */
+app.post('/abuse/upload', express.urlencoded({ extended: false, limit: '60mb' }));
+app.use(express.urlencoded({ extended: false, limit: '512kb' }));
+app.use(express.json({ limit: '512kb' }));
 
 // система аккаунтов, друзей и профилей
 const accounts = require('./accounts.js');
@@ -138,8 +221,8 @@ app.get('/getBestRoom', (req, res) => {
 });
 
 app.get('/editor/index.html', (req, res) => res.redirect('/editor.html'));
-app.get('/skinEditor/index.html', (req, res) => res.redirect('/skinEditor.html'));
-app.get('/skinsBrowser/index.html', (req, res) => res.redirect('/skinsBrowser.html'));
+app.get('/skinEditor/index.html', (req, res) => res.redirect('/avatar.html'));
+app.get('/skinsBrowser/index.html', (req, res) => res.redirect('/avatar.html'));
 app.get('/shop/index.html', (req, res) => res.redirect('/avatar.html'));
 app.get('/avatar/index.html', (req, res) => res.redirect('/avatar.html'));
 app.get('/settings/index.html', (req, res) => res.redirect('/avatar.html'));
@@ -163,17 +246,69 @@ const gameState = {
   }
 };
 
+/* ================== ЗАЩИТА СОКЕТОВ ==================
+   Гость мог назвать себя любым ником — в том числе чужим или ником
+   владельца. Теперь имя подтверждённой сессии сильнее присланного,
+   а гостю, замахнувшимся на чужой ник, сервер его меняет. */
+const CLEAN = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g;
+function cleanText(v, max) {
+  return String(v == null ? '' : v).replace(CLEAN, '').slice(0, max);
+}
+function cleanName(v) {
+  return cleanText(v, 20).replace(/[<>"'&]/g, '').trim();
+}
+function sessionName(cookieHeader) {
+  try {
+    const out = {};
+    String(cookieHeader || '').split(';').forEach(p => {
+      const i = p.indexOf('=');
+      if (i > 0) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
+    });
+    return out.sid ? accountsRef.sessionNameBySid(out.sid) : null;
+  } catch (e) { return null; }
+}
+
+// простые лимиты событий на соединение: чат-флуд и спам позицией невозможны
+function socketLimiter(perSecond, perTenSec) {
+  const st = { sec: 0, secAt: Date.now(), win: 0, winAt: Date.now() };
+  return function () {
+    const now = Date.now();
+    if (now - st.secAt >= 1000) { st.secAt = now; st.sec = 0; }
+    if (now - st.winAt >= 10000) { st.winAt = now; st.win = 0; }
+    st.sec++; st.win++;
+    return st.sec > perSecond || st.win > perTenSec;
+  };
+}
+
 // Инициализация
 io.on('connection', (socket) => {
   gameState.stats.totalPlayers++;
 
+  const account = sessionName(socket.handshake.headers.cookie);  // подтверждённый ник или null
+  const limMove = socketLimiter(45, 400);    // движение идёт ~14 раз/сек
+  const limChat = socketLimiter(4, 8);       // чат: не чаще 4 в секунду и 8 в 10 сек
+  let joinedAt = 0;
+
   socket.on('join', (data) => {
-    // режим входит в ключ комнаты, поэтому Two Player и Hide and Seek не пересекаются
-    const room = (data.gameMode || 'main') + ':' + (data.room || 'main');
+    if (Date.now() - joinedAt < 1500) return;   // без повторных join подряд
+    joinedAt = Date.now();
+    data = data || {};
+    const mode = cleanName(data.gameMode) || 'main';
+    const roomName = cleanName(data.room) || 'main';
+    // режим входит в ключ комнаты, поэтому режимы не пересекаются
+    const room = mode + ':' + roomName;
+    let name = cleanName(data.playerName);
+    if (account) {
+      name = account;                            // сессия сильнее присланного имени
+    } else if (name && accountsRef.nameIsTaken(name)) {
+      name = 'Guest' + Math.floor(100 + Math.random() * 900);   // чужой ник гостю не достанется
+    }
+    if (!name) name = 'Guest' + Math.floor(100 + Math.random() * 900);
+
     const player = {
       id: socket.id,
-      name: data.playerName,
-      gameMode: data.gameMode,
+      name: name,
+      gameMode: mode,
       room: room,
       position: { x: Math.random() * 800, y: Math.random() * 600 },
       joinedAt: Date.now()
@@ -195,31 +330,44 @@ io.on('connection', (socket) => {
 
     io.to(room).emit('playersList', roomPlayers);
     io.to(room).emit('playerJoined', player);
-
-    console.log(`[${room}] ${data.playerName} (${data.gameMode}) | Total: ${gameState.stats.totalPlayers}`);
+    socket.emit('nameFixed', { name: name });    // игрок показывает себе ровно то, что решил сервер
   });
 
   socket.on('movePlayer', (data) => {
+    if (limMove()) return;
     const player = gameState.players.get(socket.id);
-    if (player) {
+    if (player && data && data.position) {
       player.seen = Date.now();
-      player.position = data.position;
+      const p = data.position;
+      const say = cleanText(p.say, 80);
+      const pos = {
+        x: Math.max(-99999, Math.min(99999, Number(p.x) || 0)),
+        y: Math.max(-99999, Math.min(99999, Number(p.y) || 0)),
+        w: Math.max(0, Math.min(999, Number(p.w) || 0)),
+        h: Math.max(0, Math.min(999, Number(p.h) || 0)),
+        color: cleanText(p.color, 20),
+        say: say,
+        fin: !!p.fin,
+        hid: !!p.hid
+      };
+      if (p.sk !== undefined) pos.sk = cleanText(p.sk, 120);
+      player.position = pos;
       const room = player.room;
       socket.to(room).emit('playerMoved', {
         playerId: socket.id,
-        position: data.position
+        position: pos
       });
     }
   });
 
   socket.on('saveMap', (data) => {
     const player = gameState.players.get(socket.id);
-    if (player) {
+    if (player && data && data.mapData) {
       gameState.maps.push({
         id: Date.now() + Math.random(),
         creator: player.name,
         room: player.room,
-        mapData: data.mapData,
+        mapData: cleanText(data.mapData, 400000),
         timestamp: new Date().toLocaleTimeString('ru-RU'),
         createdAt: Date.now()
       });
@@ -229,7 +377,6 @@ io.on('connection', (socket) => {
       }
 
       io.to(player.room).emit('mapSaved', gameState.maps[gameState.maps.length - 1]);
-      io.emit('newMapInSandbox', gameState.maps[gameState.maps.length - 1]);
     }
   });
 
@@ -238,13 +385,14 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sendChat', (data) => {
+    if (limChat()) return;
     const player = gameState.players.get(socket.id);
-    if (player) {
+    if (player && data) {
       const room = player.room;
       const message = {
         playerId: socket.id,
         playerName: player.name,
-        text: data.text,
+        text: cleanText(data.text, 200),
         timestamp: Date.now(),
         room: room
       };

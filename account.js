@@ -83,7 +83,7 @@
        + '<input class="bf-i" id="bfName" type="text" maxlength="20" placeholder="Логин">'
        + '<div class="bf-h">до 20 символов, русские и английские буквы</div>'
        + '<input class="bf-i" id="bfPass" type="password" placeholder="Пароль">'
-       + '<div class="bf-h">пароль любой длины</div>'
+       + '<div class="bf-h">пароль — минимум 4 символа</div>'
        + '<div class="bf-e" id="bfErr"></div>'
        + '<div class="bf-b" id="bfGo">Создать аккаунт</div>');
     box.querySelector('.bf-back').onclick = screenChoice;
@@ -144,17 +144,53 @@
        + '<div class="bf-t">' + T('settings', 'Настройки') + '</div>'
        + '<div style="text-align:center;font-size:13px;color:#6b7280;margin-bottom:4px">' + name + '</div>'
        + '<div class="bf-b" id="bfProfile">' + T('viewProfile', 'Мой профиль') + '</div>'
-       + '<div class="bf-b" id="bfSkin">' + T('skinEditor', 'Редактор скинов') + '</div>'
+       + '<div class="bf-b" id="bfSkin">' + T('avatar', 'Аватар') + '</div>'
        + '<div class="bf-t" style="font-size:14px;margin-top:12px">' + T('language', 'Язык') + '</div>'
        + '<select class="bf-i" id="bfLang" style="text-align-last:center">' + langOpts + '</select>'
        + '<div class="bf-h">' + T('langHint', 'Интерфейс переводится сам по стране игрока.') + '</div>'
+       + '<div class="bf-b" id="bfPassBtn">' + T('changePass', 'Сменить пароль') + '</div>'
+       + '<div id="bfPassBox" style="display:none">'
+       +   '<input class="bf-i" id="bfOldPass" type="password" placeholder="' + T('curPass', 'Текущий пароль') + '">'
+       +   '<input class="bf-i" id="bfNewPass" type="password" placeholder="' + T('newPass', 'Новый пароль (от 4 символов)') + '">'
+       +   '<div class="bf-e" id="bfPassErr"></div>'
+       +   '<div class="bf-b" id="bfPassGo">' + T('changePass', 'Сменить пароль') + '</div>'
+       + '</div>'
+       + '<div class="bf-b ghost2" id="bfLogoutAll" style="border-color:#dc2626;color:#dc2626">'
+       +   T('logoutAll', 'Выйти на всех устройствах') + '</div>'
+       + '<div class="bf-h" id="bfSecNote">' + T('secNote',
+           'Пароль хранится в зашифрованном виде — его не видно даже администратору.') + '</div>'
        + '<div class="bf-b" id="bfGoogle">Привязать Google аккаунт</div>'
        + '<div class="bf-h" id="bfGoogleNote"></div>'
        + '<div id="bfOwner"></div>');
     box.querySelector('#bfProfile').onclick = function () {
       location.href = BASE + 'users.html?name=' + encodeURIComponent(name);
     };
-    box.querySelector('#bfSkin').onclick = function () { location.href = BASE + 'skinEditor.html'; };
+    box.querySelector('#bfSkin').onclick = function () { location.href = BASE + 'avatar.html'; };
+
+    var passBox = box.querySelector('#bfPassBox');
+    var passErr = box.querySelector('#bfPassErr');
+    box.querySelector('#bfPassBtn').onclick = function () {
+      passBox.style.display = passBox.style.display === 'none' ? 'block' : 'none';
+      passErr.textContent = '';
+    };
+    box.querySelector('#bfPassGo').onclick = function () {
+      var oldPw = box.querySelector('#bfOldPass').value;
+      var newPw = box.querySelector('#bfNewPass').value;
+      if (!oldPw || !newPw) { passErr.textContent = T('fillBoth', 'Заполните оба поля'); return; }
+      passErr.style.color = 'red';
+      passErr.textContent = '…';
+      post('/changePassword', { oldPassword: oldPw, newPassword: newPw }, function (r) {
+        if (r && r.status === 'success') {
+          passErr.style.color = 'green';
+          passErr.textContent = r.message || 'Пароль изменён';
+          box.querySelector('#bfOldPass').value = '';
+          box.querySelector('#bfNewPass').value = '';
+        } else passErr.textContent = (r && r.message) || 'Ошибка';
+      });
+    };
+    box.querySelector('#bfLogoutAll').onclick = function () {
+      post('/logOutAll', {}, function () { location.reload(); });
+    };
 
     var langSel = box.querySelector('#bfLang');
     get('/i18n/detect', function (d) {

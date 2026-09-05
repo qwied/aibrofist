@@ -125,11 +125,11 @@
       + '<div class="ow-sub">' + T('addToGame', 'Добавить в игру') + '</div>'
       + '<div class="ow-m" style="text-align:left;color:#6b7280" id="owGList">…</div>'
 
-      + '<div class="ow-sub">' + T('skinsBrowser', 'Skins Browser') + '</div>'
+      + '<div class="ow-sub">' + T('avatar', 'Avatar') + '</div>'
       + '<div class="ow-m" style="text-align:left;color:#6b7280">'
-      +   'Накрутка оценок скинов и загрузка скина из картинки — на странице Skins Browser.'
+      +   'Накрутка оценок, цена и загрузка скина из картинки — на странице Avatar.'
       + '</div>'
-      + '<div class="ow-b" id="owGoSkins">Открыть Skins Browser</div>';
+      + '<div class="ow-b" id="owGoSkins">' + T('openAvatar', 'Открыть Avatar') + '</div>';
 
     box.querySelector('.ow-x').onclick = close;
 
@@ -161,7 +161,7 @@
     };
 
     box.querySelector('#owGoSkins').onclick = function () {
-      location.href = '/skinsBrowser.html';
+      location.href = '/avatar.html';
     };
 
     get('/owner/inGame').then(function (r) {
@@ -575,7 +575,7 @@
           if (r.status !== 'success') { E.msg(r.message || 'Ошибка'); return; }
           E.msg(r.message, true);
           if (r.img) E.setImage(r.img);        // дальше показываем сохранённый файл
-          note('Готово — скин в Skins Browser.', true);
+          note('Готово — скин добавлен в Avatar.', true);
           pick('');
           $('owEdName').value = ''; $('owEdUrl').value = '';
           E.refreshLimit();
@@ -599,8 +599,8 @@
       decorateSkins(e.detail && e.detail.skins);
     });
     // если список успел отрисоваться до загрузки owner.js
-    if (document.querySelector('.sbCard')) reload();
-    else buildBar();
+    if (document.querySelector('.sbCard')) decorateSkins([]);
+    buildBar();
   }
 
   /* ---------- старт ---------- */
@@ -610,8 +610,8 @@
     injectCss();
     buildPanel();
     if (/mapsBrowser/i.test(location.pathname)) watchBrowser();
-    if (/skinsBrowser/i.test(location.pathname)) watchSkins();
-    if (/skinEditor/i.test(location.pathname)) watchEditor();
+    // Skin Editor и Skins Browser объединены в страницу Avatar
+    if (/avatar/i.test(location.pathname)) { watchSkins(); watchEditor(); }
   }).catch(function () {});
 
   /* Панель Admin Abuse подключаем отсюда. В разметке страниц её тега нет
