@@ -38,9 +38,11 @@ ok('вращение по свойству',  /if\(o\.spins\)/.test(src));
 ok('батут по свойству',     /if\(o\.bouncy\)\{/.test(src));
 ok('несёт игрока',          /pl\.x \+= pl\.rideOn\._dx\|\|0; pl\.y \+= pl\.rideOn\._dy\|\|0;/.test(src));
 ok('сдвиг платформы один раз', !/if\(o\.moves\)\{ pl\.x \+=/.test(src) && /if\(o\.moves\) pl\.rideOn = o;/.test(src));
-ok('ближняя сторона только у движущихся', /if\(o\.moves\)\{\n      var reachX = /.test(src) &&
-                                /!\(o\.moves && outDown > reachY/.test(src) &&
-                                /\} else if\(!o\.moves \|\| outUp <= outDown\)\{/.test(src));
+ok('толчок ограничен PUSH_MAX', /PUSH_MAX = 3/.test(src) &&
+                                /var push = Math\.max\(-PUSH_MAX, Math\.min\(PUSH_MAX, pdx\)\)/.test(src));
+ok('едущая платформа проходит сквозь', /\} else if\(!o\.moves \|\| outUp <= STEP_UP\)\{/.test(src));
+ok('толчок только у движущихся', /var pdx = o\.moves \? \(o\._dx\|\|0\) : 0;/.test(src) &&
+                                /var pdy     = o\.moves \? \(o\._dy\|\|0\) : 0;/.test(src));
 ok('статика ведёт себя как раньше', /if\(pl\.vx !== 0\) pl\.wall = 1;/.test(src));
 ok('то же в игре',          /pl\.rideOn/.test(game) && !/if\(o\.moves\)\{ pl\.x \+=/.test(game));
 ok('плоская заливка',       /function grad\([^)]*\)\{ return a; \}/.test(src));
