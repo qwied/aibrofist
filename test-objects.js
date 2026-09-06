@@ -38,11 +38,11 @@ ok('вращение по свойству',  /if\(o\.spins\)/.test(src));
 ok('батут по свойству',     /if\(o\.bouncy\)\{/.test(src));
 ok('несёт игрока',          /pl\.x \+= pl\.rideOn\._dx\|\|0; pl\.y \+= pl\.rideOn\._dy\|\|0;/.test(src));
 ok('сдвиг платформы один раз', !/if\(o\.moves\)\{ pl\.x \+=/.test(src) && /if\(o\.moves\) pl\.rideOn = o;/.test(src));
-ok('платформа толкает игрока перед собой', /function pushFromMovers\(\)/.test(src) &&
-                                /pushFromMovers\(\);/.test(src));
-ok('толчок ограничен ходом платформы', /sx\[0\] - dx <= pl\.x \+ pl\.w && sx\[0\] > pl\.x\) pl\.x = sx\[0\] - pl\.w;/.test(src) &&
-                                /sy\[0\] - dy >= pl\.y \+ pl\.h - 2 && sy\[0\] > pl\.y && sy\[0\] < pl\.y \+ pl\.h\)\{/.test(src));
-ok('боковой рывок к краю отсечён', /o\.moves && needX > Math\.min\(Math\.abs\(pl\.vx\) \+ Math\.abs\(pdx\) \+ 6, pl\.w \+ 6\)\) return;/.test(src));
+ok('толчок ограничен PUSH_MAX', /PUSH_MAX = 12,/.test(src) &&
+                                /var move  = Math\.min\(PUSH_MAX, need\);/.test(src) &&
+                                /var right = outR < outL;/.test(src));
+ok('прыжок не режется сразу', /MIN_HOLD = 7;/.test(src) && /JUMP_H = 168,/.test(src) &&
+                                /pl\.selfJump && hold > MIN_HOLD/.test(src));
 ok('посадка по «откуда пришёл»', /var fromTop   = \(yBefore \+ pl\.h\) <= topWas \+ 2;/.test(src) &&
                                 /var yBefore = pl\.y;/.test(src));
 ok('едущая платформа проходит сквозь', /\} else if\(!o\.moves\)\{/.test(src) &&
@@ -51,9 +51,6 @@ ok('толчок только у движущихся', /var pdx = o\.moves \? \
                                 /var pdy = o\.moves \? \(o\._dy\|\|0\) : 0;/.test(src));
 ok('статика ведёт себя как раньше', /if\(pl\.vx !== 0\) pl\.wall = 1;/.test(src));
 ok('то же в игре',          /pl\.rideOn/.test(game) && !/if\(o\.moves\)\{ pl\.x \+=/.test(game));
-ok('толчок и в игре',       /function pushFromMovers\(\)/.test(game) &&
-                            /pushFromMovers\(\);/.test(game) &&
-                            /o\.moves && needX > Math\.min\(Math\.abs\(pl\.vx\) \+ Math\.abs\(pdx\) \+ 6, pl\.w \+ 6\)\) return;/.test(game));
 ok('плоская заливка',       /function grad\([^)]*\)\{ return a; \}/.test(src));
 ok('блика на игроке нет',   !/rgba\(255,255,255,\.22\)/.test(src));
 ok('теней у объектов нет',  !/shadowColor = "rgba\(15,23,42/.test(src));
