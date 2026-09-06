@@ -204,14 +204,14 @@ body.mob #hint{display:none}
 body.mob #zoomBox{bottom:68px;right:8px}
 body.mob #msg h1{font-size:38px}
 </style>
-        <script src="device.js?v=88"></script>
-        <script src="lzma.js?v=88"></script>
-        <script src="bfImport.js?v=88"></script>
-        <script src="skinRender.js?v=88"></script>
-        <script src="skinCanvas.js?v=88"></script>
-        <script src="coin.js?v=88"></script>
+        <script src="device.js?v=89"></script>
+        <script src="lzma.js?v=89"></script>
+        <script src="bfImport.js?v=89"></script>
+        <script src="skinRender.js?v=89"></script>
+        <script src="skinCanvas.js?v=89"></script>
+        <script src="coin.js?v=89"></script>
         <link rel="stylesheet" type="text/css" href="mobile.css?v=85">
-        <script src="theme.js?v=88"></script>
+        <script src="theme.js?v=89"></script>
         <link rel="icon" href="/favicon.ico" sizes="32x32">
         <link rel="icon" type="image/svg+xml" href="/favicon.svg">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -760,6 +760,7 @@ function wallVX(){ return WALL_VX * gk(); }
 function maxFall(){ return 12 + gravityScale * 0.8; }
 
 var pl = {x:0,y:0,w:20,h:60,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,selfJump:false,hidden:false,
+  rideOn:null,
 };
 var keys = {l:false,r:false,u:false};
 var coy = 0, buf = 0, spawnPt = {x:0,y:0}, done = false, finishTimer = 0;
@@ -833,6 +834,7 @@ function restartRun(){
 
 function respawn(){
   pl.x = spawnPt.x; pl.y = spawnPt.y; pl.vx = 0; pl.vy = 0; pl.dead = false; coy = 0; buf = 0;
+  pl.rideOn = null;
 }
 function die(){
   if(pl.dead || done) return;
@@ -1046,6 +1048,18 @@ function step(){
   timeMs += 16.67;
   document.getElementById("sTime").textContent = (timeMs/1000).toFixed(1);
 
+  /* Поездка на движущейся платформе.
+     Смещение платформы применяется ОДИН раз и ДО собственной физики
+     игрока. Раньше его добавляли уже после того, как игрока прижали
+     к верхней грани, — сдвиг накладывался дважды: платформа шла вниз
+     и вжимала игрока внутрь, шла вверх — отрывала от себя и он парил
+     в воздухе. Теперь игрок и платформа едут синхронно, а прижим к
+     грани только доводит его до места. */
+  if(pl.ground && pl.rideOn && pl.rideOn.moves){
+    pl.x += pl.rideOn._dx||0; pl.y += pl.rideOn._dy||0;
+  }
+  pl.rideOn = null;
+
   // рядом с игроком объектов мало — дальние даже не проверяем
   var near = nearby(pl.x - 260, pl.y - 260, pl.w + 520, pl.h + 520);
   var sol = [], i;
@@ -1104,9 +1118,19 @@ function step(){
         return;
       }
     }
-    if(pl.vx > 0){ pl.x = sp[0] - pl.w; pl.wall = 1; }
-    else if(pl.vx < 0){ pl.x = sp[1]; pl.wall = -1; }
-    else { pl.x = (pl.x + pl.w/2 < (sp[0]+sp[1])/2) ? sp[0] - pl.w : sp[1]; }
+    /* Куда выталкивать. Обычно — против движения, но если игрок
+       оказался глубоко внутри (движущаяся платформа въехала в него
+       сама), выталкивание «по скорости» перебрасывало его через весь
+       блок — это и выглядело как телепорт. В таком случае выходим в
+       ближнюю сторону. */
+    var outL = (pl.x + pl.w) - sp[0];              // сдвиг влево
+    var outR = sp[1] - pl.x;                       // сдвиг вправо
+    var reachX = Math.abs(pl.vx) + Math.abs(o._dx||0) + 6;
+    var goL = pl.vx > 0 ? true : (pl.vx < 0 ? false : (outL <= outR));
+    if(goL && outL > reachX && outR < outL) goL = false;
+    else if(!goL && outR > reachX && outL < outR) goL = true;
+    if(goL){ pl.x = sp[0] - pl.w; pl.wall = 1; }
+    else   { pl.x = sp[1];        pl.wall = -1; }
     /* Рикошет отражает движение, а не гасит его. Медленное касание не
        отражаем — иначе игрок дрожит, прижавшись к блоку. */
     if(o.ricochet && Math.abs(pl.vx) > RICO_MIN) ricochet(o);
@@ -1122,7 +1146,11 @@ function step(){
     var sp = spanY(P, pl.x + 2, pl.x + pl.w - 2);
     if(!sp || pl.y >= sp[1] || pl.y + pl.h <= sp[0]) return;
 
-    if(pl.vy >= 0 && pl.y + pl.h - sp[0] <= Math.max(2, pl.vy + 2)){
+    var outUp   = (pl.y + pl.h) - sp[0];           // сдвиг вверх, встать сверху
+    var outDown = sp[1] - pl.y;                    // сдвиг вниз, уйти под низ
+    var reachY  = Math.abs(pl.vy) + Math.abs(o._dy||0) + 6;
+
+    if(pl.vy >= 0 && outUp <= Math.max(2, pl.vy + 2)){
       pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE;
       // приземление сверху: рикошет швыряет игрока обратно по нормали грани
       if(o.ricochet && pl.vy > RICO_MIN){
@@ -1131,13 +1159,19 @@ function step(){
         if(wasAir && pl.vy > 6) puff(pl.x+pl.w/2, pl.y+pl.h, 5);
         pl.vy = 0; pl.selfJump = false;
       }
-      if(o.moves){ pl.x += o._dx||0; pl.y += o._dy||0; }
-    } else if(pl.vy < 0){
+      // едем вместе с платформой — сдвиг применится в начале следующего шага
+      if(o.moves) pl.rideOn = o;
+    } else if(pl.vy < 0 && !(outDown > reachY && outUp < outDown)){
       // удар головой снизу
       if(o.ricochet && Math.abs(pl.vy) > RICO_MIN){ pl.y = sp[1]; ricochet(o); }
       else { pl.y = sp[1]; pl.vy = 0; }
-    } else {
+    } else if(outUp <= outDown){
+      // платформа наехала снизу — поднимает игрока, а не проглатывает
       pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE; pl.vy = 0; pl.selfJump = false;
+      if(o.moves) pl.rideOn = o;
+    } else {
+      // выход вниз ближе — опускаем, не швыряя через всю платформу
+      pl.y = sp[1]; if(pl.vy < 0) pl.vy = 0;
     }
   });
   if(pl.ground) pl.wall = 0;
@@ -2200,12 +2234,12 @@ socket.on('connect', () => {
 });
 
 </script>
-<script src="i18n.js?v=88"></script>
-<script src="abuseShow.js?v=88" defer></script>
-<script src="editorHelp.js?v=88"></script>
-<script src="editorAI.js?v=88" defer></script>
-<script src="account.js?v=88" defer></script>
-<script src="owner.js?v=88" defer></script>
+<script src="i18n.js?v=89"></script>
+<script src="abuseShow.js?v=89" defer></script>
+<script src="editorHelp.js?v=89"></script>
+<script src="editorAI.js?v=89" defer></script>
+<script src="account.js?v=89" defer></script>
+<script src="owner.js?v=89" defer></script>
 
 <script>
 /* Публикация карты в Maps Browser */
@@ -2325,7 +2359,7 @@ socket.on('connect', () => {
   };
 })();
 </script>
-        <script src="skinAvatar.js?v=88" defer></script>
+        <script src="skinAvatar.js?v=89" defer></script>
 <script>
 /* Маленькая кнопка возврата: полноценная шапка на весь экран редактора
    не помещается, но уйти со страницы должно быть чем. */

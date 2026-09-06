@@ -41,14 +41,16 @@ ok('сервер выбирает искателя',  /socket\.on\('hsRoulette'/
 ok('состояние при входе',       /socket\.on\('hsState'/.test(src));
 ok('фазы от сервера',           /socket\.on\('hsPhase'/.test(src));
 ok('рулетка рисуется функцией', /function runRoulette/.test(src) && /runRoulette\(d\)/.test(src));
-ok('панель по центру',          /#gRoul\{position:fixed;left:50%;top:40%;transform:translate\(-50%,-50%\)/.test(src));
+ok('оверлей на весь экран',    /#gRoul\{position:fixed;left:0;top:0;right:0;bottom:0/.test(src));
 ok('карточка: скин + ник',      /className = 'rSkin'/.test(src) && /className = 'rName'/.test(src));
-ok('серые полоски выделения',   /repeating-linear-gradient\(45deg,#e2e6ee 0 7px,#8b93a1 7px 14px\)/.test(src));
-ok('грани куба у выделения',    /\.rHl::before\{left:8px.*skewX\(-45deg\)/.test(src) &&
-                                /\.rHl::after\{top:8px.*skewY\(-45deg\)/.test(src));
-ok('шаг на соседнюю карточку',  /transition:transform \.09s linear/.test(src));
-ok('итог не дольше 10 секунд',  (function(){ const m = /while \(t < (\d+)\)/.exec(src); return m && +m[1] + 1800 + 300 <= 10000; })());
-ok('стоп ровно на победителе',  /var delta = \(\(winIdx - steps\.length\) % n \+ n\) % n;/.test(src));
+ok('рамка обводит победителя',  /frame\.classList\.add\('rwin'\)/.test(src) &&
+                                /cards\[target\]\.classList\.add\('rWin'\)/.test(src));
+ok('подсветка под рамкой',      /classList\.add\('rOn'\)/.test(src) && /requestAnimationFrame\(tick\)/.test(src));
+ok('итог подписывается',        /roulYouSeek/.test(src) && /roulSeekerIs/.test(src) && /res\.classList\.add\('on'\)/.test(src));
+ok('лента едет одним ходом',    /transition = 'transform ' \+ spin \+ 'ms cubic-bezier/.test(src));
+ok('стоп ровно на победителе',  /var target = seq\.length \+ winIdx;/.test(src) &&
+                                /posOf\(target\)/.test(src));
+ok('укладывается в лобби',      /var spin = Math\.min\(dur - 1100, left - 2400\);/.test(src));
 ok('роль после остановки',      /applySeeker\(d\.winnerId\)/.test(src));
 ok('обрыв связи — свой таймер', /socket\.on\('disconnect', function \(\) \{ hsSync = false; \}\)/.test(src));
 

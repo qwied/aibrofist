@@ -76,39 +76,56 @@
     // у мобильной шапки падинг компактнее — безопасные зоны добавляем к нему же
     + 'html.is-mobile #gTop,html.is-tablet #gTop{padding-left:calc(9px + env(safe-area-inset-left,0px));'
     + 'padding-right:calc(9px + env(safe-area-inset-right,0px))}'
-    /* --- рулетка искателя (прятки): прямоугольная панель по центру,
-           карточки скин+ник, выделение — серые полоски в виде куба,
-           перескакивает на соседнюю карточку (на чуть-чуть) --- */
-    + '#gRoul{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:80;display:none;'
-    + 'background:rgba(15,23,42,.93);border-radius:16px;padding:15px 16px 13px;'
-    + 'box-shadow:0 26px 60px -22px rgba(0,0,0,.75);max-width:94vw;pointer-events:none}'
-    + '#gRoulT{color:#f8fafc;font:800 17px sans-serif;text-align:center;margin:0 0 10px;letter-spacing:.4px}'
-    + '#gRoulS{position:relative;display:flex;gap:12px;padding:17px 12px 11px;max-width:86vw;'
-    + 'overflow-x:auto;scrollbar-width:none}'
-    + '#gRoulS::-webkit-scrollbar{display:none}'
-    + '.rCard{position:relative;z-index:1;flex:0 0 auto;width:86px;background:#232e40;border-radius:10px;'
-    + 'padding:8px 6px 7px;text-align:center;box-shadow:0 4px 10px -6px rgba(0,0,0,.6)}'
-    + '.rSkin{height:80px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}'
-    + '.rSkin svg,.rSkin img{max-height:80px;max-width:74px}'
-    + '.rName{color:#e5e7eb;font:600 12px/1.2 sans-serif;margin-top:6px;max-width:76px;'
-    + 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
-    + '.rHl{position:absolute;top:0;left:0;z-index:0;border-radius:11px;pointer-events:none;'
-    + 'background:repeating-linear-gradient(45deg,#e2e6ee 0 7px,#8b93a1 7px 14px);'
-    + 'transition:transform .09s linear;width:0;height:0;'
-    + 'box-shadow:0 12px 26px -10px rgba(0,0,0,.7)}'
-    /* куб: верхняя и боковая грани из тех же серых полосок */
-    + '.rHl::before,.rHl::after{content:\'\';position:absolute;'
-    + 'background:repeating-linear-gradient(45deg,#edf0f5 0 6px,#9aa2b0 6px 12px)}'
-    + '.rHl::before{left:8px;right:-3px;top:-9px;height:9px;transform:skewX(-45deg);border-radius:3px 3px 0 0}'
-    + '.rHl::after{top:8px;bottom:-3px;right:-9px;width:9px;transform:skewY(-45deg);border-radius:0 3px 3px 0}'
-    + '.rHl.rWin{animation:rWin .55s ease-in-out 4 alternate;'
-    + 'box-shadow:0 0 0 3px rgba(255,255,255,.55),0 0 36px rgba(129,199,244,.6)}'
-    + '@keyframes rWin{from{filter:brightness(1)}to{filter:brightness(1.45)}}'
-    + 'html.is-mobile #gRoul,html.is-tablet #gRoul{top:36%;padding:11px 10px 10px}'
-    + 'html.is-mobile .rCard,html.is-tablet .rCard{width:74px}'
-    + 'html.is-mobile .rSkin,html.is-tablet .rSkin{height:68px}'
-    + 'html.is-mobile .rSkin svg,html.is-tablet .rSkin svg,html.is-mobile .rSkin img,html.is-tablet .rSkin img{max-height:68px}'
-    + 'html.is-mobile .rName,html.is-tablet .rName{max-width:66px;font-size:11px}'
+    /* --- рулетка искателя (прятки): полноэкранный оверлей.
+           Лента карточек едет под неподвижной рамкой в центре, плавно
+           тормозит на победителе, и итог подписывается крупно.
+           Оверлей не ловит нажатия — кнопки игры под ним работают. --- */
+    + '#gRoul{position:fixed;left:0;top:0;right:0;bottom:0;z-index:200;display:none;'
+    + 'flex-direction:column;align-items:center;justify-content:center;'
+    + 'background:radial-gradient(120% 85% at 50% 32%,rgba(24,35,58,.95) 0%,rgba(6,9,17,.97) 72%);'
+    + 'pointer-events:none;-webkit-user-select:none;user-select:none;overflow:hidden}'
+    + '#gRoul.on{display:flex}'
+    + '#gRoulT{margin:0;padding:0 16px;color:#fff;text-align:center;letter-spacing:.4px;'
+    + 'font:800 30px/1.15 sans-serif;text-shadow:0 4px 22px rgba(0,0,0,.65)}'
+    + '#gRoulSub{margin:9px 0 0;padding:0 18px;color:#9db2d2;text-align:center;'
+    + 'font:600 15px/1.35 sans-serif;min-height:1.3em}'
+    + '#gRoulView{position:relative;width:100%;margin-top:24px;overflow:hidden;'
+    + '-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 15%,#000 85%,transparent 100%);'
+    + 'mask-image:linear-gradient(90deg,transparent 0,#000 15%,#000 85%,transparent 100%)}'
+    + '#gRoulTrack{display:flex;align-items:center;will-change:transform}'
+    + '#gRoulFrame{position:absolute;left:50%;transform:translateX(-50%);border-radius:18px;'
+    + 'border:3px solid rgba(96,165,250,.9);pointer-events:none;'
+    + 'box-shadow:0 0 0 3px rgba(8,12,22,.55),0 0 38px rgba(59,130,246,.45),'
+    + 'inset 0 0 26px rgba(59,130,246,.16);transition:border-color .25s,box-shadow .25s}'
+    + '#gRoulFrame.rwin{border-color:#facc15;'
+    + 'box-shadow:0 0 0 3px rgba(8,12,22,.6),0 0 64px rgba(250,204,21,.6),'
+    + 'inset 0 0 34px rgba(250,204,21,.2);animation:rPulse .5s ease-in-out 3 alternate}'
+    + '@keyframes rPulse{from{transform:translateX(-50%) scale(1)}'
+    + 'to{transform:translateX(-50%) scale(1.045)}}'
+    + '.rCard{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;'
+    + 'justify-content:flex-end;overflow:hidden;border-radius:15px;'
+    + 'background:linear-gradient(180deg,#1f2b41 0%,#131b2b 100%);'
+    + 'border:1px solid rgba(148,163,184,.16);'
+    + 'opacity:.38;transition:opacity .16s linear}'
+    + '.rCard.rOn{opacity:1}'
+    + '.rCard.rWin{opacity:1;border-color:rgba(250,204,21,.8);'
+    + 'background:linear-gradient(180deg,#2a3a5c 0%,#16203a 100%)}'
+    + '.rSkin{flex:1 1 auto;width:100%;display:flex;align-items:flex-end;'
+    + 'justify-content:center;overflow:hidden}'
+    + '.rSkin svg,.rSkin img{display:block;max-width:86%}'
+    + '.rName{width:100%;padding:8px 7px 10px;text-align:center;color:#eaf0fa;'
+    + 'font:700 14px/1.25 sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
+    + 'border-top:1px solid rgba(148,163,184,.14);background:rgba(9,14,26,.55)}'
+    + '.rCard.rWin .rName{color:#fde68a}'
+    + '#gRoulRes{margin:24px 14px 0;min-height:1.5em;text-align:center;color:#fff;'
+    + 'font:800 24px/1.3 sans-serif;text-shadow:0 4px 22px rgba(0,0,0,.65);'
+    + 'opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s}'
+    + '#gRoulRes.on{opacity:1;transform:none}'
+    + '#gRoulRes b{color:#facc15}'
+    + 'html.is-mobile #gRoulT,html.is-tablet #gRoulT{font-size:23px}'
+    + 'html.is-mobile #gRoulSub,html.is-tablet #gRoulSub{font-size:13px}'
+    + 'html.is-mobile #gRoulRes,html.is-tablet #gRoulRes{font-size:19px;margin-top:20px}'
+    + 'html.is-mobile .rName,html.is-tablet .rName{font-size:12.5px;padding:7px 6px 8px}'
     ;
 
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
@@ -124,7 +141,10 @@
     + '<span id="gRating" style="color:#6b7280"></span></div></div>'
     + '<div id="gBanner"><h2 id="gbT"></h2><p id="gbP"></p></div>'
     + '<div id="gRoul"><div id="gRoulT">Выбор искателя</div>'
-    + '<div id="gRoulS"><div class="rHl" id="gRoulHl"></div></div></div>'
+    + '<div id="gRoulSub"></div>'
+    + '<div id="gRoulView"><div id="gRoulTrack"></div>'
+    + '<div id="gRoulFrame"></div></div>'
+    + '<div id="gRoulRes"></div></div>'
     + '<div id="gChat"><input id="gMsg" maxlength="90"></div>'
     + '<button id="gTalk">Чат</button>'
 );
@@ -136,7 +156,7 @@
     $('gLblRole').textContent = TR('roleLbl', 'Роль');
     $('gExit').textContent = TR('menu', 'Меню');
     var rt = $('gRoulT');                        // заголовок рулетки, если она на экране
-    if (rt && $('gRoul').style.display !== 'none')
+    if (rt && $('gRoul').classList.contains('on'))
       rt.textContent = TR('roulTitle', 'Выбор искателя');
   }
   window.addEventListener('bf-lang', refreshGameLabels);
@@ -331,15 +351,16 @@
   var hsWinnerId = null;       // кто искатель в текущем раунде
   var roulTimers = [];
   var roulRefresh = null;
+  var roulRaf = null;
 
   function roulStop() {
     roulTimers.forEach(clearTimeout);
     roulTimers = [];
     if (roulRefresh) { clearInterval(roulRefresh); roulRefresh = null; }
-    var r = $('gRoul');
-    if (r) r.style.display = 'none';
-    var hl = $('gRoulHl');
-    if (hl) hl.classList.remove('rWin');
+    if (roulRaf) { cancelAnimationFrame(roulRaf); roulRaf = null; }
+    var r = $('gRoul');   if (r)  r.classList.remove('on');
+    var f = $('gRoulFrame'); if (f) f.classList.remove('rwin');
+    var s = $('gRoulRes');   if (s) { s.classList.remove('on'); s.innerHTML = ''; }
   }
 
   function nameOfId(id, list) {
@@ -371,78 +392,134 @@
     return sk || null;
   }
 
-  function paintSkins(cards) {
+  /* Лента длинная и игроки в ней повторяются — рисуем каждый скин один
+     раз за проход и раскладываем готовую разметку по карточкам. */
+  function paintSkins(cards, h) {
     if (!window.BFSkin) return;
-    var byId = window.BF_SKIN_ITEMS || {};
+    var byId = window.BF_SKIN_ITEMS || {}, made = {};
     cards.forEach(function (c) {
-      var html = BFSkin.render(skinForCard(c._pid, c._name), byId, { height: 76, color: '#d7dee8' });
+      var html = made[c._pid];
+      if (html === undefined)
+        html = made[c._pid] = BFSkin.render(skinForCard(c._pid, c._name), byId,
+                                           { height: h, color: '#d7dee8' });
       if (c._html !== html) { c._html = html; c._skin.innerHTML = html; }
     });
   }
 
-  function placeHl(hl, card, strip) {
-    hl.style.width = (card.offsetWidth + 10) + 'px';
-    hl.style.height = (card.offsetHeight + 10) + 'px';
-    hl.style.transform = 'translate(' + (card.offsetLeft - 5) + 'px,' + (card.offsetTop - 5) + 'px)';
-    // длинная очередь не должна уезжать за край — полоска едет по центру панели
-    strip.scrollLeft = Math.max(0, card.offsetLeft - strip.clientWidth / 2 + card.offsetWidth / 2);
+  /* Размер карточки под экран: на телефоне — почти половина ширины,
+     на большом экране упирается в высоту и в потолок 200 px. */
+  function roulSize() {
+    var vw = Math.max(240, window.innerWidth  || 360);
+    var vh = Math.max(320, window.innerHeight || 640);
+    var cw = Math.max(96, Math.round(Math.min(vw * 0.42, vh * 0.24, 200)));
+    return { vw: vw, cw: cw, ch: Math.round(cw * 1.32), gap: Math.round(cw * 0.15),
+             step: cw + Math.round(cw * 0.15) };
   }
 
   function runRoulette(d) {
     roulStop();
     var list = (d && d.players) || [];
-    var strip = $('gRoulS'), hl = $('gRoulHl'), box = $('gRoul');
+    var box = $('gRoul'), view = $('gRoulView'), track = $('gRoulTrack');
+    var frame = $('gRoulFrame'), res = $('gRoulRes'), sub = $('gRoulSub');
     var winIdx = -1;
     for (var i = 0; i < list.length; i++) if (list[i].id === d.winnerId) { winIdx = i; break; }
     if (!list.length || winIdx < 0 || !window.BFSkin) return;
 
     banner('', '', false);            // рулетка вместо плашки ожидания
-    Array.prototype.slice.call(strip.querySelectorAll('.rCard'))
-      .forEach(function (el) { el.remove(); });
-    var cards = list.map(function (p) {
+
+    var M = roulSize();
+    // по краям от центра должно быть чем заполнить экран
+    var edge = Math.ceil((M.vw / 2) / M.step) + 2;
+
+    /* Лента — несколько кругов подряд, победитель в дальнем круге.
+       Поэтому лента едет только вперёд и плавно тормозит, без прыжков
+       туда-сюда, как было раньше. */
+    var seq = [];
+    while (seq.length < edge) seq = seq.concat(list);
+    var startIdx = seq.length;                        // с неё стартуем
+    var pass = 20 + Math.floor(Math.random() * 7);    // сколько карточек проедет
+    while (seq.length < startIdx + pass) seq = seq.concat(list);
+    var target = seq.length + winIdx;                 // на ней остановимся
+    seq = seq.concat(list);
+    while (seq.length < target + edge + 1) seq = seq.concat(list);
+
+    track.innerHTML = '';
+    var cards = seq.map(function (p) {
       var c = document.createElement('div');
       c.className = 'rCard';
+      c.style.width = M.cw + 'px';
+      c.style.height = M.ch + 'px';
+      c.style.marginRight = M.gap + 'px';
       var sk = document.createElement('div'); sk.className = 'rSkin';
       var nm = document.createElement('div'); nm.className = 'rName';
       nm.textContent = p.name || '';
       c.appendChild(sk); c.appendChild(nm);
       c._pid = p.id; c._name = p.name; c._skin = sk;
-      strip.appendChild(c);
+      track.appendChild(c);
       return c;
     });
-    paintSkins(cards);
-    // скины подгружаются из сети — пока крутится, карточки обновляются
-    roulRefresh = setInterval(function () { paintSkins(cards); }, 450);
 
-    /* график шагов: старт бодрый, к финишу медленнее — итог вместе
-       с паузой на победителе укладывается в 10 секунд. Число шагов
-       подгоняется так, чтобы остановиться ровно на победителе. */
-    var steps = [], t = 0, iv = 55;
-    while (t < 5200) { steps.push(iv); t += iv; iv = Math.min(iv * 1.14, 300); }
-    var n = cards.length;
-    var delta = ((winIdx - steps.length) % n + n) % n;
-    for (var a = 0; a < delta; a++) steps.unshift(55);
+    var viewH = M.ch + 26;
+    view.style.height   = viewH + 'px';
+    track.style.height  = viewH + 'px';
+    frame.style.width   = (M.cw + 12) + 'px';
+    frame.style.height  = (M.ch + 12) + 'px';
+    frame.style.top     = Math.round((viewH - M.ch - 12) / 2) + 'px';
+
+    var skinH = Math.round(M.ch * 0.62);
+    paintSkins(cards, skinH);
+    // скины докачиваются из сети — пока лента едет, карточки обновляются
+    roulRefresh = setInterval(function () { paintSkins(cards, skinH); }, 400);
 
     $('gRoulT').textContent = TR('roulTitle', 'Выбор искателя');
-    box.style.display = 'block';
-    placeHl(hl, cards[0], strip);
-    var acc = 0;
-    steps.forEach(function (ms, k) {
-      roulTimers.push(setTimeout(function () {
-        placeHl(hl, cards[(k + 1) % n], strip);
-      }, acc += ms));
-    });
+    sub.textContent = TR('roulSpin', 'Кому водить в этом раунде?');
+    res.classList.remove('on'); res.innerHTML = '';
+    box.classList.add('on');
+
+    // ширину берём уже у показанной ленты — так центр совпадает точно
+    var W = view.getBoundingClientRect().width || M.vw;
+    function posOf(k) { return Math.round(W / 2 - (k * M.step + M.cw / 2)); }
+
+    // длительность подгоняем под остаток лобби: рулетка не оборвётся
+    var dur  = (d && d.duration) || 6800;
+    var left = (d && d.msLeft)   || (dur + 2000);
+    var spin = Math.min(dur - 1100, left - 2400);
+    spin = Math.max(left < 2600 ? 600 : 2200, spin);
+
+    track.style.transition = 'none';
+    track.style.transform  = 'translateX(' + posOf(startIdx) + 'px)';
+    void track.offsetWidth;                     // старт применяется до анимации
+    track.style.transition = 'transform ' + spin + 'ms cubic-bezier(.09,.66,.14,1)';
+    track.style.transform  = 'translateX(' + posOf(target) + 'px)';
+
+    // карточка под рамкой светится — видно, кого лента перебирает
+    var lit = -1;
+    (function tick() {
+      var vr = view.getBoundingClientRect(), tr = track.getBoundingClientRect();
+      var k = Math.round((vr.left + vr.width / 2 - tr.left - M.cw / 2) / M.step);
+      if (k !== lit) {
+        if (cards[lit]) cards[lit].classList.remove('rOn');
+        lit = k;
+        if (cards[lit]) cards[lit].classList.add('rOn');
+      }
+      roulRaf = requestAnimationFrame(tick);
+    })();
+
     roulTimers.push(setTimeout(function () {
+      if (roulRaf) { cancelAnimationFrame(roulRaf); roulRaf = null; }
       if (roulRefresh) { clearInterval(roulRefresh); roulRefresh = null; }
+      cards.forEach(function (c) { c.classList.remove('rOn'); });
+      cards[target].classList.add('rOn');
+      cards[target].classList.add('rWin');
+      frame.classList.add('rwin');
       applySeeker(d.winnerId);
-      hl.classList.add('rWin');
-      placeHl(hl, cards[winIdx], strip);
-      log(TR('roulSeekerIs', 'Искатель: ') + '<b>' + esc(nameOfId(d.winnerId, list)) + '</b>');
-      roulTimers.push(setTimeout(function () {
-        box.style.display = 'none';
-        hl.classList.remove('rWin');
-      }, 1800));
-    }, acc + 260));
+      sub.textContent = '';
+      res.innerHTML = (d.winnerId === socket.id)
+        ? esc(TR('roulYouSeek', 'Ты — искатель! Ищи всех'))
+        : esc(TR('roulSeekerIs', 'Искатель: ')) + '<b>' + esc(nameOfId(d.winnerId, list)) + '</b>';
+      res.classList.add('on');
+      roulTimers.push(setTimeout(roulStop, 2300));
+    }, spin + 120));
   }
 
   // ---------- таймер и фазы ----------
