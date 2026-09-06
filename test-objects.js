@@ -38,15 +38,17 @@ ok('вращение по свойству',  /if\(o\.spins\)/.test(src));
 ok('батут по свойству',     /if\(o\.bouncy\)\{/.test(src));
 ok('несёт игрока',          /pl\.x \+= pl\.rideOn\._dx\|\|0; pl\.y \+= pl\.rideOn\._dy\|\|0;/.test(src));
 ok('сдвиг платформы один раз', !/if\(o\.moves\)\{ pl\.x \+=/.test(src) && /if\(o\.moves\) pl\.rideOn = o;/.test(src));
-ok('толчок ограничен PUSH_MAX', /PUSH_MAX = 12,/.test(src) &&
-                                /var move  = Math\.min\(PUSH_MAX, need\);/.test(src) &&
-                                /var right = outR < outL;/.test(src));
+ok('сторона по «откуда пришёл»', /var fromLeft  = \(xBefore \+ pl\.w\) <= leftWas \+ 2;/.test(src) &&
+                                /var xBefore = pl\.x;/.test(src));
+ok('толчок в темпе платформы', /var lim  = Math\.abs\(pdx\) \+ Math\.abs\(pl\.vx\) \+ 4;/.test(src) &&
+                                /var move = Math\.min\(lim, Math\.abs\(edge - pl\.x\)\);/.test(src));
+ok('вбок из глубины не швыряет', /> Math\.abs\(pl\.vx\) \+ 8\) return;/.test(src));
+ok('вертикальный вынос в темпе', /var limY = Math\.abs\(pdy\) \+ Math\.abs\(pl\.vy\) \+ 4;/.test(src));
 ok('прыжок не режется сразу', /MIN_HOLD = 7;/.test(src) && /JUMP_H = 168,/.test(src) &&
                                 /pl\.selfJump && hold > MIN_HOLD/.test(src));
 ok('посадка по «откуда пришёл»', /var fromTop   = \(yBefore \+ pl\.h\) <= topWas \+ 2;/.test(src) &&
                                 /var yBefore = pl\.y;/.test(src));
-ok('едущая платформа проходит сквозь', /\} else if\(!o\.moves\)\{/.test(src) &&
-                                /pl\.vy < 0 && \(!o\.moves \|\| fromBelow\)/.test(src));
+ok('удар головой по «откуда пришёл»', /pl\.vy < 0 && \(!o\.moves \|\| fromBelow\)/.test(src));
 ok('толчок только у движущихся', /var pdx = o\.moves \? \(o\._dx\|\|0\) : 0;/.test(src) &&
                                 /var pdy = o\.moves \? \(o\._dy\|\|0\) : 0;/.test(src));
 ok('статика ведёт себя как раньше', /if\(pl\.vx !== 0\) pl\.wall = 1;/.test(src));
@@ -77,8 +79,8 @@ ok('флаг спрятанности',     /pl\.hidden = true/.test(game));
 ok('мост GAME.hidden',      /get hidden\(\)/.test(game));
 const gjs=fs.readFileSync(__dirname+'/game.js','utf8');
 ok('флаг уходит по сети',   /hid: !!GAME\.hidden/.test(gjs));
-ok('чужого не рисуем',      /if \(o\.hid\) return;/.test(gjs));
-ok('спрятанного не ловят',  /o\.caught \|\| o\.hid/.test(gjs));
+ok('укрытие прячет в прятки', /if \(o\.hid && hsWait\) return;/.test(gjs));
+ok('в охоте укрытие не спасает', !/o\.caught \|\| o\.hid/.test(gjs));
 
 // размеры и гравитация
 console.log('\nразмеры и гравитация:');
