@@ -38,7 +38,10 @@ ok('вращение по свойству',  /if\(o\.spins\)/.test(src));
 ok('батут по свойству',     /if\(o\.bouncy\)\{/.test(src));
 ok('несёт игрока',          /pl\.x \+= pl\.rideOn\._dx\|\|0; pl\.y \+= pl\.rideOn\._dy\|\|0;/.test(src));
 ok('сдвиг платформы один раз', !/if\(o\.moves\)\{ pl\.x \+=/.test(src) && /if\(o\.moves\) pl\.rideOn = o;/.test(src));
-ok('выталкивание в ближнюю сторону', /var reachX = /.test(src) && /var reachY  = /.test(src));
+ok('ближняя сторона только у движущихся', /if\(o\.moves\)\{\n      var reachX = /.test(src) &&
+                                /!\(o\.moves && outDown > reachY/.test(src) &&
+                                /\} else if\(!o\.moves \|\| outUp <= outDown\)\{/.test(src));
+ok('статика ведёт себя как раньше', /if\(pl\.vx !== 0\) pl\.wall = 1;/.test(src));
 ok('то же в игре',          /pl\.rideOn/.test(game) && !/if\(o\.moves\)\{ pl\.x \+=/.test(game));
 ok('плоская заливка',       /function grad\([^)]*\)\{ return a; \}/.test(src));
 ok('блика на игроке нет',   !/rgba\(255,255,255,\.22\)/.test(src));

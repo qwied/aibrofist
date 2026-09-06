@@ -64,6 +64,17 @@
     + 'html.is-mobile #gExit,html.is-tablet #gExit{padding:9px 14px;font-size:13px}'
     + 'html.is-mobile #gMap,html.is-tablet #gMap{bottom:auto;top:46px;right:8px;max-width:56vw;'
     + 'padding:6px 10px;font-size:11.5px}'
+    /* твой шанс стать искателем — плашка в правом верхнем углу */
+    + '#gChance{position:fixed;top:52px;z-index:61;display:none;pointer-events:none;'
+    + 'background:rgba(15,23,42,.86);color:#dbe6f7;border-radius:9px;padding:6px 11px;'
+    + 'font:600 12.5px sans-serif;box-shadow:0 8px 20px -12px rgba(0,0,0,.7);'
+    + 'right:calc(12px + env(safe-area-inset-right,0px))}'
+    + '#gChance b{color:#60a5fa;font-size:14.5px;margin-left:5px}'
+    + 'html.is-mobile #gChance,html.is-tablet #gChance{top:44px;font-size:11.5px;'
+    + 'padding:5px 9px;right:calc(8px + env(safe-area-inset-right,0px))}'
+    + 'html.is-mobile #gChance b,html.is-tablet #gChance b{font-size:13px}'
+    // плашка шанса занимает угол — карточка карты сдвигается под неё
+    + 'html.is-mobile body.hasChance #gMap,html.is-tablet body.hasChance #gMap{top:80px}'
     + 'html.is-mobile #gBanner h2,html.is-tablet #gBanner h2{font-size:20px}'
     + 'html.is-mobile #gBanner p,html.is-tablet #gBanner p{font-size:14px}'
     /* безопасные зоны iPhone (чёлка/жесты): в альбомной панели прижимаются
@@ -94,12 +105,12 @@
     + 'mask-image:linear-gradient(90deg,transparent 0,#000 15%,#000 85%,transparent 100%)}'
     + '#gRoulTrack{display:flex;align-items:center;will-change:transform}'
     + '#gRoulFrame{position:absolute;left:50%;transform:translateX(-50%);border-radius:18px;'
-    + 'border:3px solid rgba(96,165,250,.9);pointer-events:none;'
-    + 'box-shadow:0 0 0 3px rgba(8,12,22,.55),0 0 38px rgba(59,130,246,.45),'
-    + 'inset 0 0 26px rgba(59,130,246,.16);transition:border-color .25s,box-shadow .25s}'
-    + '#gRoulFrame.rwin{border-color:#facc15;'
-    + 'box-shadow:0 0 0 3px rgba(8,12,22,.6),0 0 64px rgba(250,204,21,.6),'
-    + 'inset 0 0 34px rgba(250,204,21,.2);animation:rPulse .5s ease-in-out 3 alternate}'
+    + 'border:3px solid rgba(96,165,250,.55);pointer-events:none;'
+    + 'box-shadow:0 0 0 3px rgba(8,12,22,.55),0 0 30px rgba(59,130,246,.3),'
+    + 'inset 0 0 26px rgba(59,130,246,.12);transition:border-color .25s,box-shadow .25s}'
+    + '#gRoulFrame.rwin{border-color:#38bdf8;'
+    + 'box-shadow:0 0 0 3px rgba(8,12,22,.6),0 0 70px rgba(56,189,248,.75),'
+    + 'inset 0 0 34px rgba(56,189,248,.25);animation:rPulse .5s ease-in-out 3 alternate}'
     + '@keyframes rPulse{from{transform:translateX(-50%) scale(1)}'
     + 'to{transform:translateX(-50%) scale(1.045)}}'
     + '.rCard{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;'
@@ -108,20 +119,26 @@
     + 'border:1px solid rgba(148,163,184,.16);'
     + 'opacity:.38;transition:opacity .16s linear}'
     + '.rCard.rOn{opacity:1}'
-    + '.rCard.rWin{opacity:1;border-color:rgba(250,204,21,.8);'
-    + 'background:linear-gradient(180deg,#2a3a5c 0%,#16203a 100%)}'
+    + '.rCard.rWin{opacity:1;border-color:rgba(56,189,248,.85);'
+    + 'background:linear-gradient(180deg,#24405f 0%,#152238 100%)}'
+    /* площадка под фигурой светлая — как фон карты, поэтому цвет игрока
+       на карточке ровно тот же, что и в игре */
     + '.rSkin{flex:1 1 auto;width:100%;display:flex;align-items:flex-end;'
-    + 'justify-content:center;overflow:hidden}'
+    + 'justify-content:center;overflow:hidden;'
+    + 'background:linear-gradient(180deg,#f8fafd 0%,#e3eaf5 100%)}'
     + '.rSkin svg,.rSkin img{display:block;max-width:86%}'
-    + '.rName{width:100%;padding:8px 7px 10px;text-align:center;color:#eaf0fa;'
+    + '.rName{width:100%;padding:7px 7px 1px;text-align:center;color:#eaf0fa;'
     + 'font:700 14px/1.25 sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
-    + 'border-top:1px solid rgba(148,163,184,.14);background:rgba(9,14,26,.55)}'
-    + '.rCard.rWin .rName{color:#fde68a}'
+    + 'border-top:1px solid rgba(148,163,184,.14);background:rgba(9,14,26,.6)}'
+    + '.rPct{width:100%;padding:0 6px 7px;text-align:center;color:#8ba3c4;'
+    + 'font:600 11.5px/1.2 sans-serif;background:rgba(9,14,26,.6)}'
+    + '.rCard.rWin .rName{color:#bae6fd}'
+    + '.rCard.rWin .rPct{color:#7dd3fc}'
     + '#gRoulRes{margin:24px 14px 0;min-height:1.5em;text-align:center;color:#fff;'
     + 'font:800 24px/1.3 sans-serif;text-shadow:0 4px 22px rgba(0,0,0,.65);'
     + 'opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s}'
     + '#gRoulRes.on{opacity:1;transform:none}'
-    + '#gRoulRes b{color:#facc15}'
+    + '#gRoulRes b{color:#7dd3fc}'
     + 'html.is-mobile #gRoulT,html.is-tablet #gRoulT{font-size:23px}'
     + 'html.is-mobile #gRoulSub,html.is-tablet #gRoulSub{font-size:13px}'
     + 'html.is-mobile #gRoulRes,html.is-tablet #gRoulRes{font-size:19px;margin-top:20px}'
@@ -145,6 +162,7 @@
     + '<div id="gRoulView"><div id="gRoulTrack"></div>'
     + '<div id="gRoulFrame"></div></div>'
     + '<div id="gRoulRes"></div></div>'
+    + '<div id="gChance"><span id="gChanceL">Твой шанс</span><b id="gChanceV">—</b></div>'
     + '<div id="gChat"><input id="gMsg" maxlength="90"></div>'
     + '<button id="gTalk">Чат</button>'
 );
@@ -158,6 +176,8 @@
     var rt = $('gRoulT');                        // заголовок рулетки, если она на экране
     if (rt && $('gRoul').classList.contains('on'))
       rt.textContent = TR('roulTitle', 'Выбор искателя');
+    var cl = $('gChanceL');                      // подпись плашки шанса
+    if (cl) cl.textContent = TR('chanceLbl', 'Твой шанс');
   }
   window.addEventListener('bf-lang', refreshGameLabels);
 
@@ -394,6 +414,15 @@
 
   /* Лента длинная и игроки в ней повторяются — рисуем каждый скин один
      раз за проход и раскладываем готовую разметку по карточкам. */
+  /* Цвет фигуры на карточке — тот же, каким игрока рисует движок.
+     Раньше он был приглушённо-серым, и скин в рулетке выглядел не тем,
+     что в игре. */
+  function colorForCard(pid) {
+    if (socket && pid === socket.id) return GAME.myColor || COLOR_NORMAL;
+    var o = others[pid];
+    return (o && o.color) || COLOR_NORMAL;
+  }
+
   function paintSkins(cards, h) {
     if (!window.BFSkin) return;
     var byId = window.BF_SKIN_ITEMS || {}, made = {};
@@ -401,9 +430,29 @@
       var html = made[c._pid];
       if (html === undefined)
         html = made[c._pid] = BFSkin.render(skinForCard(c._pid, c._name), byId,
-                                           { height: h, color: '#d7dee8' });
+                                           { height: h, color: colorForCard(c._pid) });
       if (c._html !== html) { c._html = html; c._skin.innerHTML = html; }
     });
+  }
+
+  /* Твой шанс стать искателем в этом раунде — плашка в правом верхнем углу.
+     Числа приходят от сервера вместе с составом рулетки и каждый раунд новые. */
+  function showChance(list) {
+    var box = $('gChance');
+    if (!box || !socket) return;
+    var mine = null;
+    for (var i = 0; i < list.length; i++)
+      if (list[i].id === socket.id && list[i].chance != null) mine = list[i].chance;
+    if (mine === null) { hideChance(); return; }
+    $('gChanceL').textContent = TR('chanceLbl', 'Твой шанс');
+    $('gChanceV').textContent = mine + '%';
+    box.style.display = 'block';
+    document.body.classList.add('hasChance');
+  }
+  function hideChance() {
+    var box = $('gChance');
+    if (box) box.style.display = 'none';
+    document.body.classList.remove('hasChance');
   }
 
   /* Размер карточки под экран: на телефоне — почти половина ширины,
@@ -412,7 +461,7 @@
     var vw = Math.max(240, window.innerWidth  || 360);
     var vh = Math.max(320, window.innerHeight || 640);
     var cw = Math.max(96, Math.round(Math.min(vw * 0.42, vh * 0.24, 200)));
-    return { vw: vw, cw: cw, ch: Math.round(cw * 1.32), gap: Math.round(cw * 0.15),
+    return { vw: vw, cw: cw, ch: Math.round(cw * 1.44), gap: Math.round(cw * 0.15),
              step: cw + Math.round(cw * 0.15) };
   }
 
@@ -453,7 +502,9 @@
       var sk = document.createElement('div'); sk.className = 'rSkin';
       var nm = document.createElement('div'); nm.className = 'rName';
       nm.textContent = p.name || '';
-      c.appendChild(sk); c.appendChild(nm);
+      var pc = document.createElement('div'); pc.className = 'rPct';
+      pc.textContent = (p.chance != null) ? p.chance + '%' : '';
+      c.appendChild(sk); c.appendChild(nm); c.appendChild(pc);
       c._pid = p.id; c._name = p.name; c._skin = sk;
       track.appendChild(c);
       return c;
@@ -466,13 +517,13 @@
     frame.style.height  = (M.ch + 12) + 'px';
     frame.style.top     = Math.round((viewH - M.ch - 12) / 2) + 'px';
 
-    var skinH = Math.round(M.ch * 0.62);
+    var skinH = Math.round(M.ch * 0.58);
     paintSkins(cards, skinH);
     // скины докачиваются из сети — пока лента едет, карточки обновляются
     roulRefresh = setInterval(function () { paintSkins(cards, skinH); }, 400);
 
     $('gRoulT').textContent = TR('roulTitle', 'Выбор искателя');
-    sub.textContent = TR('roulSpin', 'Кому водить в этом раунде?');
+    sub.textContent = TR('roulSpin', 'Кому искать в этом раунде?');
     res.classList.remove('on'); res.innerHTML = '';
     box.classList.add('on');
 
@@ -513,9 +564,10 @@
       cards[target].classList.add('rWin');
       frame.classList.add('rwin');
       applySeeker(d.winnerId);
+      paintSkins(cards, skinH);        // роль известна — искатель уже синий
       sub.textContent = '';
       res.innerHTML = (d.winnerId === socket.id)
-        ? esc(TR('roulYouSeek', 'Ты — искатель! Ищи всех'))
+        ? esc(TR('roulYouSeek', 'Ты — искатель!'))
         : esc(TR('roulSeekerIs', 'Искатель: ')) + '<b>' + esc(nameOfId(d.winnerId, list)) + '</b>';
       res.classList.add('on');
       roulTimers.push(setTimeout(roulStop, 2300));
@@ -709,6 +761,7 @@
       me.role = 'hider';
       $('gRoleBox').style.display = 'none';
       clearCaught();
+      showChance((d.players) || []);
       runRoulette(d);
     });
 
@@ -776,7 +829,8 @@
     if (MODE === 'hideAndSeek' && me.role === 'seeker' && phase === 'round') {
       Object.keys(others).forEach(function (id) {
         var o = others[id];
-        if (o.caught || o.hid) return;     // в укрытии игрока не поймать
+        // в охоте укрытие уже не спасает — иначе поймать было бы некого
+        if (o.caught) return;
         if (Math.abs(o.x - p.x) < 34 && Math.abs(o.y - p.y) < 60) {
           o.caught = true;
           caughtNames[o.name] = 1;
@@ -856,8 +910,11 @@
         if (id === hsWinnerId) return;           // искатель скрыт от прячущихся
         if (me.role === 'seeker') return;        // искатель не видит прячущихся
       }
-      // спрятался за объектом — ни фигуры, ни ника, ни реплики
-      if (o.hid) return;
+      /* Укрытие прячет только на время пряток. После начала раунда
+         видно всех — иначе искателю некого искать: сидящих в укрытиях
+         не было видно вообще весь раунд. */
+      if (o.hid && hsWait) return;
+      if (o.hid && MODE !== 'hideAndSeek') return;
       var w = o.w || 22, h = o.h || 74;
       ctx.save();
       ctx.translate(o.x, o.y);

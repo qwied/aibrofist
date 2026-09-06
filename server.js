@@ -268,19 +268,25 @@ function hsMembers(room) {
     .map(p => ({ id: p.id, name: p.name }));
 }
 
-/* Взвешенный жребий: шансы реально разные и каждый раунд новые. */
-function hsPick(members, st) {
-  if (members.length <= 1) return members.length ? members[0].id : null;
-  let total = 0;
-  const weights = members.map(m => {
-    let w = 1 + Math.random() * 9;               // базовый вес 1..10, свой у каждого
-    if (m.id === st.lastSeeker) w *= 0.25;       // прошлый раунд искатель был — шанс меньше в 4 раза
-    else if (m.id === st.prevSeeker) w *= 0.5;   // позапрошлый — вдвое меньше
-    total += w;
-    return w;
+/* Шансы: у каждого свой, каждый раунд новые. Возвращаем доли (сумма 1),
+   чтобы те же числа ушли клиентам и показывались в углу экрана. */
+function hsChances(members, st) {
+  if (members.length <= 1) return members.map(() => 1);
+  const w = members.map(m => {
+    let x = 1 + Math.random() * 9;                // базовый вес 1..10, свой у каждого
+    if (m.id === st.lastSeeker) x *= 0.25;        // был искателем в прошлом раунде — вчетверо меньше
+    else if (m.id === st.prevSeeker) x *= 0.5;    // позапрошлый — вдвое меньше
+    return x;
   });
-  let r = Math.random() * total;
-  for (let i = 0; i < members.length; i++) { r -= weights[i]; if (r <= 0) return members[i].id; }
+  const total = w.reduce((a, b) => a + b, 0) || 1;
+  return w.map(x => x / total);
+}
+
+/* Взвешенный жребий по готовым долям. */
+function hsPick(members, chances) {
+  if (members.length <= 1) return members.length ? members[0].id : null;
+  let r = Math.random();
+  for (let i = 0; i < members.length; i++) { r -= chances[i]; if (r <= 0) return members[i].id; }
   return members[members.length - 1].id;
 }
 
@@ -290,7 +296,8 @@ function hsPick(members, st) {
 function hsSpin(io, room, st) {
   const members = hsMembers(room);
   if (!members.length) return;
-  const winner = members.find(m => m.id === hsPick(members, st)) || members[0];
+  const chances = hsChances(members, st);
+  const winner = members.find(m => m.id === hsPick(members, chances)) || members[0];
   st.prevSeeker = st.lastSeeker;
   st.lastSeeker = winner.id;
   st.seekerId = winner.id;
@@ -302,7 +309,9 @@ function hsSpin(io, room, st) {
     st.timer = setTimeout(() => hsStartRound(io, room, st), st.endsAt - Date.now());
   }
   io.to(room).emit('hsRoulette', {
-    players: members,
+    // шанс уходит вместе с составом — клиент рисует его в углу и на карточках
+    players: members.map((m, i) => ({ id: m.id, name: m.name,
+                                      chance: Math.round(chances[i] * 1000) / 10 })),
     winnerId: st.seekerId,
     duration: HS_ROULETTE_MS,
     msLeft: st.endsAt - Date.now(),

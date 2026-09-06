@@ -47,6 +47,13 @@ ok('рамка обводит победителя',  /frame\.classList\.add\('r
                                 /cards\[target\]\.classList\.add\('rWin'\)/.test(src));
 ok('подсветка под рамкой',      /classList\.add\('rOn'\)/.test(src) && /requestAnimationFrame\(tick\)/.test(src));
 ok('итог подписывается',        /roulYouSeek/.test(src) && /roulSeekerIs/.test(src) && /res\.classList\.add\('on'\)/.test(src));
+ok('обводка синяя, не жёлтая',  /#gRoulFrame\.rwin\{border-color:#38bdf8/.test(src) && !/facc15/.test(src));
+ok('цвет фигуры как в игре',    /function colorForCard/.test(src) &&
+                                /color: colorForCard\(c\._pid\)/.test(src));
+ok('шанс в правом верхнем',     /#gChance\{position:fixed;top:52px/.test(src) &&
+                                /function showChance/.test(src) && /showChance\(\(d\.players\)/.test(src));
+ok('шанс и на карточках',       /className = 'rPct'/.test(src) && /p\.chance/.test(src));
+ok('в охоте видно всех',        /if \(o\.hid && hsWait\) return;/.test(src));
 ok('лента едет одним ходом',    /transition = 'transform ' \+ spin \+ 'ms cubic-bezier/.test(src));
 ok('стоп ровно на победителе',  /var target = seq\.length \+ winIdx;/.test(src) &&
                                 /posOf\(target\)/.test(src));
