@@ -333,6 +333,51 @@ else {
   let landed = false;
   for (let i = 0; i < 120; i++) { GAME.step(); if (GAME.pl.ground) landed = true; }
   check('где была вода — игрок свободно падает на пол', landed, GAME.pl.y.toFixed(0));
+
+  // 13. угол стены: игрока сбоку от блока отталкивает вбок, а не телепортирует наверх
+  //     именно эту дыру ловил пользователь: платформа прижала игрока к стене —
+  //     и его выбросило на верх соседнего объекта. Теперь угол отталкивает вбок.
+  const floorC = { id: 1, type: 'rect', x: 0, y: 400, w: 600, h: 40, rot: 0, fill: '#111827' };
+  const wallC  = { id: 2, type: 'rect', x: 400, y: 100, w: 40, h: 300, rot: 0, fill: '#111827' };
+  const spawnC = { id: 3, type: 'spawn', x: 395, y: 200, w: 20, h: 60, rot: 0, fill: '#111827' };
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorC, wallC, spawnC] });
+  GAME.startPlay();
+  clearKeys();
+  // игрок заспавнен сбоку от стены, чуть внутри (15 px) — как после толчка платформой
+  const yBeforeCorner = GAME.pl.y;
+  GAME.step();
+  // без фикса: pl.y стало бы 40 (телепорт на верх стены y=100)
+  // с фиксом: pl.y остаётся ~200 (игрока оттолкнуло вбок)
+  check('угол стены не телепортирует наверх', GAME.pl.y > 150,
+        'pl.y=' + GAME.pl.y.toFixed(0) + ' (было ' + yBeforeCorner.toFixed(0) + ')');
+  check('игрока оттолкнуло вбок от стены', GAME.pl.x + GAME.pl.w <= 400,
+        'pl.x=' + GAME.pl.x.toFixed(0) + ' правый край=' + (GAME.pl.x + GAME.pl.w));
+  GAME.stop();
+
+  // 14. глубокий провал по-прежнему поднимает наверх — регресс на v95
+  //     игрока, продавленного в середину широкого пола, нельзя выталкивать вбок:
+  //     из блока шириной 600 это швыряло бы на 300 px. Его поднимает вертикальный проход.
+  const floorD = { id: 1, type: 'rect', x: 0, y: 400, w: 600, h: 40, rot: 0, fill: '#111827' };
+  const spawnD = { id: 2, type: 'spawn', x: 300, y: 380, w: 20, h: 60, rot: 0, fill: '#111827' };
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorD, spawnD] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.step();
+  check('глубокий провал поднимает наверх', Math.abs(GAME.pl.y + GAME.pl.h - 400) < 5,
+        'pl.y=' + GAME.pl.y.toFixed(0));
+  GAME.stop();
+
+  // 15. угол работает с обеих сторон: игрок зашёл справа — оттолкнёт вправо
+  const wallE  = { id: 2, type: 'rect', x: 400, y: 100, w: 40, h: 300, rot: 0, fill: '#111827' };
+  const spawnE = { id: 3, type: 'spawn', x: 425, y: 200, w: 20, h: 60, rot: 0, fill: '#111827' };
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorC, wallE, spawnE] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.step();
+  check('угол с правой стороны отталкивает вправо', GAME.pl.x >= 440,
+        'pl.x=' + GAME.pl.x.toFixed(0));
+  check('и тоже не телепортирует наверх', GAME.pl.y > 150,
+        'pl.y=' + GAME.pl.y.toFixed(0));
   GAME.stop();
 }
 if (GAME && GAME.restartRun) {

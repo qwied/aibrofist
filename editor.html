@@ -204,14 +204,14 @@ body.mob #hint{display:none}
 body.mob #zoomBox{bottom:68px;right:8px}
 body.mob #msg h1{font-size:38px}
 </style>
-        <script src="device.js?v=95"></script>
-        <script src="lzma.js?v=95"></script>
-        <script src="bfImport.js?v=95"></script>
-        <script src="skinRender.js?v=95"></script>
-        <script src="skinCanvas.js?v=95"></script>
-        <script src="coin.js?v=95"></script>
+        <script src="device.js?v=96"></script>
+        <script src="lzma.js?v=96"></script>
+        <script src="bfImport.js?v=96"></script>
+        <script src="skinRender.js?v=96"></script>
+        <script src="skinCanvas.js?v=96"></script>
+        <script src="coin.js?v=96"></script>
         <link rel="stylesheet" type="text/css" href="mobile.css?v=85">
-        <script src="theme.js?v=95"></script>
+        <script src="theme.js?v=96"></script>
         <link rel="icon" href="/favicon.ico" sizes="32x32">
         <link rel="icon" type="image/svg+xml" href="/favicon.svg">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -1161,9 +1161,10 @@ function step(){
     goL = pl.vx > 0 ? true : (pl.vx < 0 ? false
         : (pl.x + pl.w/2 < (sp[0]+sp[1])/2));
     /* Страховка. Если вбок пришлось бы двигать дальше, чем игрок вообще мог
-       въехать за кадр, значит он оказался глубоко внутри блока (например,
-       его продавили в пол). Вбок такого не выталкиваем — из широкого блока
-       это швыряло на всю его длину. Игрока поднимет вертикальный проход. */
+       въехать за кадр, значит он оказался глубоко внутри блока. Вбок такого
+       не выталкиваем — из широкого блока это швыряло на всю его длину.
+       Вертикальный проход отработает это как угол (оттолкнёт вбок к ближней
+       грани) или как глубокий провал (поставит сверху). */
     if((goL ? (pl.x + pl.w) - sp[0] : sp[1] - pl.x) > Math.abs(pl.vx) + 8) return;
     if(goL){ pl.x = sp[0] - pl.w; if(pl.vx !== 0) pl.wall = 1; }
     else   { pl.x = sp[1];        if(pl.vx !== 0) pl.wall = -1; }
@@ -1210,8 +1211,22 @@ function step(){
       if(o.ricochet && Math.abs(pl.vy) > RICO_MIN){ pl.y = sp[1]; ricochet(o); }
       else { pl.y = sp[1]; pl.vy = 0; }
     } else if(!o.moves){
-      // глубокий провал в неподвижный блок — как раньше, ставим сверху
-      pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE; pl.vy = 0; pl.selfJump = false;
+      /* Игрок сбоку от блока — это угол, а не посадка сверху.
+         Отталкиваем вбок к ближней грани, а не телепортируем наверх.
+         Иначе платформа, прижавшая игрока к стене, выбрасывает его
+         поверх соседнего объекта — в любую сторону и в любом месте.
+         Глубокий провал (обе боковые грани далеко — игрока продавили
+         в пол) по-прежнему поднимает наверх: из широкого блока вбок
+         это швыряло бы на всю его длину. */
+      var spX = spanX(P, pl.y + 2, pl.y + pl.h - 2);
+      var lPen = spX ? (pl.x + pl.w) - spX[0] : 1e9;
+      var rPen = spX ? spX[1] - pl.x : 1e9;
+      if(Math.min(lPen, rPen) <= 32){
+        if(lPen <= rPen){ pl.x = spX[0] - pl.w; if(pl.vx > 0) pl.vx = 0; pl.wall = 1; }
+        else            { pl.x = spX[1];        if(pl.vx < 0) pl.vx = 0; pl.wall = -1; }
+      } else {
+        pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE; pl.vy = 0; pl.selfJump = false;
+      }
     } else if(pdy !== 0){
       /* Блок едет по вертикали и накрыл игрока сбоку — выносим к ближней
          грани в его же темпе, а не рывком на всю высоту. */
@@ -2290,12 +2305,12 @@ socket.on('connect', () => {
 });
 
 </script>
-<script src="i18n.js?v=95"></script>
-<script src="abuseShow.js?v=95" defer></script>
-<script src="editorHelp.js?v=95"></script>
-<script src="editorAI.js?v=95" defer></script>
-<script src="account.js?v=95" defer></script>
-<script src="owner.js?v=95" defer></script>
+<script src="i18n.js?v=96"></script>
+<script src="abuseShow.js?v=96" defer></script>
+<script src="editorHelp.js?v=96"></script>
+<script src="editorAI.js?v=96" defer></script>
+<script src="account.js?v=96" defer></script>
+<script src="owner.js?v=96" defer></script>
 
 <script>
 /* Публикация карты в Maps Browser */
@@ -2415,7 +2430,7 @@ socket.on('connect', () => {
   };
 })();
 </script>
-        <script src="skinAvatar.js?v=95" defer></script>
+        <script src="skinAvatar.js?v=96" defer></script>
 <script>
 /* Маленькая кнопка возврата: полноценная шапка на весь экран редактора
    не помещается, но уйти со страницы должно быть чем. */

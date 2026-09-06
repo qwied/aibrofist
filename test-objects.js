@@ -44,6 +44,14 @@ ok('толчок в темпе платформы', /var lim  = Math\.abs\(pdx\)
                                 /var move = Math\.min\(lim, Math\.abs\(edge - pl\.x\)\);/.test(src));
 ok('вбок из глубины не швыряет', /> Math\.abs\(pl\.vx\) \+ 8\) return;/.test(src));
 ok('вертикальный вынос в темпе', /var limY = Math\.abs\(pdy\) \+ Math\.abs\(pl\.vy\) \+ 4;/.test(src));
+ok('угол отталкивает вбок, не наверх', /var spX = spanX\(P, pl\.y \+ 2, pl\.y \+ pl\.h - 2\);/.test(src) &&
+                                /if\(Math\.min\(lPen, rPen\) <= 32\)/.test(src) &&
+                                /pl\.x = spX\[0\] - pl\.w; if\(pl\.vx > 0\) pl\.vx = 0; pl\.wall = 1;/.test(src) &&
+                                /pl\.x = spX\[1\];        if\(pl\.vx < 0\) pl\.vx = 0; pl\.wall = -1;/.test(src));
+ok('то же в игре',          /var spX = spanX\(P, pl\.y \+ 2, pl\.y \+ pl\.h - 2\);/.test(game) &&
+                                /if\(Math\.min\(lPen, rPen\) <= 32\)/.test(game));
+ok('глубокий провал всё ещё ставит сверху', /pl\.y = sp\[0\] - pl\.h; pl\.ground = true; coy = COYOTE; pl\.vy = 0; pl\.selfJump = false;/.test(src) &&
+                                /pl\.y = sp\[0\] - pl\.h; pl\.ground = true; coy = COYOTE; pl\.vy = 0; pl\.selfJump = false;/.test(game));
 ok('прыжок не режется сразу', /MIN_HOLD = 7;/.test(src) && /JUMP_H = 168,/.test(src) &&
                                 /pl\.selfJump && hold > MIN_HOLD/.test(src));
 ok('посадка по «откуда пришёл»', /var fromTop   = \(yBefore \+ pl\.h\) <= topWas \+ 2;/.test(src) &&
