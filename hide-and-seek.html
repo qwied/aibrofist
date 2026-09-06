@@ -6,13 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Прятки в AIBrofist: один ищет, остальные прячутся на картах игроков.">
 <link rel="stylesheet" href="ui.css?v=85">
-<script src="theme.js?v=87"></script>
-<script src="device.js?v=87"></script>
-	<link rel="icon" href="/favicon.ico" sizes="32x32">
-	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-	<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-	<link rel="manifest" href="/site.webmanifest">
-	<meta name="theme-color" content="#111827">
+<script src="theme.js?v=88"></script>
+<script src="device.js?v=88"></script>
+        <link rel="icon" href="/favicon.ico" sizes="32x32">
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="manifest" href="/site.webmanifest">
+        <meta name="theme-color" content="#111827">
 <style>
 .mdWrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:32px;align-items:center;
   margin-top:22px}
@@ -48,10 +48,11 @@
     <div class="mdArt"><img src="mode-hide.png" alt="Прятки"></div>
     <div>
       <div class="mdName">Прятки</div>
-      <div class="mdText">Один игрок становится искателем, остальные разбегаются по карте. У прячущихся есть полминуты, чтобы найти укрытие, дальше начинается охота.</div>
+      <div class="mdText">Перед раундом на экране крутится рулетка: карточки игроков со скинами и никами, и серое полосатое выделение выбирает искателя. Шансы меняются каждый раунд, а недавние искатели получают шанс поменьше. Пока прячутся, искатель никого не видит — и его не видно.</div>
       <ul class="mdList">
-        <li>Искатель выбирается случайно в начале каждого раунда.</li>
-        <li>Прячущиеся видят таймер и знают, сколько осталось до конца.</li>
+        <li>Искателя выбирает рулетка в начале каждого раунда — шансы каждый раз новые.</li>
+        <li>Во время прятаний искатель не видит прячущихся, прячущиеся не видят искателя.</li>
+        <li>После начала раунда все видят всех — начинается охота.</li>
         <li>Пойманный меняет цвет и помогает искать остальных.</li>
         <li>Карту выбирает сервер из тех, что добавил разработчик.</li>
         <li>Хорошее укрытие — не самое дальнее, а самое неочевидное.</li>
@@ -63,13 +64,13 @@
 </div>
 
 <link rel="stylesheet" href="mobile.css?v=85">
-<script src="i18n.js?v=87"></script>
-<script src="coin.js?v=87"></script>
-<script src="skinRender.js?v=87"></script>
-<script src="skinAvatar.js?v=87" defer></script>
-<script src="shell.js?v=87"></script>
-<script src="abuseShow.js?v=87" defer></script>
-<script src="account.js?v=87" defer></script>
+<script src="i18n.js?v=88"></script>
+<script src="coin.js?v=88"></script>
+<script src="skinRender.js?v=88"></script>
+<script src="skinAvatar.js?v=88" defer></script>
+<script src="shell.js?v=88"></script>
+<script src="abuseShow.js?v=88" defer></script>
+<script src="account.js?v=88" defer></script>
 <script>
 document.getElementById('mdPlay').onclick = function () {
   location.href = 'game.html?mode=hideAndSeek';

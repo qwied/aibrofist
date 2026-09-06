@@ -246,6 +246,116 @@ const gameState = {
   }
 };
 
+/* ================== ПРЯТКИ: ФАЗЫ И РУЛЕТКА ИСКАТЕЛЯ ==================
+   Комнаты hideAndSeek живут по фазам, которые задаёт сервер: лобби с
+   рулеткой (30 сек: пока крутится рулетка и пока прячутся) и раунд охоты
+   (2 минуты). Победителя рулетки выбирает сервер один раз — все клиенты
+   комнаты показывают одинаковую рулетку и приходят к одному искателю.
+   Шансы НЕ равны и меняются каждый раунд: у каждого свой случайный вес,
+   недавние искатели получают вес поменьше — вчерашний «счастливчик»
+   почти наверняка уступит очередь. */
+const HS_LOBBY_MS    = 30000;   // рулетка + время спрятаться
+const HS_ROUND_MS    = Number(process.env.HS_ROUND_MS) || 120000;  // охота — 2 минуты
+const HS_ROULETTE_MS = 6800;    // клиентская анимация укладывается в 10 секунд
+const hsRooms = new Map();      // 'hideAndSeek:roomN' -> состояние раунда
+
+function hsMembers(room) {
+  const set = gameState.rooms.get(room);
+  if (!set) return [];
+  return Array.from(set)
+    .map(id => gameState.players.get(id))
+    .filter(Boolean)
+    .map(p => ({ id: p.id, name: p.name }));
+}
+
+/* Взвешенный жребий: шансы реально разные и каждый раунд новые. */
+function hsPick(members, st) {
+  if (members.length <= 1) return members.length ? members[0].id : null;
+  let total = 0;
+  const weights = members.map(m => {
+    let w = 1 + Math.random() * 9;               // базовый вес 1..10, свой у каждого
+    if (m.id === st.lastSeeker) w *= 0.25;       // прошлый раунд искатель был — шанс меньше в 4 раза
+    else if (m.id === st.prevSeeker) w *= 0.5;   // позапрошлый — вдвое меньше
+    total += w;
+    return w;
+  });
+  let r = Math.random() * total;
+  for (let i = 0; i < members.length; i++) { r -= weights[i]; if (r <= 0) return members[i].id; }
+  return members[members.length - 1].id;
+}
+
+/* Крутить рулетку: выбрать искателя и разослать комнате состав карточек.
+   Если до конца лобби осталось меньше, чем длится анимация, лобби
+   удлиняется — рулетка никогда не обрывается на середине. */
+function hsSpin(io, room, st) {
+  const members = hsMembers(room);
+  if (!members.length) return;
+  const winner = members.find(m => m.id === hsPick(members, st)) || members[0];
+  st.prevSeeker = st.lastSeeker;
+  st.lastSeeker = winner.id;
+  st.seekerId = winner.id;
+  st.seekerName = winner.name;
+  const left = st.endsAt - Date.now();
+  if (left < HS_ROULETTE_MS + 2000) {
+    st.endsAt = Date.now() + HS_ROULETTE_MS + 2000;
+    clearTimeout(st.timer);
+    st.timer = setTimeout(() => hsStartRound(io, room, st), st.endsAt - Date.now());
+  }
+  io.to(room).emit('hsRoulette', {
+    players: members,
+    winnerId: st.seekerId,
+    duration: HS_ROULETTE_MS,
+    msLeft: st.endsAt - Date.now(),
+    roundNum: st.roundNum
+  });
+}
+
+function hsStartLobby(io, room, st) {
+  st.phase = 'lobby';
+  st.roundNum++;
+  st.caughtSent = false;
+  st.endsAt = Date.now() + HS_LOBBY_MS;
+  hsSpin(io, room, st);
+  io.to(room).emit('hsPhase', { phase: 'lobby', msLeft: HS_LOBBY_MS, roundNum: st.roundNum });
+  clearTimeout(st.timer);
+  st.timer = setTimeout(() => hsStartRound(io, room, st), st.endsAt - Date.now());
+}
+
+function hsStartRound(io, room, st) {
+  st.phase = 'round';
+  st.endsAt = Date.now() + HS_ROUND_MS;
+  io.to(room).emit('hsPhase', { phase: 'round', msLeft: HS_ROUND_MS,
+    seekerId: st.seekerId, seekerName: st.seekerName });
+  clearTimeout(st.timer);
+  st.timer = setTimeout(() => hsStartLobby(io, room, st), HS_ROUND_MS);
+}
+
+/* Досрочный конец раунда: искатель сообщил, что все пойманы. Верим только
+   текущему искателю и не больше одного раза за раунд — иначе спамом
+   сообщений можно было бы перескакивать раунды. */
+function hsOnCaught(room, socketId) {
+  const st = hsRooms.get(room);
+  if (!st || st.phase !== 'round' || st.caughtSent) return;
+  if (socketId !== st.seekerId) return;
+  st.caughtSent = true;
+  clearTimeout(st.timer);
+  st.timer = setTimeout(() => hsStartLobby(io, room, st), 1400);
+}
+
+/* Ушёл игрок: комната опустела — состояние долой; в лобби ушёл сам
+   искатель — крутим рулетку заново на оставшихся. */
+function hsOnLeave(io, room, leftId) {
+  const st = hsRooms.get(room);
+  if (!st) return;
+  const set = gameState.rooms.get(room);
+  if (!set || set.size === 0) {
+    clearTimeout(st.timer);
+    hsRooms.delete(room);
+    return;
+  }
+  if (leftId && leftId === st.seekerId && st.phase === 'lobby') hsSpin(io, room, st);
+}
+
 /* ================== ЗАЩИТА СОКЕТОВ ==================
    Гость мог назвать себя любым ником — в том числе чужим или ником
    владельца. Теперь имя подтверждённой сессии сильнее присланного,
@@ -287,6 +397,7 @@ io.on('connection', (socket) => {
   const account = sessionName(socket.handshake.headers.cookie);  // подтверждённый ник или null
   const limMove = socketLimiter(45, 400);    // движение идёт ~14 раз/сек
   const limChat = socketLimiter(4, 8);       // чат: не чаще 4 в секунду и 8 в 10 сек
+  const limCaught = socketLimiter(1, 2);     // «все пойманы» — не чаще раза в раунд
   let joinedAt = 0;
 
   socket.on('join', (data) => {
@@ -331,6 +442,33 @@ io.on('connection', (socket) => {
     io.to(room).emit('playersList', roomPlayers);
     io.to(room).emit('playerJoined', player);
     socket.emit('nameFixed', { name: name });    // игрок показывает себе ровно то, что решил сервер
+
+    /* Прятки: фазы и рулетку задаёт сервер. Первому игроку комнаты —
+       сразу новая рулетка (она уйдёт и ему, и всем кто в комнате),
+       остальные получают текущее состояние, чтобы не остаться без роли. */
+    if (mode === 'hideAndSeek') {
+      let st = hsRooms.get(room);
+      if (!st) {
+        st = { phase: 'lobby', roundNum: 0, endsAt: 0, timer: null,
+               lastSeeker: null, prevSeeker: null,
+               seekerId: null, seekerName: '', caughtSent: false };
+        hsRooms.set(room, st);
+        hsStartLobby(io, room, st);
+      } else {
+        // искатель мог переподключиться с новым сокетом — возвращаем ему роль
+        if (st.phase === 'round' && st.seekerName && st.seekerName === name
+            && st.seekerId !== socket.id) {
+          st.seekerId = socket.id;
+          io.to(room).emit('hsPhase', { phase: 'round',
+            msLeft: Math.max(0, st.endsAt - Date.now()),
+            seekerId: st.seekerId, seekerName: st.seekerName });
+        }
+        socket.emit('hsState', { phase: st.phase,
+          msLeft: Math.max(0, st.endsAt - Date.now()),
+          roundNum: st.roundNum,
+          seekerId: st.seekerId, seekerName: st.seekerName });
+      }
+    }
   });
 
   socket.on('movePlayer', (data) => {
@@ -418,6 +556,14 @@ io.on('connection', (socket) => {
     socket.emit('chatHistory', messages);
   });
 
+  // прятки: искатель сообщил, что поймал всех — раунд можно заканчивать досрочно
+  socket.on('hsCaught', () => {
+    if (limCaught()) return;
+    const player = gameState.players.get(socket.id);
+    if (!player || String(player.room).indexOf('hideAndSeek:') !== 0) return;
+    hsOnCaught(player.room, socket.id);
+  });
+
   socket.on('disconnect', () => {
     const player = gameState.players.get(socket.id);
     if (player) {
@@ -436,6 +582,7 @@ io.on('connection', (socket) => {
       }
 
       io.to(room).emit('playerLeft', { playerId: socket.id });
+      if (room.indexOf('hideAndSeek:') === 0) hsOnLeave(io, room, socket.id);
       console.log(`${player.name} | Осталось: ${gameState.stats.totalPlayers}`);
     }
   });
@@ -474,6 +621,7 @@ setInterval(() => {
       if (!rp.size) { gameState.rooms.delete(p.room); gameState.stats.totalRooms--; }
     }
     io.to(p.room).emit('playerLeft', { playerId: id });
+    if (String(p.room).indexOf('hideAndSeek:') === 0) hsOnLeave(io, p.room, id);
     console.log('убран зависший игрок', p.name);
   });
 }, 20000);

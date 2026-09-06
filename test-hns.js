@@ -34,7 +34,30 @@ console.log('\nконец раунда:');
 ok('проверка «все пойманы»', /function checkAllCaught/.test(src));
 ok('вызов после поимки',    /checkAllCaught\(\);/.test(src));
 ok('один в комнате не считается', /if \(!ids\.length\) return;/.test(src));
-ok('раунд переключается',   /switching = false; advance\(\);/.test(src));
+ok('раунд переключается',   /switching = false; if \(!hsSync\) advance\(\);/.test(src));
+
+console.log('\nрулетка искателя:');
+ok('сервер выбирает искателя',  /socket\.on\('hsRoulette'/.test(src));
+ok('состояние при входе',       /socket\.on\('hsState'/.test(src));
+ok('фазы от сервера',           /socket\.on\('hsPhase'/.test(src));
+ok('рулетка рисуется функцией', /function runRoulette/.test(src) && /runRoulette\(d\)/.test(src));
+ok('панель по центру',          /#gRoul\{position:fixed;left:50%;top:40%;transform:translate\(-50%,-50%\)/.test(src));
+ok('карточка: скин + ник',      /className = 'rSkin'/.test(src) && /className = 'rName'/.test(src));
+ok('серые полоски выделения',   /repeating-linear-gradient\(45deg,#e2e6ee 0 7px,#8b93a1 7px 14px\)/.test(src));
+ok('грани куба у выделения',    /\.rHl::before\{left:8px.*skewX\(-45deg\)/.test(src) &&
+                                /\.rHl::after\{top:8px.*skewY\(-45deg\)/.test(src));
+ok('шаг на соседнюю карточку',  /transition:transform \.09s linear/.test(src));
+ok('итог не дольше 10 секунд',  (function(){ const m = /while \(t < (\d+)\)/.exec(src); return m && +m[1] + 1800 + 300 <= 10000; })());
+ok('стоп ровно на победителе',  /var delta = \(\(winIdx - steps\.length\) % n \+ n\) % n;/.test(src));
+ok('роль после остановки',      /applySeeker\(d\.winnerId\)/.test(src));
+ok('обрыв связи — свой таймер', /socket\.on\('disconnect', function \(\) \{ hsSync = false; \}\)/.test(src));
+
+console.log('\nвидимость в прятках:');
+ok('лобби: до результата никого',  /if \(!hsWinnerId\) return;/.test(src));
+ok('лобби: искатель скрыт',        /if \(id === hsWinnerId\) return;/.test(src));
+ok('лобби: искателю прячущихся не видно', /if \(me\.role === 'seeker'\) return;/.test(src));
+ok('в раунде видно всех',          /var hsWait = MODE === 'hideAndSeek' && !VIEW && phase === 'lobby';/.test(src));
+ok('все пойманы — сигнал серверу', /if \(hsSync\) socket\.emit\('hsCaught'\);/.test(src));
 
 console.log(fails ? '\nПРОВАЛЕНО проверок: ' + fails : '\nвсе проверки пройдены ✓');
 process.exit(fails ? 1 : 0);

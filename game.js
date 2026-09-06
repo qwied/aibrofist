@@ -76,6 +76,39 @@
     // у мобильной шапки падинг компактнее — безопасные зоны добавляем к нему же
     + 'html.is-mobile #gTop,html.is-tablet #gTop{padding-left:calc(9px + env(safe-area-inset-left,0px));'
     + 'padding-right:calc(9px + env(safe-area-inset-right,0px))}'
+    /* --- рулетка искателя (прятки): прямоугольная панель по центру,
+           карточки скин+ник, выделение — серые полоски в виде куба,
+           перескакивает на соседнюю карточку (на чуть-чуть) --- */
+    + '#gRoul{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:80;display:none;'
+    + 'background:rgba(15,23,42,.93);border-radius:16px;padding:15px 16px 13px;'
+    + 'box-shadow:0 26px 60px -22px rgba(0,0,0,.75);max-width:94vw;pointer-events:none}'
+    + '#gRoulT{color:#f8fafc;font:800 17px sans-serif;text-align:center;margin:0 0 10px;letter-spacing:.4px}'
+    + '#gRoulS{position:relative;display:flex;gap:12px;padding:17px 12px 11px;max-width:86vw;'
+    + 'overflow-x:auto;scrollbar-width:none}'
+    + '#gRoulS::-webkit-scrollbar{display:none}'
+    + '.rCard{position:relative;z-index:1;flex:0 0 auto;width:86px;background:#232e40;border-radius:10px;'
+    + 'padding:8px 6px 7px;text-align:center;box-shadow:0 4px 10px -6px rgba(0,0,0,.6)}'
+    + '.rSkin{height:80px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}'
+    + '.rSkin svg,.rSkin img{max-height:80px;max-width:74px}'
+    + '.rName{color:#e5e7eb;font:600 12px/1.2 sans-serif;margin-top:6px;max-width:76px;'
+    + 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    + '.rHl{position:absolute;top:0;left:0;z-index:0;border-radius:11px;pointer-events:none;'
+    + 'background:repeating-linear-gradient(45deg,#e2e6ee 0 7px,#8b93a1 7px 14px);'
+    + 'transition:transform .09s linear;width:0;height:0;'
+    + 'box-shadow:0 12px 26px -10px rgba(0,0,0,.7)}'
+    /* куб: верхняя и боковая грани из тех же серых полосок */
+    + '.rHl::before,.rHl::after{content:\'\';position:absolute;'
+    + 'background:repeating-linear-gradient(45deg,#edf0f5 0 6px,#9aa2b0 6px 12px)}'
+    + '.rHl::before{left:8px;right:-3px;top:-9px;height:9px;transform:skewX(-45deg);border-radius:3px 3px 0 0}'
+    + '.rHl::after{top:8px;bottom:-3px;right:-9px;width:9px;transform:skewY(-45deg);border-radius:0 3px 3px 0}'
+    + '.rHl.rWin{animation:rWin .55s ease-in-out 4 alternate;'
+    + 'box-shadow:0 0 0 3px rgba(255,255,255,.55),0 0 36px rgba(129,199,244,.6)}'
+    + '@keyframes rWin{from{filter:brightness(1)}to{filter:brightness(1.45)}}'
+    + 'html.is-mobile #gRoul,html.is-tablet #gRoul{top:36%;padding:11px 10px 10px}'
+    + 'html.is-mobile .rCard,html.is-tablet .rCard{width:74px}'
+    + 'html.is-mobile .rSkin,html.is-tablet .rSkin{height:68px}'
+    + 'html.is-mobile .rSkin svg,html.is-tablet .rSkin svg,html.is-mobile .rSkin img,html.is-tablet .rSkin img{max-height:68px}'
+    + 'html.is-mobile .rName,html.is-tablet .rName{max-width:66px;font-size:11px}'
     ;
 
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
@@ -90,6 +123,8 @@
     + '<button data-v="1">👍</button><button data-v="-1">👎</button>'
     + '<span id="gRating" style="color:#6b7280"></span></div></div>'
     + '<div id="gBanner"><h2 id="gbT"></h2><p id="gbP"></p></div>'
+    + '<div id="gRoul"><div id="gRoulT">Выбор искателя</div>'
+    + '<div id="gRoulS"><div class="rHl" id="gRoulHl"></div></div></div>'
     + '<div id="gChat"><input id="gMsg" maxlength="90"></div>'
     + '<button id="gTalk">Чат</button>'
 );
@@ -100,6 +135,9 @@
     $('gLblTime').textContent = TR('gTimeLbl', 'Время');
     $('gLblRole').textContent = TR('roleLbl', 'Роль');
     $('gExit').textContent = TR('menu', 'Меню');
+    var rt = $('gRoulT');                        // заголовок рулетки, если она на экране
+    if (rt && $('gRoul').style.display !== 'none')
+      rt.textContent = TR('roulTitle', 'Выбор искателя');
   }
   window.addEventListener('bf-lang', refreshGameLabels);
 
@@ -283,6 +321,130 @@
     applyColor();
   }
 
+  /* ---------- рулетка искателя (прятки) ----------
+     Роль больше не берётся «по первому id»: искателя выбирает сервер,
+     все клиенты комнаты показывают одну и ту же рулетку — прямоугольную
+     панель по центру с карточками (скин + ник), по которым прыгает
+     серое полосатое выделение-куб. Итог один у всех, крутился кто как. */
+  var hsSync = false;          // фазами пряток управляет сервер
+  var hsEver = false;          // сервер уже присылал события пряток
+  var hsWinnerId = null;       // кто искатель в текущем раунде
+  var roulTimers = [];
+  var roulRefresh = null;
+
+  function roulStop() {
+    roulTimers.forEach(clearTimeout);
+    roulTimers = [];
+    if (roulRefresh) { clearInterval(roulRefresh); roulRefresh = null; }
+    var r = $('gRoul');
+    if (r) r.style.display = 'none';
+    var hl = $('gRoulHl');
+    if (hl) hl.classList.remove('rWin');
+  }
+
+  function nameOfId(id, list) {
+    if (id === socket.id) return me.name;
+    var o = others[id];
+    if (o && o.name) return o.name;
+    if (list) for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i].name;
+    return '';
+  }
+
+  function applySeeker(id) {
+    hsWinnerId = id;
+    setRole(id === socket.id ? 'seeker' : 'hider');
+  }
+
+  // скин игрока для карточки: свой — из профиля, чужие — из сетевых пакетов
+  function skinForCard(pid, name) {
+    if (socket && pid === socket.id) {
+      if (myImg) return { img: myImg };
+      return GAME.mySkin || null;
+    }
+    var o = others[pid];
+    if (!o) return null;
+    var sk = o.skin;
+    if (sk && !sk.img) {
+      var pic = imgOf(name);
+      if (pic) sk = { head: sk.head, face: sk.face, body: sk.body, back: sk.back, img: pic };
+    }
+    return sk || null;
+  }
+
+  function paintSkins(cards) {
+    if (!window.BFSkin) return;
+    var byId = window.BF_SKIN_ITEMS || {};
+    cards.forEach(function (c) {
+      var html = BFSkin.render(skinForCard(c._pid, c._name), byId, { height: 76, color: '#d7dee8' });
+      if (c._html !== html) { c._html = html; c._skin.innerHTML = html; }
+    });
+  }
+
+  function placeHl(hl, card, strip) {
+    hl.style.width = (card.offsetWidth + 10) + 'px';
+    hl.style.height = (card.offsetHeight + 10) + 'px';
+    hl.style.transform = 'translate(' + (card.offsetLeft - 5) + 'px,' + (card.offsetTop - 5) + 'px)';
+    // длинная очередь не должна уезжать за край — полоска едет по центру панели
+    strip.scrollLeft = Math.max(0, card.offsetLeft - strip.clientWidth / 2 + card.offsetWidth / 2);
+  }
+
+  function runRoulette(d) {
+    roulStop();
+    var list = (d && d.players) || [];
+    var strip = $('gRoulS'), hl = $('gRoulHl'), box = $('gRoul');
+    var winIdx = -1;
+    for (var i = 0; i < list.length; i++) if (list[i].id === d.winnerId) { winIdx = i; break; }
+    if (!list.length || winIdx < 0 || !window.BFSkin) return;
+
+    banner('', '', false);            // рулетка вместо плашки ожидания
+    Array.prototype.slice.call(strip.querySelectorAll('.rCard'))
+      .forEach(function (el) { el.remove(); });
+    var cards = list.map(function (p) {
+      var c = document.createElement('div');
+      c.className = 'rCard';
+      var sk = document.createElement('div'); sk.className = 'rSkin';
+      var nm = document.createElement('div'); nm.className = 'rName';
+      nm.textContent = p.name || '';
+      c.appendChild(sk); c.appendChild(nm);
+      c._pid = p.id; c._name = p.name; c._skin = sk;
+      strip.appendChild(c);
+      return c;
+    });
+    paintSkins(cards);
+    // скины подгружаются из сети — пока крутится, карточки обновляются
+    roulRefresh = setInterval(function () { paintSkins(cards); }, 450);
+
+    /* график шагов: старт бодрый, к финишу медленнее — итог вместе
+       с паузой на победителе укладывается в 10 секунд. Число шагов
+       подгоняется так, чтобы остановиться ровно на победителе. */
+    var steps = [], t = 0, iv = 55;
+    while (t < 5200) { steps.push(iv); t += iv; iv = Math.min(iv * 1.14, 300); }
+    var n = cards.length;
+    var delta = ((winIdx - steps.length) % n + n) % n;
+    for (var a = 0; a < delta; a++) steps.unshift(55);
+
+    $('gRoulT').textContent = TR('roulTitle', 'Выбор искателя');
+    box.style.display = 'block';
+    placeHl(hl, cards[0], strip);
+    var acc = 0;
+    steps.forEach(function (ms, k) {
+      roulTimers.push(setTimeout(function () {
+        placeHl(hl, cards[(k + 1) % n], strip);
+      }, acc += ms));
+    });
+    roulTimers.push(setTimeout(function () {
+      if (roulRefresh) { clearInterval(roulRefresh); roulRefresh = null; }
+      applySeeker(d.winnerId);
+      hl.classList.add('rWin');
+      placeHl(hl, cards[winIdx], strip);
+      log(TR('roulSeekerIs', 'Искатель: ') + '<b>' + esc(nameOfId(d.winnerId, list)) + '</b>');
+      roulTimers.push(setTimeout(function () {
+        box.style.display = 'none';
+        hl.classList.remove('rWin');
+      }, 1800));
+    }, acc + 260));
+  }
+
   // ---------- таймер и фазы ----------
   function fmt(ms) {
     if (ms < 0) ms = 0;
@@ -293,7 +455,14 @@
     if (phase === 'dev' || phase === 'loading') return;
     var left = phaseEnds - Date.now();
     $('gTime').textContent = fmt(left);
-    if (left <= 0) advance();
+    if (left <= 0) {
+      // фазами пряток управляет сервер: ждём его событие, а не переключаемся сами
+      if (hsSync && MODE === 'hideAndSeek' && socket && socket.connected) {
+        if (Date.now() - phaseEnds > 10000) hsSync = false;   // сервер молчит — вернёмся к своим таймерам
+        return;
+      }
+      advance();
+    }
   }, 250);
 
   function advance() {
@@ -303,7 +472,6 @@
         clearCaught();               // новый раунд — все снова не пойманы
         banner('', '', false);
         log(TR('roundStart', 'Раунд начался! 2 минуты'));
-        if (socket) socket.emit('sendChat', { text: 'Раунд начался' });
       } else {
         phase = 'lobby'; phaseEnds = Date.now() + LOBBY_MS;
         clearCaught();
@@ -319,8 +487,10 @@
   }
 
   // ---------- запуск по режимам ----------
+  var bootAt = 0;
   function boot() {
     GAME.setGrid(false);
+    bootAt = Date.now();
 
     if (VIEW) {                       // просмотр карты из Maps Browser
       phase = 'dev';
@@ -381,8 +551,20 @@
         me.name = (signed && signed.data && !signed.data.guest) ? signed.data.name : guestName();
         ROOM = pick.room || 'room1';
         socket.emit('join', { playerName: me.name, gameMode: MODE, room: ROOM });
+
+        // запасной путь: старый сервер ничего о рулетке не знает — тогда,
+        // как и раньше, искателем становится игрок с наименьшим id
+        setTimeout(function () {
+          if (hsEver || MODE !== 'hideAndSeek' || VIEW || !socket.connected) return;
+          var lowest = socket.id;
+          Object.keys(others).forEach(function (id) { if (id < lowest) lowest = id; });
+          applySeeker(lowest);
+        }, 5000);
       });
     });
+
+    // при обрыве связи серверные фазы недоступны — действуем по своим таймерам
+    socket.on('disconnect', function () { hsSync = false; });
 
     // сервер мог поправить имя: сессия сильнее присланного, а гостю
     // нельзя сидеть под чужим зарегистрированным ником
@@ -400,12 +582,7 @@
       });
       Object.keys(others).forEach(function (id) { if (!seen[id]) delete others[id]; });
       $('gCount').textContent = Object.keys(others).length + 1;
-
-      // искатель — тот, у кого наименьший id среди присутствующих
-      if (MODE === 'hideAndSeek') {
-        var ids = list.map(function (p) { return p.id; }).sort();
-        setRole(ids.length && ids[0] === socket.id ? 'seeker' : 'hider');
-      }
+      // роль приходит из рулетки (hsRoulette/hsState) — здесь её больше не считаем
     });
 
     socket.on('playerJoined', function (p) {
@@ -441,6 +618,63 @@
     socket.on('chatMessage', function (m) {
       if (m.playerName !== me.name) speak(m.playerName, m.text);
       watchCaught(m.text);
+    });
+
+    /* ---------- прятки: серверные события ---------- */
+
+    // новый раунд: сервер выбрал искателя и разослал состав рулетки
+    socket.on('hsRoulette', function (d) {
+      hsSync = true; hsEver = true;
+      if (MODE !== 'hideAndSeek' || !d) return;
+      phase = 'lobby';
+      if (d.msLeft) phaseEnds = Date.now() + d.msLeft;
+      hsWinnerId = null;                 // пока крутится — ролей нет, никого не видно
+      me.role = 'hider';
+      $('gRoleBox').style.display = 'none';
+      clearCaught();
+      runRoulette(d);
+    });
+
+    // смена фазы: конец рулетки/прятаний — начало охоты и обратно
+    socket.on('hsPhase', function (d) {
+      hsSync = true; hsEver = true;
+      if (MODE !== 'hideAndSeek' || !d || !d.phase) return;
+      if (d.phase === 'round') {
+        roulStop();
+        phase = 'round';
+        phaseEnds = Date.now() + (d.msLeft || ROUND_MS);
+        clearCaught();
+        if (d.seekerId) applySeeker(d.seekerId);
+        banner('', '', false);
+        log(TR('roundStart', 'Раунд начался! 2 минуты'));
+      } else if (d.phase === 'lobby') {
+        phase = 'lobby';
+        phaseEnds = Date.now() + (d.msLeft || LOBBY_MS);
+        hsWinnerId = null;
+        me.role = 'hider';
+        $('gRoleBox').style.display = 'none';
+        clearCaught();
+        // свою первую карту уже загрузили в boot — не грузим вторую подряд
+        if (Date.now() - bootAt > 5000) nextMap();
+      }
+    });
+
+    // подключились посреди раунда/лобби: сервер сразу говорит, кто искатель
+    socket.on('hsState', function (d) {
+      hsSync = true; hsEver = true;
+      if (MODE !== 'hideAndSeek' || !d || !d.phase) return;
+      phase = d.phase;
+      phaseEnds = Date.now() + (d.msLeft || (d.phase === 'round' ? ROUND_MS : LOBBY_MS));
+      if (d.phase === 'round') {
+        roulStop();
+        if (d.seekerId) applySeeker(d.seekerId);
+      } else {
+        clearCaught();
+        if (d.seekerId) {
+          applySeeker(d.seekerId);
+          log(TR('roulSeekerIs', 'Искатель: ') + '<b>' + esc(nameOfId(d.seekerId)) + '</b>');
+        }
+      }
     });
   }
 
@@ -486,8 +720,13 @@
 
     switching = true;
     log(TR('allCaughtT', 'Все пойманы — раунд окончен!'));
-    if (socket) socket.emit('sendChat', { text: 'Все пойманы' });
-    setTimeout(function () { switching = false; advance(); }, 1200);
+    if (socket) {
+      // при серверных фазах досрочно завершает раунд сервер —
+      // сообщение принимается только от текущего искателя
+      if (hsSync) socket.emit('hsCaught');
+      else socket.emit('sendChat', { text: 'Все пойманы' });
+    }
+    setTimeout(function () { switching = false; if (!hsSync) advance(); }, 1200);
   }
 
   // пойманным считает тот, кого назвали в чате
@@ -510,6 +749,7 @@
   var switching = false;
   function checkAllFinished() {
     if (switching || phase !== 'round' || VIEW) return;
+    if (MODE === 'hideAndSeek' && hsSync) return;   // в прятках фазами правит сервер
     if (!GAME.done) return;
     var ids = Object.keys(others);
     for (var i = 0; i < ids.length; i++) if (!others[ids[i]].fin) return;
@@ -526,10 +766,19 @@
 
   // ---------- отрисовка чужих игроков ----------
   GAME.onDraw = function (ctx) {
+    /* Правила видимости пряток: пока крутится рулетка и пока прячутся,
+       прячущиеся не видят искателя, а искатель не видит прячущихся.
+       После начала раунда (охота) видно всех. */
+    var hsWait = MODE === 'hideAndSeek' && !VIEW && phase === 'lobby';
     Object.keys(others).forEach(function (id) {
       var o = others[id];
       o.x += (o.tx - o.x) * 0.3;
       o.y += (o.ty - o.y) * 0.3;
+      if (hsWait) {
+        if (!hsWinnerId) return;                 // рулетка ещё не ответила — никого не рисуем
+        if (id === hsWinnerId) return;           // искатель скрыт от прячущихся
+        if (me.role === 'seeker') return;        // искатель не видит прячущихся
+      }
       // спрятался за объектом — ни фигуры, ни ника, ни реплики
       if (o.hid) return;
       var w = o.w || 22, h = o.h || 74;
