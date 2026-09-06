@@ -38,11 +38,14 @@ ok('вращение по свойству',  /if\(o\.spins\)/.test(src));
 ok('батут по свойству',     /if\(o\.bouncy\)\{/.test(src));
 ok('несёт игрока',          /pl\.x \+= pl\.rideOn\._dx\|\|0; pl\.y \+= pl\.rideOn\._dy\|\|0;/.test(src));
 ok('сдвиг платформы один раз', !/if\(o\.moves\)\{ pl\.x \+=/.test(src) && /if\(o\.moves\) pl\.rideOn = o;/.test(src));
-ok('толчок ограничен PUSH_MAX', /PUSH_MAX = 3/.test(src) &&
-                                /var push = Math\.max\(-PUSH_MAX, Math\.min\(PUSH_MAX, pdx\)\)/.test(src));
-ok('едущая платформа проходит сквозь', /\} else if\(!o\.moves \|\| outUp <= STEP_UP\)\{/.test(src));
+ok('толчок ограничен PUSH_MAX', /PUSH_MAX = 10/.test(src) &&
+                                /needX > Math\.abs\(pl\.vx\) \+ 2 && needX > PUSH_MAX\) return;/.test(src));
+ok('посадка по «откуда пришёл»', /var fromTop   = \(yBefore \+ pl\.h\) <= topWas \+ 2;/.test(src) &&
+                                /var yBefore = pl\.y;/.test(src));
+ok('едущая платформа проходит сквозь', /\} else if\(!o\.moves\)\{/.test(src) &&
+                                /pl\.vy < 0 && \(!o\.moves \|\| fromBelow\)/.test(src));
 ok('толчок только у движущихся', /var pdx = o\.moves \? \(o\._dx\|\|0\) : 0;/.test(src) &&
-                                /var pdy     = o\.moves \? \(o\._dy\|\|0\) : 0;/.test(src));
+                                /var pdy = o\.moves \? \(o\._dy\|\|0\) : 0;/.test(src));
 ok('статика ведёт себя как раньше', /if\(pl\.vx !== 0\) pl\.wall = 1;/.test(src));
 ok('то же в игре',          /pl\.rideOn/.test(game) && !/if\(o\.moves\)\{ pl\.x \+=/.test(game));
 ok('плоская заливка',       /function grad\([^)]*\)\{ return a; \}/.test(src));

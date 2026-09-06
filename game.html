@@ -202,12 +202,12 @@ body.mob #msg h1{font-size:38px}
 #zoomBox,#hint,#hud,#file{display:none !important}
 body{background:#eef2f8;overflow:hidden}
 </style>
-        <script src="device.js?v=91"></script>
-        <script src="skinRender.js?v=91"></script>
-        <script src="skinCanvas.js?v=91"></script>
-        <script src="coin.js?v=91"></script>
+        <script src="device.js?v=92"></script>
+        <script src="skinRender.js?v=92"></script>
+        <script src="skinCanvas.js?v=92"></script>
+        <script src="coin.js?v=92"></script>
         <link rel="stylesheet" type="text/css" href="mobile.css?v=85">
-        <script src="theme.js?v=91"></script>
+        <script src="theme.js?v=92"></script>
         <link rel="icon" href="/favicon.ico" sizes="32x32">
         <link rel="icon" type="image/svg+xml" href="/favicon.svg">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -753,7 +753,7 @@ function drawParts(){
    В воздухе инерция остаётся, иначе управление в прыжке ломается. */
 var JUMP_H = 122, MOVE_A = 0.9, MAX_VX = 5.2, FRIC = 0, AIR = 0.94,
     COYOTE = 6, BUFFER = 7, WALL_SLIDE = 2.6, WALL_VX = 6.2, STEP_UP = 16,
-    PUSH_MAX = 3;   // насколько сильно движущийся блок может сдвинуть игрока за кадр
+    PUSH_MAX = 10;  // сдвиг больше этого движущийся блок не делает — проходит сквозь
 function G(){ return gravityScale * 0.062; }          // 9 → 0.558 px/кадр²
 function jumpV(){ return -Math.sqrt(2 * Math.max(0.02, G()) * JUMP_H); }  // constant hop height
 /* Heavier gravity shortens airtime, so speed scales with it — otherwise a map
@@ -1108,18 +1108,13 @@ function step(){
             : (pl.x + pl.w/2 < (sp[0]+sp[1])/2));
     var needX = goL ? (pl.x + pl.w) - sp[0] : sp[1] - pl.x;
     var pdx = o.moves ? (o._dx||0) : 0;
-    if(pdx !== 0 && needX > Math.abs(pl.vx) + 2){
-      /* Толчок ограничен PUSH_MAX за кадр. Медленная платформа везёт
-         игрока как стенка, а быстрая просто проходит сквозь него,
-         слегка подвинув, — вместо того чтобы утащить со своей
-         скоростью (это и выглядело как телепорт через пол-карты). */
-      var push = Math.max(-PUSH_MAX, Math.min(PUSH_MAX, pdx));
-      pl.x = push > 0 ? Math.min(pl.x + push, sp[1])
-                      : Math.max(pl.x + push, sp[0] - pl.w);
-      pl.wall = 0;                     // сквозь игрока — не стена, за неё не цепляемся
-      if(pl.vx * pdx < 0) pl.vx = 0;   // встречный разбег гасим, попутный оставляем
-      return;
-    }
+    /* Игрок глубже, чем мог въехать сам за кадр, — значит в него въехала
+       платформа. Небольшую глубину она выталкивает, как обычная стенка.
+       Но если она едет так быстро, что вытолкнуть пришлось бы больше
+       PUSH_MAX, — просто проходит сквозь, а не швыряет игрока через
+       пол-карты. Запрыгнуть на неё сверху это не мешает: посадку решает
+       вертикальный проход, а не этот. */
+    if(pdx !== 0 && needX > Math.abs(pl.vx) + 2 && needX > PUSH_MAX) return;
     if(goL){ pl.x = sp[0] - pl.w; if(pl.vx !== 0) pl.wall = 1; }
     else   { pl.x = sp[1];        if(pl.vx !== 0) pl.wall = -1; }
     /* Рикошет отражает движение, а не гасит его. Медленное касание не
@@ -1129,6 +1124,7 @@ function step(){
   });
 
   var wasAir = !pl.ground;
+  var yBefore = pl.y;                              // где игрок был до этого шага
   pl.y += pl.vy; pl.ground = false;
   sol.forEach(function(o){
     var bb = bbox(o);
@@ -1137,12 +1133,18 @@ function step(){
     var sp = spanY(P, pl.x + 2, pl.x + pl.w - 2);
     if(!sp || pl.y >= sp[1] || pl.y + pl.h <= sp[0]) return;
 
-    var outUp   = (pl.y + pl.h) - sp[0];           // сдвиг вверх, встать сверху
-    var outDown = sp[1] - pl.y;                    // сдвиг вниз, уйти под низ
-    var pdy     = o.moves ? (o._dy||0) : 0;
-    var needY   = (pl.vy < 0) ? outDown : outUp;   // обычный выталкивающий сдвиг
+    var pdy = o.moves ? (o._dy||0) : 0;
+    /* Откуда игрок пришёл — считаем не по глубине провала, а по тому, где
+       были его ноги (голова) и где была грань ДО этого шага. Так одинаково
+       ловится и быстрое падение, и платформа, подъехавшая под ноги сама.
+       У неподвижного блока pdy = 0, и оба условия сводятся к прежним —
+       статичная геометрия ведёт себя один в один. */
+    var topWas  = Math.max(sp[0], sp[0] - pdy);   // крышка: где была или где стала
+    var botWas  = Math.min(sp[1], sp[1] - pdy);   // то же для нижней грани
+    var fromTop   = (yBefore + pl.h) <= topWas + 2;
+    var fromBelow = yBefore >= botWas - 2;
 
-    if(pl.vy >= 0 && outUp <= Math.max(2, pl.vy + 2)){
+    if(pl.vy >= 0 && fromTop){
       pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE;
       // приземление сверху: рикошет швыряет игрока обратно по нормали грани
       if(o.ricochet && pl.vy > RICO_MIN){
@@ -1153,30 +1155,17 @@ function step(){
       }
       // едем вместе с платформой — сдвиг применится в начале следующего шага
       if(o.moves) pl.rideOn = o;
-    } else if(pdy !== 0 && needY > Math.abs(pl.vy) + 2){
-      /* Платформа наехала сама — двигает игрока перед собой на свой сдвиг:
-         вверх выносит на крышку, вниз придавливает. Без бросков. */
-      if(pdy < 0){
-        pl.y = Math.max(pl.y + pdy, sp[0] - pl.h);
-        if(pl.y + pl.h <= sp[0] + 0.5){
-          pl.ground = true; coy = COYOTE; pl.vy = 0; pl.selfJump = false; pl.rideOn = o;
-        }
-      } else {
-        pl.y = Math.min(pl.y + pdy, sp[1]);
-        if(pl.vy < 0) pl.vy = 0;
-      }
-    } else if(pl.vy < 0){
+    } else if(pl.vy < 0 && (!o.moves || fromBelow)){
       // удар головой снизу
       if(o.ricochet && Math.abs(pl.vy) > RICO_MIN){ pl.y = sp[1]; ricochet(o); }
       else { pl.y = sp[1]; pl.vy = 0; }
-    } else if(!o.moves || outUp <= STEP_UP){
-      // статичный блок — как раньше; движущийся — только если крышка рядом
+    } else if(!o.moves){
+      // глубокий провал в неподвижный блок — как раньше, ставим сверху
       pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE; pl.vy = 0; pl.selfJump = false;
-      if(o.moves) pl.rideOn = o;
     }
-    /* Иначе игрока накрыла сбоку едущая платформа: она проходит сквозь
-       него, а не выдёргивает наверх. Раньше его в этот момент вздёргивало
-       на крышку — вторая половина «телепорта». */
+    /* Иначе игрока накрыла сбоку едущая платформа — она проходит сквозь,
+       не выдёргивая наверх и не швыряя вниз. Запрыгнуть на неё сверху это
+       не мешает: посадку ловит первая ветка. */
   });
   if(pl.ground) pl.wall = 0;
 
@@ -2042,12 +2031,12 @@ socket.on('connect', () => {
 
 
 </script>
-<script src="account.js?v=91" defer></script>
+<script src="account.js?v=92" defer></script>
 
 
-<script src="game.js?v=91"></script>
-        <script src="i18n.js?v=91"></script>
-        <script src="owner.js?v=91" defer></script>
-        <script src="skinAvatar.js?v=91" defer></script>
+<script src="game.js?v=92"></script>
+        <script src="i18n.js?v=92"></script>
+        <script src="owner.js?v=92" defer></script>
+        <script src="skinAvatar.js?v=92" defer></script>
 </body>
 </html>

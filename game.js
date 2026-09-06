@@ -127,6 +127,9 @@
     + 'justify-content:center;overflow:hidden;'
     + 'background:linear-gradient(180deg,#f8fafd 0%,#e3eaf5 100%)}'
     + '.rSkin svg,.rSkin img{display:block;max-width:86%}'
+    // скин ещё не пришёл — вместо пустоты нейтральный силуэт
+    + '.rSkin:empty::after{content:\'\';display:block;width:34%;height:62%;'
+    + 'background:#c3ccda;border-radius:14px 14px 6px 6px}'
     + '.rName{width:100%;padding:7px 7px 1px;text-align:center;color:#eaf0fa;'
     + 'font:700 14px/1.25 sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
     + 'border-top:1px solid rgba(148,163,184,.14);background:rgba(9,14,26,.6)}'
@@ -472,7 +475,9 @@
     var frame = $('gRoulFrame'), res = $('gRoulRes'), sub = $('gRoulSub');
     var winIdx = -1;
     for (var i = 0; i < list.length; i++) if (list[i].id === d.winnerId) { winIdx = i; break; }
-    if (!list.length || winIdx < 0 || !window.BFSkin) return;
+    // рендер скинов может ещё не загрузиться — рулетку это больше не отменяет,
+    // карточки просто появятся с силуэтом и дорисуются, когда он будет готов
+    if (!list.length || winIdx < 0) return;
 
     banner('', '', false);            // рулетка вместо плашки ожидания
 
@@ -761,8 +766,8 @@
       me.role = 'hider';
       $('gRoleBox').style.display = 'none';
       clearCaught();
-      showChance((d.players) || []);
       runRoulette(d);
+      showChance((d.players) || []);
     });
 
     // смена фазы: конец рулетки/прятаний — начало охоты и обратно
