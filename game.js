@@ -774,13 +774,111 @@
   }, 2500);
 
   // ---------- сеть ----------
+  /* БЫСТРЫЙ СЕРВЕР: адрес игрового воркера на Cloudflare Workers —
+     пинг 10–60 мс вместо 150 до далёкого дата-центра. Впиши сюда свой
+     адрес (README воркера, шаг 5) или оставь пустым, чтобы играть через
+     прежний сервер Railway. Можно проверить и без правки файла:
+     game.html?mode=race&ws=wss://адрес-воркера/ws */
+  var DEFAULT_WS_URL = '';
+  var wsGaveUp = false;          // воркер недоступен — вернулись на старый сервер
+  var wsActive = false;          // сейчас подключаемся через воркер
+  var sendGap = 33;              // интервал отправки движения, мс
+  var pingTimer = null;
+
+  /* Шим socket.io поверх чистого WebSocket: Workers не поддерживает
+     socket.io, поэтому сервер на воркере говорит простым JSON.
+     Шим повторяет нужную часть его API — .on, .emit, .id, .connected,
+     события connect/disconnect, автопереподключение. */
+  function makeSocket(url, onDead) {
+    var sock = { id: null, connected: false, _ls: {} };
+    var ws = null, tries = 0, retryT = null, dead = false;
+
+    function fire(ev, d) {
+      var l = sock._ls[ev];
+      if (!l) return;
+      for (var i = 0; i < l.length; i++) { try { l[i](d); } catch (e) {} }
+    }
+    sock.on = function (ev, f) { (sock._ls[ev] = sock._ls[ev] || []).push(f); };
+    sock.emit = function (ev, d) {
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ ev: ev, data: d === undefined ? null : d }));
+    };
+    sock.disconnect = function () {
+      dead = true;
+      if (retryT) clearTimeout(retryT);
+      if (ws) { try { ws.close(); } catch (e) {} }
+    };
+
+    function open() {
+      if (dead) return;
+      if (retryT) { clearTimeout(retryT); retryT = null; }
+      var thisWs;
+      try { ws = new WebSocket(url); } catch (e) { fail(); return; }
+      thisWs = ws;
+      ws.onopen = function () { tries = 0; };          // связь есть — счётчик неудач в ноль
+      ws.onmessage = function (e) {
+        var m; try { m = JSON.parse(e.data); } catch (err) { return; }
+        if (!m || typeof m.ev !== 'string') return;
+        if (m.ev === 'init') {                        // воркер выдал наш id
+          sock.id = m.data.id;
+          sock.connected = true;
+          fire('connect');
+          return;
+        }
+        fire(m.ev, m.data);
+      };
+      ws.onclose = function () {
+        if (sock.connected) { sock.connected = false; sock.id = null; fire('disconnect'); }
+        schedule();
+      };
+      ws.onerror = function () { try { ws.close(); } catch (err) {} };
+      /* Открылось, но init не пришёл: канал бесполезен (исчерпанный лимит
+         воркера часто выглядит именно так) — закрываем, это неудача. */
+      setTimeout(function () {
+        if (ws === thisWs && !sock.connected && ws.readyState === 1) {
+          try { ws.close(); } catch (err) {}
+        }
+      }, 5000);
+    }
+
+    function schedule() {
+      if (dead) return;
+      tries++;
+      if (tries >= 3 && onDead) { dead = true; onDead(); return; }  // сдались — старый сервер
+      retryT = setTimeout(open, Math.min(2000 * tries, 5000));
+    }
+    function fail() { if (!dead) schedule(); }
+
+    open();
+    return sock;
+  }
+
   function connect() {
-    /* Сначала websocket: долгий опрос (polling) добавляет к каждому
-       пакету десятки миллисекунд, а на части сетей апгрейд до websocket
-       вовсе не проходит — и игрок навсегда оставался на медленном
-       транспорте. Теперь websocket первый, polling — запасной на случай
-       его полного запрета (tryAllTransports пробует по очереди). */
-    socket = io({ transports: ['websocket', 'polling'], tryAllTransports: true });
+    var wsUrl = (q.get('ws') || DEFAULT_WS_URL || '').trim();
+    wsActive = !!wsUrl && !wsGaveUp;
+    sendGap = wsActive ? 50 : 33;   // воркер считает каждое сообщение: 20 Гц бережёт лимит
+    if (wsActive) {
+      /* Воркер не отвечает (не задеплоен, лимит исчерпан, провайдер
+         блокирует): после трёх неудач игра автоматически вернётся на
+         прежний сервер — никто не остаётся без мультиплеера. */
+      socket = makeSocket(wsUrl, function () {
+        wsGaveUp = true;
+        setTimeout(connect, 0);
+      });
+    } else {
+      /* Сначала websocket: долгий опрос (polling) добавляет к каждому
+         пакету десятки миллисекунд, а на части сетей апгрейд до websocket
+         вовсе не проходит — и игрок навсегда оставался на медленном
+         транспорте. websocket первый, polling — запасной на случай
+         его полного запрета (tryAllTransports пробует по очереди). */
+      socket = io({ transports: ['websocket', 'polling'], tryAllTransports: true });
+    }
+    bindNet();
+  }
+
+  /* Все подписи на события сокета — отдельной функцией: при переходе
+     с воркера на старый сервер сокет пересоздаётся, и обработчики
+     навешиваются на новый экземпляр без дублирования. */
+  function bindNet() {
 
     socket.on('connect', function () {
       // сервер завёл нас заново: пусть первый же пакет несёт всё, включая скин
@@ -844,7 +942,8 @@
     });
 
     /* ---------- задержка до сервера ---------- */
-    var pingTimer = setInterval(function () {
+    if (pingTimer) clearInterval(pingTimer);      // переподключение не плодит таймеры
+    pingTimer = setInterval(function () {
       if (socket && socket.connected) socket.emit('pingCheck', Date.now());
     }, 2000);
     socket.on('pongCheck', function (t) {
@@ -877,6 +976,13 @@
       others[p.id] = { x: 0, y: 0, tx: 0, ty: 0, name: p.name, nid: p.nid };
       applyKnown(others[p.id], p.position);
       bindNid(others[p.id]);
+      /* Как на старом сервере (сброс «что уже отправлено» при входе):
+         следующий же наш пакет несёт всё — размер, цвет, реплику и скин,
+         чтобы новичок увидел каждого оформленным, а не голой фигурой. */
+      prev.x = prev.y = prev.w = prev.h = null;
+      prev.c = prev.s = prev.f = prev.d = null;
+      lastSk = null;
+      lastForce = 0;
       log(esc(p.name) + TR('joinedWord', ' зашёл'), 's');
       $('gCount').textContent = Object.keys(others).length + 1;
     });
@@ -995,7 +1101,13 @@
     if (!socket || !joined || !GAME.playing) return;
     var p = GAME.pl;
     var now = Date.now();
-    if (now - lastSent < 33) return;
+    /* Один в комнате — канал не тратим: контрольный пакет раз в секунду.
+       Через воркер шлём 20 раз в секунду: каждое сообщение у него
+       считается запросом, а разницу до 30 Гц добирает интерполяция. */
+    var alone = true;
+    for (var k in others) { alone = false; break; }
+    var minGap = alone ? 1000 : sendGap;
+    if (now - lastSent < minGap) return;
 
     var pos = {
       x: Math.round(p.x), y: Math.round(p.y), w: p.w, h: p.h,

@@ -1,5 +1,7 @@
 /* AIBROFIST — автоперевод интерфейса
-   Язык берётся с сервера (страна по IP -> язык), либо из Settings игрока.
+   БАЗОВЫЙ ЯЗЫК САЙТА — английский. Он же язык ссылок и заголовков страниц.
+   Дальше язык меняется только явным выбором игрока в Settings
+   (сохраняется в браузер и в аккаунт). Автоперевод «по стране» отключён.
    Порядок в массивах: ru, en, uk, de, fr, es, pt, pl, tr, zh            */
 (function () {
   'use strict';
@@ -332,8 +334,8 @@
     'Создать аккаунт': 'createAcc', 'Гость': 'guest', 'Загрузка…': 'loading'
   };
 
-  var lang = 'ru';
-  var idx = 0;
+  var lang = 'en';
+  var idx = 1;
 
   function t(key) {
     var row = D[key];
@@ -460,17 +462,18 @@
   function boot() {
     var cached = null;
     try { cached = localStorage.getItem('bfLang'); } catch (e) {}
-    if (cached && LANGS.indexOf(cached) !== -1) setLang(cached, true);
+    if (cached && LANGS.indexOf(cached) !== -1) { setLang(cached, true); return; }
+
+    /* база — английский; автодетект по стране больше не включаем.
+       Применяем ТОЛЬКО язык, сохранённый игроком в аккаунте (Settings). */
+    setLang('en', true);
 
     fetch('/i18n/detect', { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        var next = (d && d.lang) || 'en';
-        if (d && d.source === 'auto' && !cached) next = guess();
-        if (cached && LANGS.indexOf(cached) !== -1 && !(d && d.saved)) next = cached;
-        setLang(next, true);
+        if (d && d.saved && d.lang && LANGS.indexOf(d.lang) !== -1) setLang(d.lang, true);
       })
-      .catch(function () { if (!cached) setLang(guess(), true); });
+      .catch(function () {});
 
     // чужие бандлы дорисовывают интерфейс позже — следим
     try {
