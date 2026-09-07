@@ -29,6 +29,75 @@
     return n;
   }
   var others = {};
+
+  /* ---------- сглаживание чужих игроков ----------
+     Сервер шлёт один кадр на комнату 20 раз в секунду. Позицию не
+     применяем сразу: складываем в буфер с меткой времени, а рисуем чуть
+     «в прошлом», интерполируя между двумя соседними кадрами. Именно это
+     убирает рывки: между пакетами игрок не догоняет цель скачком, а едет
+     по прямой между двумя известными точками. */
+  var byNid = {};                 // короткий номер игрока -> запись в others
+  var INTERP_MIN = 55, INTERP_MAX = 200;
+  var interp = 100;               // насколько отстаём от последнего кадра, мс
+  var lastSnapAt = 0, gapAvg = 50, gapPeak = 50;
+  var pingMs = 0;
+
+  function nowMs() {
+    return (window.performance && performance.now) ? performance.now() : Date.now();
+  }
+
+  function bindNid(o) { if (o && o.nid !== undefined) byNid[o.nid] = o; }
+
+  /* Буфер подстраивается под сеть: на ровном канале сжимается почти до
+     интервала кадров, на дёрганом растягивается, чтобы движение осталось
+     гладким. Отставание всегда минимальное из возможных для этой связи. */
+  function noteSnapshot(t) {
+    if (lastSnapAt) {
+      var gap = t - lastSnapAt;
+      if (gap < 2000) {
+        gapAvg = gapAvg * 0.88 + gap * 0.12;
+        gapPeak = Math.max(gapAvg, gapPeak * 0.94, gap);
+        interp = Math.max(INTERP_MIN, Math.min(INTERP_MAX, gapPeak + 20));
+      }
+    }
+    lastSnapAt = t;
+  }
+
+  function pushSnap(o, t, x, y) {
+    o.buf = o.buf || [];
+    o.buf.push({ t: t, x: x, y: y });
+    if (o.buf.length > 8) o.buf.shift();
+    o.tx = x; o.ty = y;
+  }
+
+  /* Где игрок находится в момент rt. Между двумя кадрами — прямая; если
+     следующий кадр опоздал, коротко продолжаем по последней скорости (не
+     больше 120 мс), чтобы движение не замирало из-за одного потерянного
+     пакета. */
+  function sample(o, rt) {
+    var b = o.buf;
+    if (!b || !b.length) return null;
+    if (b.length === 1) return b[0];
+    var last = b[b.length - 1];
+    // вкладка была свёрнута — не доигрываем старое, показываем как есть
+    if (rt - last.t > 500) return last;
+    for (var i = b.length - 1; i > 0; i--) {
+      var a = b[i - 1], c = b[i];
+      if (a.t <= rt && rt <= c.t) {
+        var k = (rt - a.t) / Math.max(1, c.t - a.t);
+        return { x: a.x + (c.x - a.x) * k, y: a.y + (c.y - a.y) * k };
+      }
+    }
+    if (rt > last.t) {
+      var prevS = b[b.length - 2];
+      var span = Math.max(1, last.t - prevS.t);
+      var d = Math.min(rt - last.t, 120);
+      return { x: last.x + (last.x - prevS.x) * d / span,
+               y: last.y + (last.y - prevS.y) * d / span };
+    }
+    return b[0];
+  }
+
   var currentMap = null;
   var socket = null;
   var phase = 'loading';        // loading | lobby | round | over | dev
@@ -153,6 +222,7 @@
   document.body.insertAdjacentHTML('beforeend',
       '<div id="gTop"><span id="gRoleBox" style="display:none"><span id="gLblRole">Роль</span>: <b id="gRole"></b></span>'
     + '<span><span id="gLblPlayers">Игроков</span>: <b id="gCount">1</b></span>'
+    + '<span><span id="gLblPing">Пинг</span>: <b id="gPing">—</b></span>'
     + '<span id="gTimeBox"><span id="gLblTime">Время</span>: <b id="gTime">—</b></span>'
     + '<button id="gExit">Меню</button></div>'
     + '<div id="gMap"><div class="n" id="gMapName">Загрузка карты…</div>'
@@ -173,6 +243,7 @@
   /* надписи верхней панели обновляются при смене языка */
   function refreshGameLabels() {
     $('gLblPlayers').textContent = TR('gPlayers', 'Игроков');
+    $('gLblPing').textContent = TR('gPing', 'Пинг');
     $('gLblTime').textContent = TR('gTimeLbl', 'Время');
     $('gLblRole').textContent = TR('roleLbl', 'Роль');
     $('gExit').textContent = TR('menu', 'Меню');
@@ -269,6 +340,7 @@
 
   // Дверь засчитывается, когда в ней все игроки — движок спрашивает список здесь
   if (window.GAME) {
+    window.GAME.netSample = sample;     // тесты гоняют ту же функцию, что и игра
     window.GAME.others = function () {
       var out = [];
       for (var k in others) {
@@ -706,13 +778,55 @@
       if (d && d.name) me.name = d.name;
     });
 
+    socket.on('state', function (list) {
+      if (!list || !list.length) return;
+      var t = nowMs();
+      noteSnapshot(t);
+
+      for (var i = 0; i < list.length; i++) {
+        var e = list[i], o = byNid[e.n];
+        if (!o) continue;                       // о новичке ещё не рассказали
+        pushSnap(o, t, e.x, e.y);
+        if (e.w !== undefined) { o.w = e.w; o.h = e.h; }
+        if (e.c !== undefined) o.color = e.c || COLOR_NORMAL;
+        if (e.s !== undefined) o.say = e.s || '';
+        if (e.f !== undefined) o.fin = !!e.f;
+        if (e.d !== undefined) o.hid = !!e.d;
+        if (e.k !== undefined) {
+          o.skin = strToSkin(e.k);
+          // картинка скина весит сотни килобайт, по сети её не гоняем:
+          // берём из кеша по нику
+          if (o.skin) { var pic = imgOf(o.name); if (pic) o.skin.img = pic; }
+        }
+      }
+    });
+
+    /* ---------- задержка до сервера ---------- */
+    var pingTimer = setInterval(function () {
+      if (socket && socket.connected) socket.emit('pingCheck', Date.now());
+    }, 2000);
+    socket.on('pongCheck', function (t) {
+      var ms = Math.max(0, Date.now() - t);
+      pingMs = pingMs ? Math.round(pingMs * 0.6 + ms * 0.4) : ms;
+      var el = $('gPing');
+      if (el) el.textContent = pingMs + ' ' + TR('gPingMs', 'мс');
+    });
+
     socket.on('playersList', function (list) {
       var seen = {};
+      byNid = {};
       list.forEach(function (p) {
         if (p.id === socket.id) return;
         seen[p.id] = 1;
-        others[p.id] = others[p.id] || { x: 0, y: 0, tx: 0, ty: 0 };
-        others[p.id].name = p.name;
+        var o = others[p.id] || (others[p.id] = { x: 0, y: 0, tx: 0, ty: 0 });
+        o.name = p.name;
+        o.nid = p.nid;
+        // стартовая точка: иначе новичок увидел бы всех в левом верхнем углу
+        if (p.position && !o.buf) {
+          o.x = o.tx = p.position.x || 0;
+          o.y = o.ty = p.position.y || 0;
+        }
+        bindNid(o);
       });
       Object.keys(others).forEach(function (id) { if (!seen[id]) delete others[id]; });
       $('gCount').textContent = Object.keys(others).length + 1;
@@ -721,19 +835,32 @@
 
     socket.on('playerJoined', function (p) {
       if (p.id === socket.id) return;
-      others[p.id] = { x: 0, y: 0, tx: 0, ty: 0, name: p.name };
+      others[p.id] = { x: (p.position && p.position.x) || 0, y: (p.position && p.position.y) || 0,
+                       tx: (p.position && p.position.x) || 0, ty: (p.position && p.position.y) || 0,
+                       name: p.name, nid: p.nid };
+      bindNid(others[p.id]);
       log(esc(p.name) + ' зашёл', 's');
       $('gCount').textContent = Object.keys(others).length + 1;
     });
 
     socket.on('playerLeft', function (d) {
-      if (others[d.playerId]) log(esc(others[d.playerId].name) + ' вышел', 's');
+      var gone = others[d.playerId];
+      if (gone) {
+        log(esc(gone.name) + ' вышел', 's');
+        if (gone.nid !== undefined) delete byNid[gone.nid];
+      }
       delete others[d.playerId];
       $('gCount').textContent = Object.keys(others).length + 1;
     });
 
+    /* Запасной путь для старого сервера, который ещё не умеет снапшоты:
+       одиночные пакеты движения тоже кладём в буфер, чтобы сглаживание
+       работало одинаково в обоих случаях. */
     socket.on('playerMoved', function (d) {
       var o = others[d.playerId]; if (!o) return;
+      o.buf = o.buf || [];
+      o.buf.push({ t: nowMs(), x: d.position.x, y: d.position.y });
+      if (o.buf.length > 8) o.buf.shift();
       o.tx = d.position.x; o.ty = d.position.y;
       if (d.position.w) { o.w = d.position.w; o.h = d.position.h; }
       o.color = d.position.color || COLOR_NORMAL;
@@ -814,19 +941,37 @@
   }
 
   // ---------- отправка позиции и ловля ----------
-  var lastSent = 0;
+  /* Шлём 20 раз в секунду — ровно в темпе серверных кадров, чтобы между
+     двумя снапшотами всегда было что интерполировать. Но только когда
+     что-то изменилось: стоящий игрок не занимает ни канала, ни процессора.
+     Раз в секунду уходит контрольный пакет — на случай потерянного. */
+  var lastSent = 0, lastForce = 0, lastSk = null;
+  var prev = { x: null, y: null, w: null, h: null, c: null, s: null, f: null, d: null };
   setInterval(function () {
     if (!socket || !GAME.playing) return;
     var p = GAME.pl;
     var now = Date.now();
-    if (now - lastSent < 70) return;
-    lastSent = now;
-    socket.emit('movePlayer', { position: {
+    if (now - lastSent < 50) return;
+
+    var pos = {
       x: Math.round(p.x), y: Math.round(p.y), w: p.w, h: p.h,
       color: GAME.myColor || COLOR_NORMAL, say: typing || '', fin: !!GAME.done,
-      sk: mySkinStr,
       hid: !!GAME.hidden          // сижу в укрытии — меня не рисуют у других
-    }});
+    };
+    var moved = pos.x !== prev.x || pos.y !== prev.y || pos.w !== prev.w || pos.h !== prev.h
+      || pos.color !== prev.c || pos.say !== prev.s || pos.fin !== prev.f || pos.hid !== prev.d;
+    var force = now - lastForce > 1000;
+    if (!moved && !force) return;
+
+    lastSent = now;
+    if (force) lastForce = now;
+    prev.x = pos.x; prev.y = pos.y; prev.w = pos.w; prev.h = pos.h;
+    prev.c = pos.color; prev.s = pos.say; prev.f = pos.fin; prev.d = pos.hid;
+
+    // скин — строка до 120 символов, менять её незачем каждый пакет
+    if (mySkinStr !== lastSk) { pos.sk = mySkinStr; lastSk = mySkinStr; }
+
+    socket.emit('movePlayer', { position: pos });
 
     checkAllFinished();
 
@@ -906,10 +1051,12 @@
        прячущиеся не видят искателя, а искатель не видит прячущихся.
        После начала раунда (охота) видно всех. */
     var hsWait = MODE === 'hideAndSeek' && !VIEW && phase === 'lobby';
+    var rt = nowMs() - interp;      // рисуем чуть в прошлом — там есть оба кадра
     Object.keys(others).forEach(function (id) {
       var o = others[id];
-      o.x += (o.tx - o.x) * 0.3;
-      o.y += (o.ty - o.y) * 0.3;
+      var s = sample(o, rt);
+      if (s) { o.x = s.x; o.y = s.y; }
+      else { o.x += (o.tx - o.x) * 0.3; o.y += (o.ty - o.y) * 0.3; }
       if (hsWait) {
         if (!hsWinnerId) return;                 // рулетка ещё не ответила — никого не рисуем
         if (id === hsWinnerId) return;           // искатель скрыт от прячущихся

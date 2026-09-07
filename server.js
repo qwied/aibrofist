@@ -9,6 +9,10 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: { origin: true, credentials: true },   // только собственный домен: куки идут вместе с рукопожатием
   maxHttpBufferSize: 1e6,
+  /* Сжатие на мелких частых пакетах позиции — чистые потери процессорного
+     времени на обеих сторонах: выигрыш в байтах копеечный, а задержка
+     добавляется каждому сообщению. */
+  perMessageDeflate: false,
   pingInterval: 5000,
   pingTimeout: 12000,
   transports: ['websocket', 'polling']
@@ -249,6 +253,11 @@ app.get('/editor/tutorial.html', (req, res) => res.redirect('/editor.html'));
 
 
 // Оптимизированное состояние для 2000+ игроков
+/* Короткий номер игрока. В снапшоте позиция едет 20 раз в секунду, и
+   socket.id длиной в 20 символов занимал бы там больше места, чем сами
+   координаты. Номер выдаётся при входе и живёт до выхода. */
+let nidSeq = 0;
+
 const gameState = {
   players: new Map(),
   maps: [],
@@ -418,10 +427,19 @@ io.on('connection', (socket) => {
   gameState.stats.totalPlayers++;
 
   const account = sessionName(socket.handshake.headers.cookie);  // подтверждённый ник или null
-  const limMove = socketLimiter(45, 400);    // движение идёт ~14 раз/сек
+  const limMove = socketLimiter(60, 500);    // движение идёт 20 раз/сек, запас на всплески
   const limChat = socketLimiter(4, 8);       // чат: не чаще 4 в секунду и 8 в 10 сек
   const limCaught = socketLimiter(1, 2);     // «все пойманы» — не чаще раза в раунд
+  const limPing = socketLimiter(2, 12);      // замер задержки — раз в пару секунд
   let joinedAt = 0;
+
+  /* Замер задержки: клиент присылает свою метку времени, сервер возвращает
+     её обратно. Никакой синхронизации часов — считаем разницу по одним и
+     тем же локальным часам клиента. */
+  socket.on('pingCheck', (t) => {
+    if (limPing()) return;
+    socket.emit('pongCheck', t);
+  });
 
   socket.on('join', (data) => {
     if (Date.now() - joinedAt < 1500) return;   // без повторных join подряд
@@ -441,6 +459,7 @@ io.on('connection', (socket) => {
 
     const player = {
       id: socket.id,
+      nid: (nidSeq = (nidSeq + 1) % 1000000000),
       name: name,
       gameMode: mode,
       room: room,
@@ -512,12 +531,14 @@ io.on('connection', (socket) => {
         hid: !!p.hid
       };
       if (p.sk !== undefined) pos.sk = cleanText(p.sk, 120);
+      else if (player.position) pos.sk = player.position.sk;   // не прислали — значит не менялся
       player.position = pos;
-      const room = player.room;
-      socket.to(room).emit('playerMoved', {
-        playerId: socket.id,
-        position: pos
-      });
+      /* Ничего не рассылаем прямо здесь. Раньше каждый пакет движения
+         уходил каждому в комнате отдельным сообщением: 40 игроков по
+         14 пакетов в секунду давали ~22 000 сообщений в секунду на одну
+         комнату. Теперь позиция просто помечается изменённой, а комната
+         получает один общий кадр 20 раз в секунду (см. снапшоты ниже). */
+      player.dirty = true;
     }
   });
 
@@ -629,6 +650,42 @@ text-decoration:none;font-size:16px;cursor:pointer}</style></head><body>
   }
   res.status(404).send('Not found');
 });
+
+/* ================== СНАПШОТЫ КОМНАТ ==================
+   Комната получает один общий кадр 20 раз в секунду вместо отдельного
+   сообщения на каждый пакет каждого игрока. Сообщений стало N вместо
+   N², и приходят они ровным темпом — клиенту есть между чем сглаживать.
+
+   В кадр попадают только те, у кого что-то изменилось: стоящие на месте
+   не занимают ни байта. Редкие поля (размер, цвет, скин, реплика) едут
+   лишь в тот кадр, где они реально поменялись.
+
+   emit помечен volatile: если у кого-то соединение подвисло, старый кадр
+   выбрасывается, а не копится в очереди — лучше пропустить один кадр,
+   чем потом проигрывать пачку устаревших. */
+const SNAP_MS = 50;
+setInterval(() => {
+  gameState.rooms.forEach((set, room) => {
+    if (!set.size) return;
+    const frame = [];
+    set.forEach(id => {
+      const p = gameState.players.get(id);
+      if (!p || !p.dirty) return;
+      p.dirty = false;
+      const pos = p.position || {};
+      const last = p.sent || (p.sent = {});
+      const e = { n: p.nid, x: Math.round(pos.x || 0), y: Math.round(pos.y || 0) };
+      if (pos.w !== last.w || pos.h !== last.h) { e.w = pos.w; e.h = pos.h; last.w = pos.w; last.h = pos.h; }
+      if (pos.color !== last.color) { e.c = pos.color; last.color = pos.color; }
+      if (pos.sk !== last.sk) { e.k = pos.sk || ''; last.sk = pos.sk; }
+      if (pos.say !== last.say) { e.s = pos.say || ''; last.say = pos.say; }
+      if (!!pos.fin !== !!last.fin) { e.f = pos.fin ? 1 : 0; last.fin = !!pos.fin; }
+      if (!!pos.hid !== !!last.hid) { e.d = pos.hid ? 1 : 0; last.hid = !!pos.hid; }
+      frame.push(e);
+    });
+    if (frame.length) io.to(room).volatile.emit('state', frame);
+  });
+}, SNAP_MS);
 
 // подчистка «призраков»: если вкладку закрыли жёстко, игрок мог зависнуть в комнате
 setInterval(() => {

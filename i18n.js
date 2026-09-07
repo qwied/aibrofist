@@ -195,6 +195,8 @@
 
     /* ---------- игровой экран ---------- */
     gPlayers:     ['Игроков','Players','Гравців','Spieler','Joueurs','Jugadores','Jogadores','Graczy','Oyuncu','玩家'],
+    gPing:        ['Пинг','Ping','Пінг','Ping','Ping','Ping','Ping','Ping','Ping','延迟'],
+    gPingMs:      ['мс','ms','мс','ms','ms','ms','ms','ms','ms','毫秒'],
     gTimeLbl:     ['Время','Time','Час','Zeit','Temps','Tiempo','Tempo','Czas','Süre','时间'],
     roleLbl:      ['Роль','Role','Роль','Rolle','Rôle','Rol','Papel','Rola','Rol','角色'],
     roleSeeker:   ['Искатель','Seeker','Шукач','Sucher','Chercheur','Buscador','Procurador','Szukający','Aranan','寻找者'],
