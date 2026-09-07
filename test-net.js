@@ -88,29 +88,34 @@ console.log('\nбуфер под сеть:');
   for (let i = 0; i < 20; i++) net.noteSnapshot(3000 + i * 170);
   const rough = net.interp();
   ok('на дёрганой сети буфер растёт', rough > even, rough.toFixed(0) + ' мс');
-  ok('и не выходит за потолок', rough <= 200, rough.toFixed(0) + ' мс');
+  ok('и не выходит за потолок', rough <= 150, rough.toFixed(0) + ' мс');
 }
 
 console.log('\nсервер:');
-ok('кадр комнаты 20 раз в секунду', /const SNAP_MS = 50;/.test(srv) && /\}, SNAP_MS\)/.test(srv));
+ok('кадр комнаты 30 раз в секунду', /const SNAP_MS = 33;/.test(srv) && /\}, SNAP_MS\)/.test(srv));
 ok('позиция больше не рассылается по пакету', !/emit\('playerMoved'/.test(srv));
 ok('вместо рассылки — пометка изменения', /player\.dirty = true;/.test(srv));
 ok('в кадр попадают только изменившиеся', /if \(!p\.dirty && !key\) return;/.test(srv));
-ok('опорный кадр раз в 2 секунды', /const KEY_EVERY = 40;/.test(srv) &&
+ok('опорный кадр раз в секунду', /const KEY_EVERY = 30;/.test(srv) &&
    /const key = \(\+\+snapTick % KEY_EVERY\) === 0;/.test(srv));
 ok('опорный кадр доставляется гарантированно', /if \(key\) io\.to\(room\)\.emit\('state', frame\);/.test(srv));
 ok('на вход в комнату состояние шлётся полностью', /roomPlayers\.forEach\(p => \{ p\.sent = \{\}; p\.dirty = true; \}\);/.test(srv));
 ok('кадр уходит одним сообщением', /io\.to\(room\)\.volatile\.emit\('state', frame\)/.test(srv));
 ok('подвисший клиент не копит очередь', /\.volatile\./.test(srv));
 ok('редкие поля только при изменении', /if \(pos\.color !== last\.color\)/.test(srv) && /if \(pos\.sk !== last\.sk\)/.test(srv));
+ok('опорный кадр несёт всё состояние', /if \(key\) p\.sent = \{\};/.test(srv));
 ok('короткий номер вместо socket.id', /nid: \(nidSeq = /.test(srv) && /n: p\.nid/.test(srv));
 ok('скин не теряется, если его не прислали', /else if \(player\.position\) pos\.sk = player\.position\.sk;/.test(srv));
 ok('сжатие мелких пакетов выключено', /perMessageDeflate: false/.test(srv));
 ok('замер задержки на сервере', /socket\.on\('pingCheck'/.test(srv) && /socket\.emit\('pongCheck', t\)/.test(srv));
-ok('лимит движения поднят под 20 Гц', /socketLimiter\(60, 500\)/.test(srv));
+ok('лимит движения поднят под 30 Гц', /socketLimiter\(90, 700\)/.test(srv));
+ok('TCP_NODELAY включён', /setNoDelay\(true\)/.test(srv));
+ok('чужие сайты сокет открыть не могут', /allowRequest: \(handshake, cb\)/.test(srv));
+ok('мёртвые saveMap/getMaps удалены', !/socket\.on\('saveMap'/.test(srv) && !/socket\.on\('getMaps'/.test(srv));
+ok('история чата только своей комнаты', !/const room = data\.room \|\| 'main';/.test(srv));
 
 console.log('\nклиент:');
-ok('отправка 20 раз в секунду', /now - lastSent < 50/.test(game));
+ok('отправка 30 раз в секунду', /now - lastSent < 33/.test(game));
 ok('стоящий игрок не шлёт пакеты', /if \(!moved && !force\) return;/.test(game));
 ok('контрольный пакет раз в секунду', /now - lastForce > 1000/.test(game));
 ok('скин уходит только при смене', /if \(mySkinStr !== lastSk\)/.test(game));
@@ -121,10 +126,38 @@ ok('старый сервер тоже поддержан', /socket\.on\('player
 ok('пинг виден игроку', /id="gPing"/.test(game) && /socket\.emit\('pingCheck'/.test(game));
 ok('скин берётся из списка комнаты', /function applyKnown/.test(game) && /applyKnown\(o, p\.position\);/.test(game));
 ok('после переподключения скин уходит заново', /lastSk = null;/.test(game) && /prev\.x = prev\.y = prev\.w = prev\.h = null;/.test(game));
+ok('движение не уходит до подтверждения входа', /var joined = false;/.test(game) &&
+   /if \(!socket \|\| !joined \|\| !GAME\.playing\) return;/.test(game) &&
+   /joined = true;/.test(game));
 ok('палочки в чате больше нет', !/'▏'/.test(game));
+ok('websocket первый, polling запасной', /transports: \['websocket', 'polling'\], tryAllTransports: true/.test(game));
+ok('пик задержки забывается быстрее', /gapPeak \* 0\.9/.test(game));
+ok('потерянная картинка скина донавешивается', /imgCache\[o\.name\]\) o\.skin\.img = imgCache\[o\.name\];/.test(game));
 
 const i18n = fs.readFileSync(__dirname + '/i18n.js', 'utf8');
 ok('подпись пинга переводится', /gPing:\s+\[/.test(i18n) && /gPingMs:\s+\[/.test(i18n));
+
+const gameHtml = fs.readFileSync(__dirname + '/game.html', 'utf8');
+const editorHtml = fs.readFileSync(__dirname + '/editor.html', 'utf8');
+ok('второе соединение из игры убрано', !/const socket = io\(\);/.test(gameHtml));
+ok('второе соединение из редактора убрано', !/const socket = io\(\);/.test(editorHtml));
+
+/* v103: плавность */
+[gameHtml, editorHtml].forEach((html, i) => {
+  const nm = i === 0 ? 'игра' : 'редактор';
+  ok('камера не отстаёт от игрока (' + nm + ')',
+     /view\.x = VW\(\)\/2 - \(pl\.x\+pl\.w\/2\)\*view\.s; view\.y = VH\(\)\*0\.6/.test(html));
+  ok('фон кэшируется (' + nm + ')', /if\(!bgGrad \|\| bgH !== VH\(\)\)/.test(html));
+  ok('адаптивное разрешение держит FPS (' + nm + ')',
+     /QUALITY = Math\.max\(0\.5, QUALITY - 0\.25\)/.test(html) && /DPR = DPR_BASE \* QUALITY;/.test(html));
+});
+
+const logsHtml = fs.readFileSync(__dirname + '/logs.html', 'utf8');
+const lbHtml = fs.readFileSync(__dirname + '/leaderboard.html', 'utf8');
+ok('кнопки новостей переведены', /T\('removeTxt', 'Удалить'\)/.test(logsHtml) && /T\('editTxt', 'Изменить'\)/.test(logsHtml));
+ok('заголовок лидеров переведён', /data-i18n="lbSub"/.test(lbHtml) && /lbSub:\s+\[/.test(i18n));
+ok('страницы режимов переведены', /data-i18n="hsRule1"/.test(fs.readFileSync(__dirname + '/hide-and-seek.html', 'utf8')) &&
+   /data-i18n="raceRule1"/.test(fs.readFileSync(__dirname + '/race.html', 'utf8')));
 
 console.log(fails ? '\n✗ ошибок: ' + fails : '\n✓ всё зелено');
 process.exit(fails ? 1 : 0);

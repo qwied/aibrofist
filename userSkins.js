@@ -409,8 +409,14 @@ function register(app, acc, skinsApi) {
     if (low(list[i].author) !== low(u.name) && !isOwner(u))
       return res.json({ status: 'error', message: 'Можно удалять только свои скины' });
     if (list[i].img) {
-      try { fs.unlinkSync(path.join(DATA_DIR, list[i].img.replace('/skinimg/', 'skinimg/'))); }
-      catch (e) {}
+      /* Подстраховка: имя файла всегда генерирует сам сервер, но раз
+         удаляем с диска по пути из данных — проверяем формат жёстко,
+         чтобы даже гипотетическая подстановка «../» не унесла чужой файл. */
+      const m = /^\/skinimg\/([a-z0-9]+\.(?:png|jpg|gif|webp))$/.exec(String(list[i].img));
+      if (m) {
+        try { fs.unlinkSync(path.join(IMG_DIR, m[1])); }
+        catch (e) {}
+      }
     }
     list.splice(i, 1);
     save();
@@ -602,4 +608,4 @@ function register(app, acc, skinsApi) {
   });
 }
 
-module.exports = { register, DAILY_LIMIT, REWARD };
+module.exports = { register, reload: load, DAILY_LIMIT, REWARD };
