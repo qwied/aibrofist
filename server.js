@@ -151,6 +151,18 @@ app.use('/skinimg', (req, res, next) => {
   maxAge: '7d', fallthrough: true
 }));
 
+/* Картинки новостей: лежат в data/logimg, отдаём только их.
+   Имя файла случайное и больше не меняется, поэтому кэш ставим годовой —
+   один раз скачал и больше не дёргает сервер. Песочница та же, что у
+   скинов: даже SVG со скриптом внутри ничего не выполнит. */
+app.use('/logimg', (req, res, next) => {
+  res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+  res.set('X-Content-Type-Options', 'nosniff');
+  next();
+}, express.static(require('./extras.js').IMG_DIR, {
+  maxAge: '365d', immutable: true, fallthrough: true
+}));
+
 // иконки сайта: браузер запрашивает /favicon.ico ещё до загрузки страницы
 app.get('/favicon.ico', (req, res) => {
   res.set('Cache-Control', 'public, max-age=604800');
@@ -170,6 +182,8 @@ app.get('/skinsBrowser.html', (req, res) => res.redirect(301, '/avatar.html'));
    Остальные маршруты получают скромный лимит: огромные тела —
    это лазейка для забивания памяти. */
 app.post('/abuse/upload', express.urlencoded({ extended: false, limit: '60mb' }));
+// картинка новости приходит тем же способом — base64 в теле запроса
+app.post('/log/upload', express.urlencoded({ extended: false, limit: '20mb' }));
 app.use(express.urlencoded({ extended: false, limit: '512kb' }));
 app.use(express.json({ limit: '512kb' }));
 
