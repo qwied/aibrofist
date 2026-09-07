@@ -48,6 +48,25 @@
 
   function bindNid(o) { if (o && o.nid !== undefined) byNid[o.nid] = o; }
 
+  /* Что сервер уже знает об игроке — берём сразу из списка комнаты, не
+     дожидаясь кадра: и позицию (иначе новичок увидел бы всех в левом
+     верхнем углу), и скин, и размер с цветом. */
+  function applyKnown(o, pos) {
+    if (!o || !pos) return;
+    if (!o.buf) {
+      o.x = o.tx = pos.x || 0;
+      o.y = o.ty = pos.y || 0;
+    }
+    if (pos.w) { o.w = pos.w; o.h = pos.h; }
+    if (pos.color) o.color = pos.color;
+    if (pos.fin !== undefined) o.fin = !!pos.fin;
+    if (pos.hid !== undefined) o.hid = !!pos.hid;
+    if (pos.sk) {
+      o.skin = strToSkin(pos.sk);
+      if (o.skin) { var pic = imgOf(o.name); if (pic) o.skin.img = pic; }
+    }
+  }
+
   /* Буфер подстраивается под сеть: на ровном канале сжимается почти до
      интервала кадров, на дёрганом растягивается, чтобы движение осталось
      гладким. Отставание всегда минимальное из возможных для этой связи. */
@@ -747,6 +766,11 @@
     socket = io();
 
     socket.on('connect', function () {
+      // сервер завёл нас заново: пусть первый же пакет несёт всё, включая скин
+      lastSk = null;
+      prev.x = prev.y = prev.w = prev.h = null;
+      prev.c = prev.s = prev.f = prev.d = null;
+
       Promise.all([
         fetch('/iSigned', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).catch(function () { return null; }),
         ROOM ? Promise.resolve({ room: ROOM })
@@ -821,11 +845,7 @@
         var o = others[p.id] || (others[p.id] = { x: 0, y: 0, tx: 0, ty: 0 });
         o.name = p.name;
         o.nid = p.nid;
-        // стартовая точка: иначе новичок увидел бы всех в левом верхнем углу
-        if (p.position && !o.buf) {
-          o.x = o.tx = p.position.x || 0;
-          o.y = o.ty = p.position.y || 0;
-        }
+        applyKnown(o, p.position);
         bindNid(o);
       });
       Object.keys(others).forEach(function (id) { if (!seen[id]) delete others[id]; });
@@ -835,9 +855,8 @@
 
     socket.on('playerJoined', function (p) {
       if (p.id === socket.id) return;
-      others[p.id] = { x: (p.position && p.position.x) || 0, y: (p.position && p.position.y) || 0,
-                       tx: (p.position && p.position.x) || 0, ty: (p.position && p.position.y) || 0,
-                       name: p.name, nid: p.nid };
+      others[p.id] = { x: 0, y: 0, tx: 0, ty: 0, name: p.name, nid: p.nid };
+      applyKnown(others[p.id], p.position);
       bindNid(others[p.id]);
       log(esc(p.name) + ' зашёл', 's');
       $('gCount').textContent = Object.keys(others).length + 1;
@@ -1162,7 +1181,7 @@
     // то, что печатают прямо сейчас — ниже уплывающей реплики, чтобы не наложились
     if (say) {
       ctx.font = (15 * tk) + 'px sans-serif';
-      paintSay(ctx, cleanSay(say) + '▏', cx, topY - 14 * tk, tk, '#6b7280');
+      paintSay(ctx, cleanSay(say), cx, topY - 14 * tk, tk, '#6b7280');
     }
     ctx.restore();
   }

@@ -167,6 +167,41 @@ app.use('/logimg', (req, res, next) => {
   maxAge: '365d', immutable: true, fallthrough: true
 }));
 
+/* Поисковикам: что можно обходить и где карта сайта.
+   Хост берём из запроса — тогда файл верен и на своём домене, и на
+   railway.app, и на localhost, без правок в коде. */
+function siteOrigin(req) {
+  const host = PRIMARY_HOST || String(req.headers.host || 'aibrofist.online');
+  const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0];
+  return proto + '://' + host;
+}
+
+app.get('/robots.txt', (req, res) => {
+  res.set('Content-Type', 'text/plain; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.send([
+    'User-agent: *',
+    'Allow: /',
+    // игровые комнаты и профили в выдаче не нужны: их бесконечно много
+    'Disallow: /game.html',
+    'Sitemap: ' + siteOrigin(req) + '/sitemap.xml',
+    ''
+  ].join('\n'));
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  const base = siteOrigin(req);
+  const pages = ['/', '/hide-and-seek.html', '/race.html', '/mapsBrowser.html',
+                 '/avatar.html', '/editor.html', '/leaderboard.html',
+                 '/logs.html', '/themes.html', '/users.html'];
+  res.set('Content-Type', 'application/xml; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.send('<?xml version="1.0" encoding="UTF-8"?>\n'
+    + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    + pages.map(p => '  <url><loc>' + base + p + '</loc></url>').join('\n')
+    + '\n</urlset>\n');
+});
+
 // иконки сайта: браузер запрашивает /favicon.ico ещё до загрузки страницы
 app.get('/favicon.ico', (req, res) => {
   res.set('Cache-Control', 'public, max-age=604800');
@@ -481,6 +516,15 @@ io.on('connection', (socket) => {
       .map(id => gameState.players.get(id))
       .filter(p => p);
 
+    /* Новичку нужно полное состояние всех: скин, размер, цвет. В обычных
+       кадрах редкие поля не повторяются — они уходят только при
+       изменении. Поэтому на вход сбрасываем «что уже отправлено» у всей
+       комнаты: ближайший кадр придёт полным.
+
+       Именно из-за этого чужие скины пропадали: тот, кто прислал свой
+       скин до твоего прихода, больше его не повторял. */
+    roomPlayers.forEach(p => { p.sent = {}; p.dirty = true; });
+
     io.to(room).emit('playersList', roomPlayers);
     io.to(room).emit('playerJoined', player);
     socket.emit('nameFixed', { name: name });    // игрок показывает себе ровно то, что решил сервер
@@ -664,13 +708,23 @@ text-decoration:none;font-size:16px;cursor:pointer}</style></head><body>
    выбрасывается, а не копится в очереди — лучше пропустить один кадр,
    чем потом проигрывать пачку устаревших. */
 const SNAP_MS = 50;
+const KEY_EVERY = 40;            // раз в 2 секунды — опорный кадр
+let snapTick = 0;
 setInterval(() => {
+  /* Обычный кадр несёт только изменившихся и уходит volatile — его
+     не жалко потерять. Но если потерялся последний кадр перед тем, как
+     игрок остановился, у остальных он так и застынет на старом месте.
+     Поэтому раз в 2 секунды уходит опорный кадр: позиции всех в комнате,
+     уже обычной (гарантированной) доставкой. Он же лечит и любую другую
+     потерю — «зависших» и «пропавших» игроков больше нет. */
+  const key = (++snapTick % KEY_EVERY) === 0;
   gameState.rooms.forEach((set, room) => {
     if (!set.size) return;
     const frame = [];
     set.forEach(id => {
       const p = gameState.players.get(id);
-      if (!p || !p.dirty) return;
+      if (!p) return;
+      if (!p.dirty && !key) return;
       p.dirty = false;
       const pos = p.position || {};
       const last = p.sent || (p.sent = {});
@@ -683,7 +737,9 @@ setInterval(() => {
       if (!!pos.hid !== !!last.hid) { e.d = pos.hid ? 1 : 0; last.hid = !!pos.hid; }
       frame.push(e);
     });
-    if (frame.length) io.to(room).volatile.emit('state', frame);
+    if (!frame.length) return;
+    if (key) io.to(room).emit('state', frame);            // опорный — доставить обязательно
+    else io.to(room).volatile.emit('state', frame);       // обычный — можно и потерять
   });
 }, SNAP_MS);
 

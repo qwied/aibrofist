@@ -379,6 +379,58 @@ else {
   check('и тоже не телепортирует наверх', GAME.pl.y > 150,
         'pl.y=' + GAME.pl.y.toFixed(0));
   GAME.stop();
+
+  // 16. высота прыжка: значения зафиксированы, чтобы не уползали правками
+  const floorJ = { id: 1, type: 'rect', x: 0, y: 400, w: 900, h: 40, rot: 0, fill: '#111827' };
+  const spawnJ = { id: 2, type: 'spawn', x: 60, y: 340, w: 20, h: 60, rot: 0, fill: '#111827' };
+  function jumpHeight(holdFrames) {
+    GAME.loadMap({ mode: 'hideAndSeek', objects: [floorJ, spawnJ] });
+    GAME.startPlay(); clearKeys();
+    for (let i = 0; i < 60; i++) GAME.step();            // встали на пол
+    const y0 = GAME.pl.y;
+    GAME.keys.u = true;
+    let top = y0;
+    for (let i = 0; i < 200; i++) {
+      if (i === holdFrames) GAME.keys.u = false;
+      GAME.step();
+      if (GAME.pl.y < top) top = GAME.pl.y;
+    }
+    GAME.stop();
+    return y0 - top;
+  }
+  const tapH = jumpHeight(2), holdH = jumpHeight(60);
+  check('тап поднимает на 121 px', Math.abs(tapH - 121) <= 2, tapH.toFixed(0));
+  check('зажатый прыжок — 146 px', Math.abs(holdH - 146) <= 2, holdH.toFixed(0));
+  check('зажатый выше тапа', holdH - tapH > 15, (holdH - tapH).toFixed(0));
+
+  // 17. глубоко вдавленный в стену угол — тоже вбок, а не наверх
+  //     ровно то, что оставалось после v96: платформа стыкуется с объектом
+  //     вплотную и успевает вдавить игрока глубже старого порога в 32 px.
+  const wideWall = { id: 2, type: 'rect', x: 400, y: 100, w: 100, h: 300, rot: 0, fill: '#111827' };
+  const spawnG   = { id: 3, type: 'spawn', x: 425, y: 200, w: 20, h: 60, rot: 0, fill: '#111827' };
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorC, wideWall, spawnG] });
+  GAME.startPlay();
+  clearKeys();
+  GAME.step();
+  check('вдавленного на 45 px не выбрасывает наверх', GAME.pl.y > 150,
+        'pl.y=' + GAME.pl.y.toFixed(0));
+  check('его отодвигает вбок к ближней грани', GAME.pl.x + GAME.pl.w <= 401,
+        'правый край=' + (GAME.pl.x + GAME.pl.w).toFixed(0));
+  GAME.stop();
+
+  // 18. платформа прижимает игрока к стене вплотную — и держит, не подбрасывая
+  const floorH = { id: 1, type: 'rect', x: 0, y: 400, w: 900, h: 40, rot: 0, fill: '#111827' };
+  const wallH  = { id: 2, type: 'rect', x: 500, y: 200, w: 60, h: 200, rot: 0, fill: '#111827' };
+  const platH  = { id: 3, type: 'rect', x: 300, y: 340, w: 60, h: 60, rot: 0, fill: '#2f8bff',
+                   moves: true, moveX: 260, moveY: 0, speed: 1.6 };
+  const spawnH = { id: 4, type: 'spawn', x: 460, y: 340, w: 20, h: 60, rot: 0, fill: '#111827' };
+  GAME.loadMap({ mode: 'hideAndSeek', objects: [floorH, wallH, platH, spawnH] });
+  GAME.startPlay();
+  clearKeys();
+  let topMost = GAME.pl.y;
+  for (let i = 0; i < 400; i++) { GAME.step(); if (GAME.pl.y < topMost) topMost = GAME.pl.y; }
+  check('платформа у стены не забрасывает наверх', topMost > 220,
+        'самая высокая точка y=' + topMost.toFixed(0));
 }
 if (GAME && GAME.restartRun) {
   const floorF = { id: 1, type: 'rect', x: 0, y: 400, w: 1400, h: 40, rot: 0, fill: '#111827' };

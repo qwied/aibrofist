@@ -95,7 +95,11 @@ console.log('\nсервер:');
 ok('кадр комнаты 20 раз в секунду', /const SNAP_MS = 50;/.test(srv) && /\}, SNAP_MS\)/.test(srv));
 ok('позиция больше не рассылается по пакету', !/emit\('playerMoved'/.test(srv));
 ok('вместо рассылки — пометка изменения', /player\.dirty = true;/.test(srv));
-ok('в кадр попадают только изменившиеся', /if \(!p \|\| !p\.dirty\) return;/.test(srv));
+ok('в кадр попадают только изменившиеся', /if \(!p\.dirty && !key\) return;/.test(srv));
+ok('опорный кадр раз в 2 секунды', /const KEY_EVERY = 40;/.test(srv) &&
+   /const key = \(\+\+snapTick % KEY_EVERY\) === 0;/.test(srv));
+ok('опорный кадр доставляется гарантированно', /if \(key\) io\.to\(room\)\.emit\('state', frame\);/.test(srv));
+ok('на вход в комнату состояние шлётся полностью', /roomPlayers\.forEach\(p => \{ p\.sent = \{\}; p\.dirty = true; \}\);/.test(srv));
 ok('кадр уходит одним сообщением', /io\.to\(room\)\.volatile\.emit\('state', frame\)/.test(srv));
 ok('подвисший клиент не копит очередь', /\.volatile\./.test(srv));
 ok('редкие поля только при изменении', /if \(pos\.color !== last\.color\)/.test(srv) && /if \(pos\.sk !== last\.sk\)/.test(srv));
@@ -115,6 +119,9 @@ ok('старое догоняние осталось запасным', /else \{
 ok('снапшоты разбираются по номеру', /var e = list\[i\], o = byNid\[e\.n\];/.test(game));
 ok('старый сервер тоже поддержан', /socket\.on\('playerMoved'/.test(game));
 ok('пинг виден игроку', /id="gPing"/.test(game) && /socket\.emit\('pingCheck'/.test(game));
+ok('скин берётся из списка комнаты', /function applyKnown/.test(game) && /applyKnown\(o, p\.position\);/.test(game));
+ok('после переподключения скин уходит заново', /lastSk = null;/.test(game) && /prev\.x = prev\.y = prev\.w = prev\.h = null;/.test(game));
+ok('палочки в чате больше нет', !/'▏'/.test(game));
 
 const i18n = fs.readFileSync(__dirname + '/i18n.js', 'utf8');
 ok('подпись пинга переводится', /gPing:\s+\[/.test(i18n) && /gPingMs:\s+\[/.test(i18n));

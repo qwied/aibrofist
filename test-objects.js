@@ -45,14 +45,16 @@ ok('толчок в темпе платформы', /var lim  = Math\.abs\(pdx\)
 ok('вбок из глубины не швыряет', /> Math\.abs\(pl\.vx\) \+ 8\) return;/.test(src));
 ok('вертикальный вынос в темпе', /var limY = Math\.abs\(pdy\) \+ Math\.abs\(pl\.vy\) \+ 4;/.test(src));
 ok('угол отталкивает вбок, не наверх', /var spX = spanX\(P, pl\.y \+ 2, pl\.y \+ pl\.h - 2\);/.test(src) &&
-                                /if\(Math\.min\(lPen, rPen\) <= 32\)/.test(src) &&
+                                /var side = Math\.min\(lPen, rPen\), vert = Math\.min\(uPen, dPen\);/.test(src) &&
+                                /if\(side <= vert\)\{/.test(src) &&
                                 /pl\.x = spX\[0\] - pl\.w; if\(pl\.vx > 0\) pl\.vx = 0; pl\.wall = 1;/.test(src) &&
                                 /pl\.x = spX\[1\];        if\(pl\.vx < 0\) pl\.vx = 0; pl\.wall = -1;/.test(src));
 ok('то же в игре',          /var spX = spanX\(P, pl\.y \+ 2, pl\.y \+ pl\.h - 2\);/.test(game) &&
-                                /if\(Math\.min\(lPen, rPen\) <= 32\)/.test(game));
+                                /if\(side <= vert\)\{/.test(game) &&
+                                !/<= 32\)/.test(game));
 ok('глубокий провал всё ещё ставит сверху', /pl\.y = sp\[0\] - pl\.h; pl\.ground = true; coy = COYOTE; pl\.vy = 0; pl\.selfJump = false;/.test(src) &&
                                 /pl\.y = sp\[0\] - pl\.h; pl\.ground = true; coy = COYOTE; pl\.vy = 0; pl\.selfJump = false;/.test(game));
-ok('прыжок не режется сразу', /MIN_HOLD = 7;/.test(src) && /JUMP_H = 168,/.test(src) &&
+ok('прыжок не режется сразу', /MIN_HOLD = 7;/.test(src) && /JUMP_H = 152,/.test(src) &&
                                 /pl\.selfJump && hold > MIN_HOLD/.test(src));
 ok('посадка по «откуда пришёл»', /var fromTop   = \(yBefore \+ pl\.h\) <= topWas \+ 2;/.test(src) &&
                                 /var yBefore = pl\.y;/.test(src));
@@ -128,7 +130,8 @@ ok('помощник остался',      /editorHelp\.js/.test(src) && /editor
 console.log('\nфиниш и старт:');
 ok('перезапуск одной функцией', /function restartRun\(\)/.test(src) && /function restartRun\(\)/.test(game));
 ok('сам стартует после финиша', /finishTimer = setTimeout/.test(src) && /finishTimer = setTimeout/.test(game));
-ok('R использует тот же путь',  /clearTimeout\(finishTimer\); restartRun\(\);/.test(src));
+ok('в редакторе R перезапускает пробу', /clearTimeout\(finishTimer\); restartRun\(\);/.test(src));
+ok('в игре R ничего не делает',  !/KeyR/.test(game));
 ok('старт рядом с финишем',     /function spawnTooClose/.test(src) && /SPAWN_GAP = 320/.test(src));
 ok('проверка при запуске',      /var near = spawnTooClose\(\);/.test(src));
 ok('проверка при публикации',   /Старт слишком близко к финишу/.test(src));
@@ -177,6 +180,23 @@ ok('ручек у старта нет',    /sel\.type === "spawn"\) return null/
 ok('рамка без ручек',       /isSel && o\.type !== "spawn"/.test(src));
 
 // прыжок с удержанием
+console.log('\nиконка и поисковики:');
+const srvS = fs.readFileSync(__dirname + '/server.js', 'utf8');
+ok('robots.txt отдаётся',   /app\.get\('\/robots\.txt'/.test(srvS) && /Sitemap: '/.test(srvS));
+ok('карта сайта отдаётся',  /app\.get\('\/sitemap\.xml'/.test(srvS) && /<urlset/.test(srvS));
+ok('хост берётся из запроса', /function siteOrigin\(req\)/.test(srvS));
+ok('игровые комнаты не индексируются', /Disallow: \/game\.html/.test(srvS));
+const pagesHtml = fs.readdirSync(__dirname).filter(f => f.endsWith('.html'));
+ok('canonical на всех страницах', pagesHtml.every(f =>
+   /<link rel="canonical" href="https:\/\//.test(fs.readFileSync(__dirname + '/' + f, 'utf8'))));
+ok('превью для соцсетей везде', pagesHtml.every(f =>
+   /og:image/.test(fs.readFileSync(__dirname + '/' + f, 'utf8'))));
+ok('иконка непрозрачная в середине', (() => {
+  const ico = fs.readFileSync(__dirname + '/favicon.ico');
+  return ico.length > 4000 && ico.readUInt16LE(4) >= 5;      // не меньше пяти размеров внутри
+})());
+ok('превью-картинка на месте', fs.existsSync(__dirname + '/preview.png'));
+
 console.log('\nпрыжок:');
 ok('удержание = повтор',    /if\(keys\.u && !pl\.selfJump && \(pl\.ground \|\| coy > 0\)\) buf = BUFFER;/.test(src));
 ok('то же в игре',          /if\(keys\.u && !pl\.selfJump && \(pl\.ground \|\| coy > 0\)\) buf = BUFFER;/.test(game));

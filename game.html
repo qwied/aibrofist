@@ -202,17 +202,27 @@ body.mob #msg h1{font-size:38px}
 #zoomBox,#hint,#hud,#file{display:none !important}
 body{background:#eef2f8;overflow:hidden}
 </style>
-        <script src="device.js?v=98"></script>
-        <script src="skinRender.js?v=98"></script>
-        <script src="skinCanvas.js?v=98"></script>
-        <script src="coin.js?v=98"></script>
+        <script src="device.js?v=100"></script>
+        <script src="skinRender.js?v=100"></script>
+        <script src="skinCanvas.js?v=100"></script>
+        <script src="coin.js?v=100"></script>
         <link rel="stylesheet" type="text/css" href="mobile.css?v=85">
-        <script src="theme.js?v=98"></script>
+        <script src="theme.js?v=100"></script>
         <link rel="icon" href="/favicon.ico" sizes="32x32">
         <link rel="icon" type="image/svg+xml" href="/favicon.svg">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
         <link rel="manifest" href="/site.webmanifest">
         <meta name="theme-color" content="#111827">
+	<link rel="canonical" href="https://aibrofist.online/game.html">
+	<meta name="description" content="Игровая комната AIBrofist.">
+	<meta property="og:type" content="website">
+	<meta property="og:site_name" content="AIBrofist">
+	<meta property="og:title" content="AIBrofist — Игра">
+	<meta property="og:description" content="Игровая комната AIBrofist.">
+	<meta property="og:url" content="https://aibrofist.online/game.html">
+	<meta property="og:image" content="https://aibrofist.online/preview.png">
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:image" content="https://aibrofist.online/preview.png">
 </head>
 <body>
 
@@ -755,7 +765,7 @@ function drawParts(){
    касание JUMP длится 3-5 кадров, а подъём — больше двадцати, поэтому
    раньше тап давал всего ~80 px и до соседнего ряда полок (83-104 px)
    игрок просто не долетал. Теперь тап берёт 133 px, зажатая кнопка — 161. */
-var JUMP_H = 168, MOVE_A = 0.9, MAX_VX = 5.2, FRIC = 0, AIR = 0.94,
+var JUMP_H = 152, MOVE_A = 0.9, MAX_VX = 5.2, FRIC = 0, AIR = 0.94,
     COYOTE = 6, BUFFER = 7, WALL_SLIDE = 2.6, WALL_VX = 6.2, STEP_UP = 16,
     MIN_HOLD = 7;   // столько кадров прыжок не подрезается, даже если кнопку отпустили
 function G(){ return gravityScale * 0.062; }          // 9 → 0.558 px/кадр²
@@ -1194,17 +1204,28 @@ function step(){
          Отталкиваем вбок к ближней грани, а не телепортируем наверх.
          Иначе платформа, прижавшая игрока к стене, выбрасывает его
          поверх соседнего объекта — в любую сторону и в любом месте.
-         Глубокий провал (обе боковые грани далеко — игрока продавили
-         в пол) по-прежнему поднимает наверх: из широкого блока вбок
-         это швыряло бы на всю его длину. */
+         Сторону выбираем по кратчайшему выходу из блока: у прижатого
+         к стене ближе боковая грань — его отодвигает вбок, у
+         продавленного в широкий пол ближе крышка — его поднимает
+         наверх. Порога в пикселях больше нет: именно он и оставлял
+         телепорт там, где платформа стыкуется с объектом вплотную и
+         игрока успевало вдавить глубже порога. */
       var spX = spanX(P, pl.y + 2, pl.y + pl.h - 2);
-      var lPen = spX ? (pl.x + pl.w) - spX[0] : 1e9;
-      var rPen = spX ? spX[1] - pl.x : 1e9;
-      if(Math.min(lPen, rPen) <= 32){
+      var lPen = spX ? (pl.x + pl.w) - spX[0] : 1e9;   // сколько вылезли слева
+      var rPen = spX ? spX[1] - pl.x : 1e9;            // и справа
+      var uPen = (pl.y + pl.h) - sp[0];                // сколько вылезли сверху
+      var dPen = sp[1] - pl.y;                         // и снизу
+      var side = Math.min(lPen, rPen), vert = Math.min(uPen, dPen);
+      if(side <= vert){
+        // ближе боковая грань — значит игрок пришёл сбоку: отодвигаем вбок
         if(lPen <= rPen){ pl.x = spX[0] - pl.w; if(pl.vx > 0) pl.vx = 0; pl.wall = 1; }
         else            { pl.x = spX[1];        if(pl.vx < 0) pl.vx = 0; pl.wall = -1; }
-      } else {
+      } else if(uPen <= dPen){
+        // ближе крышка — игрока продавили в блок сверху, ставим на него
         pl.y = sp[0] - pl.h; pl.ground = true; coy = COYOTE; pl.vy = 0; pl.selfJump = false;
+      } else {
+        // ближе низ — выпускаем вниз, а не выдёргиваем через весь блок наверх
+        pl.y = sp[1]; if(pl.vy < 0) pl.vy = 0;
       }
     } else if(pdy !== 0){
       /* Блок едет по вертикали и накрыл игрока сбоку — выносим к ближней
@@ -1680,7 +1701,6 @@ document.addEventListener("keydown", function(e){
     if(e.code === "ArrowLeft" || e.code === "KeyA") keys.l = true;
     if(e.code === "ArrowRight"|| e.code === "KeyD") keys.r = true;
     if(e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space"){ keys.u = true; buf = BUFFER; e.preventDefault(); }
-    if(e.code === "KeyR"){ clearTimeout(finishTimer); restartRun(); }
     if(e.code === "Escape") stop();
     return;
   }
@@ -2088,12 +2108,12 @@ socket.on('connect', () => {
 
 
 </script>
-<script src="account.js?v=98" defer></script>
+<script src="account.js?v=100" defer></script>
 
 
-<script src="game.js?v=98"></script>
-        <script src="i18n.js?v=98"></script>
-        <script src="owner.js?v=98" defer></script>
-        <script src="skinAvatar.js?v=98" defer></script>
+<script src="game.js?v=100"></script>
+        <script src="i18n.js?v=100"></script>
+        <script src="owner.js?v=100" defer></script>
+        <script src="skinAvatar.js?v=100" defer></script>
 </body>
 </html>
