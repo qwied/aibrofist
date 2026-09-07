@@ -37,8 +37,8 @@
      убирает рывки: между пакетами игрок не догоняет цель скачком, а едет
      по прямой между двумя известными точками. */
   var byNid = {};                 // короткий номер игрока -> запись в others
-  var INTERP_MIN = 55, INTERP_MAX = 200;
-  var interp = 100;               // насколько отстаём от последнего кадра, мс
+  var INTERP_MIN = 32, INTERP_MAX = 150;
+  var interp = 60;                // насколько отстаём от последнего кадра, мс
   var lastSnapAt = 0, gapAvg = 50, gapPeak = 50;
   var pingMs = 0;
 
@@ -69,14 +69,19 @@
 
   /* Буфер подстраивается под сеть: на ровном канале сжимается почти до
      интервала кадров, на дёрганом растягивается, чтобы движение осталось
-     гладким. Отставание всегда минимальное из возможных для этой связи. */
+     гладким. Отставание всегда минимальное из возможных для этой связи.
+     Сервер шлёт 30 кадров/с, поэтому даже минимум (32 мс) — уже между
+     соседними кадрами: чужие едут практически без задержки. */
   function noteSnapshot(t) {
     if (lastSnapAt) {
       var gap = t - lastSnapAt;
       if (gap < 2000) {
-        gapAvg = gapAvg * 0.88 + gap * 0.12;
-        gapPeak = Math.max(gapAvg, gapPeak * 0.94, gap);
-        interp = Math.max(INTERP_MIN, Math.min(INTERP_MAX, gapPeak + 20));
+        gapAvg = gapAvg * 0.85 + gap * 0.15;
+        /* Пик забывается быстрее, чем в v99: после единого рывка сети
+           отставание чужих игроков возвращается к минимуму за секунду,
+           а не тянется несколько секунд. */
+        gapPeak = Math.max(gapAvg, gapPeak * 0.9, gap);
+        interp = Math.max(INTERP_MIN, Math.min(INTERP_MAX, gapPeak + 12));
       }
     }
     lastSnapAt = t;
@@ -85,7 +90,7 @@
   function pushSnap(o, t, x, y) {
     o.buf = o.buf || [];
     o.buf.push({ t: t, x: x, y: y });
-    if (o.buf.length > 8) o.buf.shift();
+    if (o.buf.length > 10) o.buf.shift();
     o.tx = x; o.ty = y;
   }
 
@@ -324,6 +329,13 @@
       .then(function (d) {
         var got = (d && d.skins) || {};
         names.forEach(function (n) { imgCache[n] = (got[n] && got[n].img) || ''; });
+        /* Картинка приехала позже скина — донавешиваем её тем, кто уже
+           на экране. Раньше адрес доставался только в момент разбора
+           сетевого пакета, и скин-картинка так и оставалась голой фигурой. */
+        Object.keys(others).forEach(function (id) {
+          var o = others[id];
+          if (o && o.skin && !o.skin.img && imgCache[o.name]) o.skin.img = imgCache[o.name];
+        });
       })
       .catch(function () { names.forEach(function (n) { imgCache[n] = ''; }); });
   }
@@ -763,7 +775,12 @@
 
   // ---------- сеть ----------
   function connect() {
-    socket = io();
+    /* Сначала websocket: долгий опрос (polling) добавляет к каждому
+       пакету десятки миллисекунд, а на части сетей апгрейд до websocket
+       вовсе не проходит — и игрок навсегда оставался на медленном
+       транспорте. Теперь websocket первый, polling — запасной на случай
+       его полного запрета (tryAllTransports пробует по очереди). */
+    socket = io({ transports: ['websocket', 'polling'], tryAllTransports: true });
 
     socket.on('connect', function () {
       // сервер завёл нас заново: пусть первый же пакет несёт всё, включая скин
@@ -794,12 +811,13 @@
     });
 
     // при обрыве связи серверные фазы недоступны — действуем по своим таймерам
-    socket.on('disconnect', function () { hsSync = false; });
+    socket.on('disconnect', function () { hsSync = false; joined = false; });
 
     // сервер мог поправить имя: сессия сильнее присланного, а гостю
     // нельзя сидеть под чужим зарегистрированным ником
     socket.on('nameFixed', function (d) {
       if (d && d.name) me.name = d.name;
+      joined = true;                        // вход подтверждён — можно слать движение
     });
 
     socket.on('state', function (list) {
@@ -837,6 +855,7 @@
     });
 
     socket.on('playersList', function (list) {
+      joined = true;                        // запасное подтверждение входа
       var seen = {};
       byNid = {};
       list.forEach(function (p) {
@@ -858,14 +877,14 @@
       others[p.id] = { x: 0, y: 0, tx: 0, ty: 0, name: p.name, nid: p.nid };
       applyKnown(others[p.id], p.position);
       bindNid(others[p.id]);
-      log(esc(p.name) + ' зашёл', 's');
+      log(esc(p.name) + TR('joinedWord', ' зашёл'), 's');
       $('gCount').textContent = Object.keys(others).length + 1;
     });
 
     socket.on('playerLeft', function (d) {
       var gone = others[d.playerId];
       if (gone) {
-        log(esc(gone.name) + ' вышел', 's');
+        log(esc(gone.name) + TR('leftWord', ' вышел'), 's');
         if (gone.nid !== undefined) delete byNid[gone.nid];
       }
       delete others[d.playerId];
@@ -960,17 +979,23 @@
   }
 
   // ---------- отправка позиции и ловля ----------
-  /* Шлём 20 раз в секунду — ровно в темпе серверных кадров, чтобы между
-     двумя снапшотами всегда было что интерполировать. Но только когда
-     что-то изменилось: стоящий игрок не занимает ни канала, ни процессора.
-     Раз в секунду уходит контрольный пакет — на случай потерянного. */
+  /* Шлём 30 раз в секунду — ровно в темпе серверных кадров, чтобы между
+     двумя снапшотами всегда было что интерполировать: чужой игрок едет
+     по экрану так же плавно, как свой. Но только когда что-то изменилось:
+     стоящий игрок не занимает ни канала, ни процессора. Раз в секунду
+     уходит контрольный пакет — на случай потерянного. */
   var lastSent = 0, lastForce = 0, lastSk = null;
   var prev = { x: null, y: null, w: null, h: null, c: null, s: null, f: null, d: null };
+  /* Пока сервер не подтвердил вход, слать движение нельзя: пакет уйдёт
+     раньше «join» и сервер молча выбросит его — вместе со скином. А клиент
+     уже пометит скин отправленным и больше не повторит его. Раньше из-за
+     этой гонки на пинге 100+ мс чужие скины пропадали почти всегда. */
+  var joined = false;
   setInterval(function () {
-    if (!socket || !GAME.playing) return;
+    if (!socket || !joined || !GAME.playing) return;
     var p = GAME.pl;
     var now = Date.now();
-    if (now - lastSent < 50) return;
+    if (now - lastSent < 33) return;
 
     var pos = {
       x: Math.round(p.x), y: Math.round(p.y), w: p.w, h: p.h,
@@ -1008,7 +1033,7 @@
       });
       checkAllCaught();
     }
-  }, 60);
+  }, 33);
 
   /* Раунд заканчивается, как только пойманы все. Таймер после этого
      дотикивал впустую: искать было уже некого. */

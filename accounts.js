@@ -509,4 +509,4 @@ function register(app) {
   app.get('/captcha/getCaptcha', (req, res) => res.json({}));
 }
 
-module.exports = { register, currentUser, isOwner, OWNER, OWNER_ALIASES, getDb: () => db, save, newSession, hash, hashNew, verifyPassword, sessionNameBySid, nameIsTaken, dropUserSessions, key, checkName, clientIp };
+module.exports = { register, reload: load, currentUser, isOwner, OWNER, OWNER_ALIASES, getDb: () => db, save, newSession, hash, hashNew, verifyPassword, sessionNameBySid, nameIsTaken, dropUserSessions, key, checkName, clientIp };

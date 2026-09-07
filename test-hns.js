@@ -59,7 +59,7 @@ ok('стоп ровно на победителе',  /var target = seq\.length \
                                 /posOf\(target\)/.test(src));
 ok('укладывается в лобби',      /var spin = Math\.min\(dur - 1100, left - 2400\);/.test(src));
 ok('роль после остановки',      /applySeeker\(d\.winnerId\)/.test(src));
-ok('обрыв связи — свой таймер', /socket\.on\('disconnect', function \(\) \{ hsSync = false; \}\)/.test(src));
+ok('обрыв связи — свой таймер', /socket\.on\('disconnect', function \(\) \{ hsSync = false; joined = false; \}\)/.test(src));
 
 console.log('\nвидимость в прятках:');
 ok('лобби: до результата никого',  /if \(!hsWinnerId\) return;/.test(src));

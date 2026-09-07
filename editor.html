@@ -217,16 +217,16 @@ body.mob #msg h1{font-size:38px}
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
         <link rel="manifest" href="/site.webmanifest">
         <meta name="theme-color" content="#111827">
-	<link rel="canonical" href="https://aibrofist.online/editor.html">
-	<meta name="description" content="Редактор карт: собери свою и выложи её в игру.">
-	<meta property="og:type" content="website">
-	<meta property="og:site_name" content="AIBrofist">
-	<meta property="og:title" content="AIBrofist — Map Editor">
-	<meta property="og:description" content="Редактор карт: собери свою и выложи её в игру.">
-	<meta property="og:url" content="https://aibrofist.online/editor.html">
-	<meta property="og:image" content="https://aibrofist.online/preview.png">
-	<meta name="twitter:card" content="summary_large_image">
-	<meta name="twitter:image" content="https://aibrofist.online/preview.png">
+        <link rel="canonical" href="https://aibrofist.online/editor.html">
+        <meta name="description" content="Редактор карт: собери свою и выложи её в игру.">
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="AIBrofist">
+        <meta property="og:title" content="AIBrofist — Map Editor">
+        <meta property="og:description" content="Редактор карт: собери свою и выложи её в игру.">
+        <meta property="og:url" content="https://aibrofist.online/editor.html">
+        <meta property="og:image" content="https://aibrofist.online/preview.png">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://aibrofist.online/preview.png">
 </head>
 <body>
 
@@ -276,7 +276,7 @@ body.mob #msg h1{font-size:38px}
 <input type="file" id="file" accept=".txt,.json">
 <canvas id="c"></canvas>
 
-<script src="/socket.io/socket.io.js"></script>
+<!-- socket.io больше не нужен: realtime-соединение редактора убрано -->
 <script>
 (function(){
 "use strict";
@@ -291,10 +291,18 @@ function syncMob(){ document.body.classList.toggle("mob", isMob()); }
 syncMob(); addEventListener("resize", syncMob); addEventListener("orientationchange", syncMob);
 
 var cv = document.getElementById("c"), ctx = cv.getContext("2d");
-var DPR = Math.min(2, devicePixelRatio || 1);
+/* Адаптивное разрешение (v103): если устройство не тянет (кадр дороже 30 мс),
+   холст рисуется в уменьшенном разрешении — на слабых телефонах это
+   единственный способ удержать 30+ FPS. Как только тянет — качество
+   возвращается до полного. */
+var DPR_BASE = Math.min(2, devicePixelRatio || 1);
+var QUALITY = 1;                              // 1 — полное разрешение
+var DPR = DPR_BASE;
 function resize(){
-  cv.width = innerWidth * DPR; cv.height = innerHeight * DPR;
+  DPR = DPR_BASE * QUALITY;
+  cv.width = Math.round(innerWidth * DPR); cv.height = Math.round(innerHeight * DPR);
   cv.style.width = innerWidth + "px"; cv.style.height = innerHeight + "px";
+  bgGrad = null;                              // фон пересоздаётся под новый размер
 }
 addEventListener("resize", resize);
 var VW = function(){ return cv.width / DPR; }, VH = function(){ return cv.height / DPR; };
@@ -1311,8 +1319,11 @@ function drive(src){
   objects.forEach(function(o){ if(o.customId && ids.indexOf(o.customId) !== -1) o._act = src._act; });
 }
 function follow(){
-  var tx = VW()/2 - (pl.x+pl.w/2)*view.s, ty = VH()*0.6 - (pl.y+pl.h/2)*view.s;
-  view.x += (tx-view.x)*0.12; view.y += (ty-view.y)*0.12;
+  /* Камера прилипает к игроку НАМЕРТВО (v103): раньше экран догонял игрока
+     плавным лерпом 0.12 — при прыжке и падении персонаж уезжал к краю
+     экрана, и это выглядело как «лаги». Теперь ноль отставания: экран
+     движется ровно с той же скоростью, что и сам игрок. */
+  view.x = VW()/2 - (pl.x+pl.w/2)*view.s; view.y = VH()*0.6 - (pl.y+pl.h/2)*view.s;
 }
 
 /* ══════════════════════════════════════════════════
@@ -1364,13 +1375,19 @@ function paint(o, isSel){
     ctx.restore();
   }
 }
+var bgGrad = null, bgH = 0;
 function render(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   /* Холст всегда светлый, независимо от темы сайта: карта — это
-     содержимое игры, и она должна выглядеть у всех одинаково. */
-  var bg = ctx.createLinearGradient(0,0,0,VH());
-  bg.addColorStop(0,"#fbfcfe"); bg.addColorStop(1,"#eef2f8");
-  ctx.fillStyle = bg; ctx.fillRect(0,0,VW(),VH());
+     содержимое игры, и она должна выглядеть у всех одинаково.
+     Градиент фона создаётся один раз на размер окна — раньше он
+     пересоздавался 60 раз в секунду зря. */
+  if(!bgGrad || bgH !== VH()){
+    bgGrad = ctx.createLinearGradient(0,0,0,VH());
+    bgGrad.addColorStop(0,"#fbfcfe"); bgGrad.addColorStop(1,"#eef2f8");
+    bgH = VH();
+  }
+  ctx.fillStyle = bgGrad; ctx.fillRect(0,0,VW(),VH());
   drawGrid();
 
   var sx = shake > .4 ? (Math.random()-.5)*shake : 0, sy = shake > .4 ? (Math.random()-.5)*shake : 0;
@@ -1402,6 +1419,10 @@ function render(){
   if(!playing) anim++;
   requestAnimationFrame(render);
 }
+/* Надзор за FPS: если кадр в среднем дороже 30 мс (ниже 33 FPS), снижаем
+   разрешение холста на шаг; когда устройство снова тянет — возвращаем.
+   Проверка не чаще раза в 1.5 с, чтобы качество не прыгало. */
+var govLast = 0, govAvg = 16.7, govAt = 0;
 function loop(ts){
   if(playing){
     if(!last) last = ts;
@@ -1411,6 +1432,16 @@ function loop(ts){
     if(g >= 5) acc = 0;
     follow();
   }
+  if(govLast){
+    var gdt = ts - govLast;
+    if(gdt > 0 && gdt < 1000) govAvg = govAvg*0.95 + gdt*0.05;
+    if(ts - govAt > 1500){
+      govAt = ts;
+      if(govAvg > 30 && QUALITY > 0.55){ QUALITY = Math.max(0.5, QUALITY - 0.25); resize(); govAvg = 16.7; }
+      else if(govAvg < 19 && QUALITY < 1){ QUALITY = Math.min(1, QUALITY + 0.25); resize(); govAvg = 16.7; }
+    }
+  } else govAt = ts;
+  govLast = ts;
   stepAlways();
   requestAnimationFrame(loop);
 }
@@ -2315,22 +2346,17 @@ render();
 requestAnimationFrame(loop);
 })();
 
-const socket = io();
-const params = new URLSearchParams(window.location.search);
-const playerName = params.get('player') || 'Player';
-const roomCode = params.get('room') || 'room1';
-
-socket.on('connect', () => {
-  socket.emit('join', { playerName, gameMode: 'editor', room: roomCode });
-});
+/* Второе соединение убрано: блок открывал лишний socket и заводил призрака
+   в комнату «editor:*» на каждого открывшего редактор. Карты публикуются
+   обычными HTTP-запросами — realtime соединение редактору не нужно. */
 
 </script>
-<script src="i18n.js?v=100"></script>
+<script src="i18n.js?v=101"></script>
 <script src="abuseShow.js?v=100" defer></script>
 <script src="editorHelp.js?v=100"></script>
 <script src="editorAI.js?v=100" defer></script>
 <script src="account.js?v=100" defer></script>
-<script src="owner.js?v=100" defer></script>
+<script src="owner.js?v=102" defer></script>
 
 <script>
 /* Публикация карты в Maps Browser */

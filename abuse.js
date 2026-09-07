@@ -124,7 +124,16 @@ function register(app, acc) {
       state.until = (secs && state.weather !== 'none') ? Date.now() + secs * 1000 : 0;
 
       // одноразовые помечаем временем: клиент отыграет их ровно один раз
-      if (state.weather === 'nuke' || state.weather === 'coins') state.shotAt = Date.now();
+      if (state.weather === 'nuke' || state.weather === 'coins') {
+        state.shotAt = Date.now();
+        /* Счётчик пойманных монет хранится по ключу «имя::шоу» —
+           при старте нового шоу ключи прошлых шоу больше не нужны:
+           без чистки карта росла бы месяцами. */
+        const cur = String(state.shotAt);
+        Object.keys(grabbed).forEach(k => {
+          if (k.slice(k.lastIndexOf('::') + 2) !== cur) delete grabbed[k];
+        });
+      }
       bump();
       return res.json({ status: 'success', state });
     }
@@ -167,4 +176,4 @@ function register(app, acc) {
   });
 }
 
-module.exports = { register, FILE_DIR };
+module.exports = { register, reload: load, FILE_DIR };

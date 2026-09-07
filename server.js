@@ -6,8 +6,29 @@ const path = require('path');
 const app = express();
 app.disable('x-powered-by');
 const server = http.createServer(app);
+/* TCP_NODELAY: каждый пакет уходит в сеть сразу, без копейки «на отправку
+   пачкой». Для игры, где каждое сообщение — позиция на 30 кадров в секунду,
+   даже лишние 10–20 мс от алгоритма Нейгла заметны глазу. */
+server.on('connection', (tcp) => { try { tcp.setNoDelay(true); } catch (e) {} });
 const io = socketIo(server, {
   cors: { origin: true, credentials: true },   // только собственный домен: куки идут вместе с рукопожатием
+  /* Сокеты разрешены только «своим» страницам: источник рукопожатия
+     должен сидеть на том же хосте, к которому подключается. Чужой сайт
+     больше не может даже открыть сокет — ни websocket, ни polling.
+     Одинаково работает на своём домене, на *.railway.app и на localhost. */
+  allowRequest: (handshake, cb) => {
+    try {
+      const origin = String(handshake.headers.origin || '');
+      if (!origin) return cb(null, true);            // клиент без заголовка — пустят гостем
+      const oh = new URL(origin).host.toLowerCase().split(':')[0];
+      const host = String(handshake.headers.host || '').toLowerCase().split(':')[0];
+      const ok = (oh && oh === host) || oh === "localhost" || oh === "127.0.0.1";
+      /* Первый аргумент cb — СТРОКА ошибки (не объект Error!): движок
+         вставляет её прямо в заголовок ответа, и объект Error роняет
+         abort соединения — блокировка превращалась в тыкву. */
+      cb(ok ? null : 'чужой источник', ok);
+    } catch (e) { cb(null, true); }                  // разобрать не смогли — не баним
+  },
   maxHttpBufferSize: 1e6,
   /* Сжатие на мелких частых пакетах позиции — чистые потери процессорного
      времени на обеих сторонах: выигрыш в байтах копеечный, а задержка
@@ -39,7 +60,7 @@ app.use((req, res, next) => {
    репозитория: новый тест или свежий readme оказывались доступны по
    прямой ссылке. Теперь закрыты и целые семейства по префиксу. */
 const PRIVATE = ['/server.js','/accounts.js','/maps.js','/skins.js','/userskins.js','/updatetimer.js','/abuse.js',
-                 '/lang.js','/themes.js','/extras.js','/check-domain.js',
+                 '/lang.js','/themes.js','/extras.js','/check-domain.js','/backup.js',
                  '/package.json','/package-lock.json'];
 const PRIVATE_PREFIX = ['/test-', '/audit-', '/readme', '/domain', '/patch_', '/data', '/node_modules'];
 app.use((req, res, next) => {
@@ -216,6 +237,21 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/skinEditor.html', (req, res) => res.redirect(301, '/avatar.html'));
 app.get('/skinsBrowser.html', (req, res) => res.redirect(301, '/avatar.html'));
 
+/* Резервные копии: бэкап приходит одним большим POST-запросом, поэтому
+   маршрут надо зарегистрировать ДО скромных глобальных лимитов тела
+   (тот же приём, что у /abuse/upload ниже). Права перепроверяются на
+   каждый запрос внутри backup.js — обычному игроку маршруты невидимы. */
+require('./backup.js').register(app, {
+  acc: () => accountsRef,
+  reloadAll: () => {
+    require('./accounts.js').reload();
+    require('./maps.js').reload();
+    require('./userSkins.js').reload();
+    require('./extras.js').reload();
+    require('./abuse.js').reload();
+  }
+});
+
 /* Владелец грузит видео и гифки для общего шоу — они приходят в base64,
    поэтому для ЭТОГО маршрута тело должно вмещать десятки мегабайт.
    Остальные маршруты получают скромный лимит: огромные тела —
@@ -254,7 +290,8 @@ app.get(/^\/avatar\//, (req, res) => {
 });
 
 app.get('/getBestRoom', (req, res) => {
-  const mode = String(req.query.mode || 'sandbox');
+  // чистим как имя комнаты в join: мусор в mode не заводит лишние ключи
+  const mode = cleanName(req.query.mode) || 'sandbox';
   const LIMIT = 40;                      // больше — заводим новую комнату
   let best = null, bestCount = -1;
   gameState.rooms.forEach((set, key) => {
@@ -288,14 +325,13 @@ app.get('/editor/tutorial.html', (req, res) => res.redirect('/editor.html'));
 
 
 // Оптимизированное состояние для 2000+ игроков
-/* Короткий номер игрока. В снапшоте позиция едет 20 раз в секунду, и
+/* Короткий номер игрока. В снапшоте позиция едет 30 раз в секунду, и
    socket.id длиной в 20 символов занимал бы там больше места, чем сами
    координаты. Номер выдаётся при входе и живёт до выхода. */
 let nidSeq = 0;
 
 const gameState = {
   players: new Map(),
-  maps: [],
   chatMessages: new Map(),
   rooms: new Map(),
   stats: {
@@ -462,7 +498,7 @@ io.on('connection', (socket) => {
   gameState.stats.totalPlayers++;
 
   const account = sessionName(socket.handshake.headers.cookie);  // подтверждённый ник или null
-  const limMove = socketLimiter(60, 500);    // движение идёт 20 раз/сек, запас на всплески
+  const limMove = socketLimiter(90, 700);    // движение идёт 30 раз/сек, запас на всплески
   const limChat = socketLimiter(4, 8);       // чат: не чаще 4 в секунду и 8 в 10 сек
   const limCaught = socketLimiter(1, 2);     // «все пойманы» — не чаще раза в раунд
   const limPing = socketLimiter(2, 12);      // замер задержки — раз в пару секунд
@@ -581,34 +617,14 @@ io.on('connection', (socket) => {
          уходил каждому в комнате отдельным сообщением: 40 игроков по
          14 пакетов в секунду давали ~22 000 сообщений в секунду на одну
          комнату. Теперь позиция просто помечается изменённой, а комната
-         получает один общий кадр 20 раз в секунду (см. снапшоты ниже). */
+         получает один общий кадр 30 раз в секунду (см. снапшоты ниже). */
       player.dirty = true;
     }
   });
 
-  socket.on('saveMap', (data) => {
-    const player = gameState.players.get(socket.id);
-    if (player && data && data.mapData) {
-      gameState.maps.push({
-        id: Date.now() + Math.random(),
-        creator: player.name,
-        room: player.room,
-        mapData: cleanText(data.mapData, 400000),
-        timestamp: new Date().toLocaleTimeString('ru-RU'),
-        createdAt: Date.now()
-      });
-
-      if (gameState.maps.length > 1000) {
-        gameState.maps = gameState.maps.slice(-1000);
-      }
-
-      io.to(player.room).emit('mapSaved', gameState.maps[gameState.maps.length - 1]);
-    }
-  });
-
-  socket.on('getMaps', () => {
-    socket.emit('mapsList', gameState.maps);
-  });
+  /* saveMap/getMaps удалены в v103: эти сокет-обработчики были мёртвым
+     кодом (ни одна страница игры их не вызывает), но позволяли любому
+     игроку забить до 400 МБ памяти сервера спамом «карт» по 400 КБ. */
 
   socket.on('sendChat', (data) => {
     if (limChat()) return;
@@ -638,8 +654,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('getChatHistory', (data) => {
-    const room = data.room || 'main';
+  socket.on('getChatHistory', () => {
+    /* История только СВОЕЙ комнаты: раньше в запросе можно было указать
+       любую — и подглядывать чаты, к которым ты не присоединён. */
+    const player = gameState.players.get(socket.id);
+    const room = player ? player.room : 'main';
     const messages = gameState.chatMessages.get(room) || [];
     socket.emit('chatHistory', messages);
   });
@@ -696,9 +715,11 @@ text-decoration:none;font-size:16px;cursor:pointer}</style></head><body>
 });
 
 /* ================== СНАПШОТЫ КОМНАТ ==================
-   Комната получает один общий кадр 20 раз в секунду вместо отдельного
+   Комната получает один общий кадр 30 раз в секунду вместо отдельного
    сообщения на каждый пакет каждого игрока. Сообщений стало N вместо
    N², и приходят они ровным темпом — клиенту есть между чем сглаживать.
+   30 Гц вместо прежних 20: чем чаще кадры, тем ровнее интерполяция на
+   клиенте — чужие игроки движутся так же плавно, как свой (v103).
 
    В кадр попадают только те, у кого что-то изменилось: стоящие на месте
    не занимают ни байта. Редкие поля (размер, цвет, скин, реплика) едут
@@ -707,16 +728,22 @@ text-decoration:none;font-size:16px;cursor:pointer}</style></head><body>
    emit помечен volatile: если у кого-то соединение подвисло, старый кадр
    выбрасывается, а не копится в очереди — лучше пропустить один кадр,
    чем потом проигрывать пачку устаревших. */
-const SNAP_MS = 50;
-const KEY_EVERY = 40;            // раз в 2 секунды — опорный кадр
+const SNAP_MS = 33;
+const KEY_EVERY = 30;            // раз в секунду — опорный кадр
 let snapTick = 0;
 setInterval(() => {
   /* Обычный кадр несёт только изменившихся и уходит volatile — его
      не жалко потерять. Но если потерялся последний кадр перед тем, как
      игрок остановился, у остальных он так и застынет на старом месте.
-     Поэтому раз в 2 секунды уходит опорный кадр: позиции всех в комнате,
+     Поэтому раз в секунду уходит опорный кадр: позиции всех в комнате,
      уже обычной (гарантированной) доставкой. Он же лечит и любую другую
-     потерю — «зависших» и «пропавших» игроков больше нет. */
+     потерю — «зависших» и «пропавших» игроков больше нет.
+
+     Опорный кадр несёт и редкие поля (скин, размер, цвет, реплика):
+     раньше скин уезжал одним volatile-кадром, и на телефоне, где вкладка
+     на секунду подвисает, этот кадр терялся навсегда — чужие скины
+     пропадали до следующей смены образа. Теперь опорный кадр каждый
+     раз полный, так что любая потеря долечивается максимум за секунду. */
   const key = (++snapTick % KEY_EVERY) === 0;
   gameState.rooms.forEach((set, room) => {
     if (!set.size) return;
@@ -727,6 +754,9 @@ setInterval(() => {
       if (!p.dirty && !key) return;
       p.dirty = false;
       const pos = p.position || {};
+      /* В опорном кадре «что уже отправлено» сбрасывается: все редкие
+         поля едут заново, гарантированной доставкой. */
+      if (key) p.sent = {};
       const last = p.sent || (p.sent = {});
       const e = { n: p.nid, x: Math.round(pos.x || 0), y: Math.round(pos.y || 0) };
       if (pos.w !== last.w || pos.h !== last.h) { e.w = pos.w; e.h = pos.h; last.w = pos.w; last.h = pos.h; }

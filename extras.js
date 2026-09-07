@@ -418,4 +418,4 @@ function register(app, acc) {
   });
 }
 
-module.exports = { register, IMG_DIR };
+module.exports = { register, reload: load, IMG_DIR };

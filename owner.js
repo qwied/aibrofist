@@ -86,7 +86,7 @@
     var fab = document.createElement('button');
     fab.className = 'ow-fab';
     fab.title = T('ownerTools', 'Инструменты владельца');
-    fab.textContent = 'Ред';
+    fab.textContent = T('ownerFab', 'Ред');
     fab.onclick = open;
     document.body.appendChild(fab);
   }
@@ -125,6 +125,19 @@
       + '<div class="ow-sub">' + T('addToGame', 'Добавить в игру') + '</div>'
       + '<div class="ow-m" style="text-align:left;color:#6b7280" id="owGList">…</div>'
 
+      + '<div class="ow-sub">Резервная копия</div>'
+      + '<div class="ow-m" style="text-align:left;color:#6b7280;margin-bottom:4px">'
+      +   'Один файл со всем: аккаунты, монеты, скины, карты, новости. '
+      +   'Скачайте перед переездом на другой сервер — и восстановите там же в этой панели. '
+      +   'Медиа шоу тяжелее 25 МБ в файл не входят.'
+      + '</div>'
+      + '<div class="ow-row2">'
+      +   '<div class="ow-b" id="owBkDl" style="margin:0">Скачать</div>'
+      +   '<div class="ow-b" id="owBkRs" style="margin:0">Восстановить</div>'
+      + '</div>'
+      + '<div class="ow-m" id="owBkMsg"></div>'
+      + '<input type="file" id="owBkFile" accept=".json,application/json" style="display:none">'
+
       + '<div class="ow-sub">' + T('avatar', 'Avatar') + '</div>'
       + '<div class="ow-m" style="text-align:left;color:#6b7280">'
       +   'Накрутка оценок, цена и загрузка скина из картинки — на странице Avatar.'
@@ -162,6 +175,58 @@
 
     box.querySelector('#owGoSkins').onclick = function () {
       location.href = '/avatar.html';
+    };
+
+    /* ---------- резервная копия: скачать / восстановить ---------- */
+    box.querySelector('#owBkDl').onclick = function () {
+      var m = box.querySelector('#owBkMsg');
+      m.style.color = '#6b7280'; m.textContent = 'Готовлю файл…';
+      fetch('/owner/backup', { credentials: 'same-origin' }).then(function (r) {
+        if (!r.ok) throw new Error('bad status');
+        var mm = /filename="?([^";]+)"?/.exec(r.headers.get('Content-Disposition') || '');
+        return r.blob().then(function (b) { return { blob: b, name: mm && mm[1] }; });
+      }).then(function (x) {
+        var url = URL.createObjectURL(x.blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = x.name || 'aibrofist-backup.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+        m.style.color = '#2e9b2e';
+        m.textContent = 'Скачано. Храните файл, пока не проверите новый сервер.';
+      }).catch(function () {
+        m.style.color = 'red'; m.textContent = 'Не удалось скачать бэкап';
+      });
+    };
+
+    box.querySelector('#owBkRs').onclick = function () {
+      box.querySelector('#owBkFile').click();
+    };
+    box.querySelector('#owBkFile').onchange = function (e) {
+      var f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      if (!confirm('Восстановить «' + f.name + '»? Аккаунты, карты, скины и новости ' +
+                   'будут заменены данными из файла. Входите потом под аккаунтом из бэкапа.'))
+        return;
+      var m = box.querySelector('#owBkMsg');
+      m.style.color = '#6b7280'; m.textContent = 'Читаю файл…';
+      var rd = new FileReader();
+      rd.onload = function () {
+        m.textContent = 'Загружаю и восстанавливаю — не закрывайте страницу…';
+        post('/owner/restore', { data: rd.result }).then(function (r) {
+          m.style.color = r.status === 'success' ? '#2e9b2e' : 'red';
+          m.textContent = r.message || (r.status === 'success' ? 'Готово' : 'Ошибка');
+          if (r.status === 'success') setTimeout(function () { location.reload(); }, 1500);
+        }).catch(function () {
+          m.style.color = 'red';
+          m.textContent = 'Не вышло — возможно, файл тяжелее лимита сервера';
+        });
+      };
+      rd.onerror = function () {
+        m.style.color = 'red'; m.textContent = 'Не удалось прочитать файл';
+      };
+      rd.readAsText(f);
     };
 
     get('/owner/inGame').then(function (r) {

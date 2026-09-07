@@ -413,4 +413,4 @@ function inGameList() {
                           mapType: m.mapType, modes: m.inGameModes.slice() }));
 }
 
-module.exports = { register, MODES, OWNER, COIN_LIMIT, OBJ_LIMIT, REWARD, TOOL_MODES, find, setBoost, setInGame, inGameList, tally };
+module.exports = { register, reload: load, MODES, OWNER, COIN_LIMIT, OBJ_LIMIT, REWARD, TOOL_MODES, find, setBoost, setInGame, inGameList, tally };
