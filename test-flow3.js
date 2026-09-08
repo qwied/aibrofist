@@ -10,7 +10,7 @@
    9) сохранение/загрузка карты перевозит жидкие частицы;
    10) Ctrl+Z смывает сеанс литья целиком. */
 const fs = require('fs');
-const path = '/home/z/my-project/aibrofist/';
+const path = __dirname + '/';
 const byId = {};
 function mkEl(tag) {
   const el = {

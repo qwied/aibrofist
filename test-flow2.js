@@ -7,7 +7,7 @@
    12) узкий кусок, сорвавшийся с уступа, падает каплями и оседает на полу;
    13) капли, налитые во время игры, тоже доливаются в лужу. */
 const fs = require('fs');
-const path = '/home/z/my-project/aibrofist/';
+const path = __dirname + '/';
 const byId = {};
 
 function mkEl(tag) {
