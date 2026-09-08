@@ -54,7 +54,7 @@
 
 <div class="bfWrap">
   <div class="bfTitle" data-i18n="avatar">Аватар</div>
-  <div class="bfSub" data-i18n="avatarSub">Одевай персонажа, покупай вещи за монеты и публикуй свои образы.</div>
+  <div class="bfSub" data-i18n="avatarSub">Одевай персонажа, покупай вещи за монеты и сохраняй готовые образы.</div>
 
   <div class="avLayout">
     <div>
@@ -68,7 +68,7 @@
         <div class="bfTab" id="avTabMine" data-i18n="tabMine">Мои скины</div>
       </div>
       <button class="bfBtn go" id="seSave" data-i18n="save">Сохранить</button>
-      <button class="bfBtn" id="avPublish" data-i18n="publishLook">Опубликовать образ</button>
+      <button class="bfBtn" id="avSaveSkin" data-i18n="saveToMine">Сохранить в «Мои скины»</button>
       <div class="avBy" id="seLimit" style="min-height:16px"></div>
       <button class="bfBtn ghost" id="seReset" data-i18n="resetAll">Сбросить</button>
       <div class="bfMsg" id="avMsg"></div>
@@ -230,7 +230,7 @@
         $('sbList').innerHTML = skins.length
           ? '<div class="bfGrid">' + skins.map(shopCard).join('') + '</div>'
           : '<div class="bfHint">' + T('shopEmpty',
-              'Готовых скинов пока нет. Свой образ можно опубликовать кнопкой слева.') + '</div>';
+              'Готовых скинов пока нет.') + '</div>';
         window.dispatchEvent(new CustomEvent('bf-skins-drawn', { detail: { skins: skins } }));
       })
       .catch(function () { $('sbList').innerHTML = '<div class="bfHint">' + T('serverDown') + '</div>'; });
@@ -240,7 +240,7 @@
   function loadMine() {
     if (st.guest) {
       $('avMine').innerHTML = '<div class="bfHint">' + T('mineGuest',
-        'Войдите в аккаунт, чтобы публиковать свои образы.') + '</div>';
+        'Войдите в аккаунт, чтобы сохранять свои образы.') + '</div>';
       return;
     }
     fetch('/userSkins?name=' + encodeURIComponent(myName), { credentials:'same-origin' })
@@ -249,7 +249,7 @@
         mine = d.skins || [];
         if (!mine.length) {
           $('avMine').innerHTML = '<div class="bfHint">' + T('mineEmpty',
-            'Ты ещё ничего не публиковал. Одень персонажа и нажми «Опубликовать образ».') + '</div>';
+            'Здесь пока пусто. Одень персонажа и нажми «Сохранить в «Мои скины»».') + '</div>';
           return;
         }
         $('avMine').innerHTML = '<div class="bfGrid">' + mine.map(function (s) {
@@ -257,8 +257,9 @@
           return '<div class="sbCard bfCard" data-id="' + s.id + '">'
             + '<div class="avArt">' + art + '</div>'
             + '<div class="bfCardName">' + esc(s.skinName) + '</div>'
-            + '<div class="avRate ' + (s.rating > 0 ? 'pos' : (s.rating < 0 ? 'neg' : 'zero')) + '">'
-            +   s.rating + '</div>'
+            + (s.personal ? ''
+                : '<div class="avRate ' + (s.rating > 0 ? 'pos' : (s.rating < 0 ? 'neg' : 'zero')) + '">'
+                  + s.rating + '</div>')
             + '<button class="bfMini own" data-wear="' + s.id + '">' + T('equip') + '</button>'
             + '<button class="bfMini" data-del="' + s.id + '" style="margin-top:6px;'
             +   'border-color:var(--red);color:var(--red)">' + T('removeTxt', 'Удалить') + '</button>'
@@ -294,16 +295,15 @@
       }).catch(function () {});
   }
 
-  /* ---------------- суточный лимит публикаций ---------------- */
+  /* ---------------- сколько мест осталось в «Мои скины» ---------------- */
   function limitLine() {
     if (st.guest) { $('seLimit').textContent = ''; return; }
     fetch('/skins/limit', { credentials:'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || d.guest) { $('seLimit').textContent = ''; return; }
-        $('seLimit').innerHTML = T('skinsLeft', 'Сегодня можно выложить') + ': '
-          + d.left + ' / ' + d.limit + '  ·  +' + d.reward + ' '
-          + (window.BFCoin ? BFCoin.svg(15) : '');
+        $('seLimit').textContent = T('minePlaces', 'Свободно мест в «Мои скины»') + ': '
+          + d.left + ' / ' + d.limit;
       }).catch(function () {});
   }
 
@@ -403,24 +403,20 @@
     drawStage(); drawList();
   };
 
-  $('avPublish').onclick = function () {
+  $('avSaveSkin').onclick = function () {
     if (st.guest) { msg(T('loginFirst', 'Сначала войдите в аккаунт')); return; }
     var name = prompt(T('skinNameAsk', 'Название скина (2–30 символов):'), '');
     if (name === null) return;
     name = name.trim();
     if (name.length < 2) { msg(T('skinNameShort', 'Слишком короткое название')); return; }
 
-    var data = { skinName: name, skin: JSON.stringify(st.skin) };
-    // картинку публикуем только если она вшита прямо сюда (data:URL) —
-    // локальный путь /skinimg/... сервером не принимается
-    if (/^data:/i.test(st.img || '')) data.img = st.img;
-    post('/skins/publish', data)
+    post('/skins/save', { skinName: name, skin: JSON.stringify(st.skin) })
       .then(function (r) {
         if (r.status !== 'success') { msg(r.message || T('errorTxt')); return; }
         msg(r.message, true);
         limitLine();
-        if (window.BFShell && r.coins !== undefined) { st.coins = r.coins; drawCoins(); BFShell.refreshCoins(r.coins); }
         loadMine();
+        showTab('avMineBox');
       })
       .catch(function () { msg(T('serverDown')); });
   };
