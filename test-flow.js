@@ -7,7 +7,7 @@
    6) отдаление в зуме ограничено 20%;
    7) из повёрнутой воды течение не убегает. */
 const fs = require('fs');
-const path = '/home/z/my-project/aibrofist/';
+const path = __dirname + '/';
 const byId = {};
 
 function mkEl(tag) {
