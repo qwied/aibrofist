@@ -34,7 +34,12 @@ TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
 if not TOKEN:
     raise SystemExit("DISCORD_BOT_TOKEN is not set. Copy .env.example to .env and fill it in.")
 
-NEWS_CHANNEL_ID = int(os.environ.get("NEWS_CHANNEL_ID", "0") or "0")
+# Default is the owner's #updates channel. Not a secret — a channel ID
+# only lets you post into a channel the bot has already been invited to
+# and been given permission for, so it's fine to keep in source control.
+# Override via NEWS_CHANNEL_ID if you ever point this bot at a different
+# server.
+NEWS_CHANNEL_ID = int(os.environ.get("NEWS_CHANNEL_ID", "1543927183385428028") or "0")
 API_BASE = os.environ.get("API_BASE", "https://aibrofist.online").rstrip("/")
 POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
 SEEN_LOG_FILE = Path(os.environ.get("SEEN_LOG_FILE", "seen_logs.json"))
