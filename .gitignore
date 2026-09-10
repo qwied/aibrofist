@@ -1,2 +1,8 @@
 node_modules/
 data/
+
+# Discord bot: local secrets and runtime state, never committed
+discord-bot/.env
+discord-bot/seen_logs.json
+discord-bot/.venv/
+discord-bot/__pycache__/
