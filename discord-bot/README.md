@@ -4,9 +4,9 @@ A small bot with two features:
 
 1. **Automatic news posting** — no command needed. It polls
    `https://aibrofist.online/getLogs` and, whenever a new site update
-   appears, posts it to a chosen channel as an embed titled `# <update
-   title>` with the update text as the body (and the first attached image,
-   if any).
+   appears, posts it to the `#updates` channel (`1543927183385428028` by
+   default) as an embed titled `# <update title>` with the update text as
+   the body (and the first attached image, if any).
 2. **`/online`** — a slash command that shows every player currently
    online, grouped by game mode (Hide and Seek / Race) and room, in one
    embed.
@@ -17,7 +17,7 @@ A small bot with two features:
 2. `pip install -r requirements.txt`
 3. `cp .env.example .env` and fill in:
    - `DISCORD_BOT_TOKEN` — from the [Discord Developer Portal](https://discord.com/developers/applications) → your application → Bot → Reset Token.
-   - `NEWS_CHANNEL_ID` — the channel the news posts should go to (enable Developer Mode in Discord, right-click the channel, Copy Channel ID).
+   - `NEWS_CHANNEL_ID` — already defaults to `#updates` (`1543927183385428028`); only change it if the bot should post somewhere else (enable Developer Mode in Discord, right-click the channel, Copy Channel ID).
 4. In the Developer Portal, under **Bot**, no privileged intents are required — this bot only reads public HTTP data and posts messages/handles slash commands.
 5. Invite the bot to your server with the `bot` and `applications.commands` scopes and at least the **Send Messages** and **Embed Links** permissions in the news channel.
 6. Run it: `python bot.py`
