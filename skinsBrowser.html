@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>AIBrofist — Skins Browser</title>
@@ -15,7 +15,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://aibrofist.online/preview.png">
 <link rel="stylesheet" href="ui.css?v=85">
-<script src="device.js?v=86"></script>
+<script src="device.js?v=100"></script>
 <style>
 .sbFilters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:9px;margin-bottom:6px}
 .sbFilters .bfInput,.sbFilters .bfSelect{margin-bottom:0}
@@ -40,7 +40,7 @@
   .sbGrid{grid-template-columns:repeat(2,1fr);gap:10px}
 }
 </style>
-        <script src="theme.js?v=86"></script>
+        <script src="theme.js?v=100"></script>
         <link rel="icon" href="/favicon.ico" sizes="32x32">
         <link rel="icon" type="image/svg+xml" href="/favicon.svg">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -51,16 +51,16 @@
 
 <div class="bfWrap">
   <div class="bfTitle" data-i18n="skinsBrowser">Skins Browser</div>
-  <div class="bfSub" data-i18n="skinsSub">Скины игроков. Оценивайте чужие работы и примеряйте понравившиеся.</div>
+  <div class="bfSub" data-i18n="skinsSub">Player-made skins. Rate the ones you like — the owner picks the best for Avatar.</div>
 
   <div class="sbFilters">
-    <input class="bfInput" id="sbAuthor" data-i18n-ph="colAuthor" placeholder="Автор">
-    <input class="bfInput" id="sbName" data-i18n-ph="colName" placeholder="Название">
+    <input class="bfInput" id="sbAuthor" data-i18n-ph="colAuthor" placeholder="Author">
+    <input class="bfInput" id="sbName" data-i18n-ph="colName" placeholder="Name">
     <select class="bfSelect" id="sbSort">
-      <option value="date" data-i18n="sortDate">Сортировать по дате</option>
-      <option value="rating" data-i18n="sortRating">Сортировать по рейтингу</option>
+      <option value="date" data-i18n="sortDate">Sort by date</option>
+      <option value="rating" data-i18n="sortRating">Sort by rating</option>
     </select>
-    <button class="bfBtn go" id="sbGo" data-i18n="refresh">Обновить</button>
+    <button class="bfBtn go" id="sbGo" data-i18n="refresh">Refresh</button>
   </div>
 
   <div class="bfPager">
@@ -69,24 +69,24 @@
     <button id="sbNext">&gt;</button>
   </div>
 
-  <div id="sbList"><div class="bfHint" data-i18n="loading">Загрузка…</div></div>
+  <div id="sbList"><div class="bfHint" data-i18n="loading">Loading…</div></div>
   <div class="bfMsg" id="sbMsg"></div>
 </div>
 
 <link rel="stylesheet" href="mobile.css?v=85">
 <script src="i18n.js?v=109"></script>
 <script src="skinRender.js?v=103"></script>
-<script src="coin.js?v=86"></script>
+<script src="coin.js?v=101"></script>
 <script src="shell.js?v=102"></script>
 <script src="abuseShow.js?v=101" defer></script>
-<script src="account.js?v=86" defer></script>
-<script src="owner.js?v=86" defer></script>
+<script src="account.js?v=100" defer></script>
+<script src="owner.js?v=102" defer></script>
 <script>
 (function () {
   'use strict';
   var T = function (k, f) { return (window.I18N && I18N.t(k) !== k) ? I18N.t(k) : (f || k); };
   var $ = function (id) { return document.getElementById(id); };
-  var byId = {}, page = 1, pages = 1, owner = false;
+  var page = 1, pages = 1, owner = false;
 
   function msg(t, ok) {
     var m = $('sbMsg');
@@ -101,13 +101,6 @@
       headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
       .then(function (r) { return r.json(); });
   }
-  // у скина-картинки рисуем саму картинку, а не фигуру
-  function withImg(rec) {
-    var sk = Object.assign({}, rec.skin || {});
-    if (rec.img) sk.img = rec.img;
-    return sk;
-  }
-
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c];
@@ -115,12 +108,12 @@
   }
 
   function card(s) {
-    var art = window.BFSkin ? BFSkin.render(withImg(s), byId, { height: 150 }) : '';
+    var art = window.BFSkin ? BFSkin.render({ img: s.img }, {}, { height: 150 }) : '';
     var h = '<div class="sbCard" data-id="' + s.id + '">'
       + '<div class="sbArt">' + art + '</div>'
       + (s.inAvatar ? '<div class="sbTag">Avatar · ' + s.price + ' ' + BFCoin.svg(14) + '</div>' : '')
       + '<div class="sbName">' + esc(s.skinName) + '</div>'
-      + '<div class="sbAuthor">' + T('colAuthor', 'Автор') + ': '
+      + '<div class="sbAuthor">' + T('colAuthor', 'Author') + ': '
       +   '<a href="users.html?name=' + encodeURIComponent(s.author) + '">' + esc(s.author) + '</a></div>'
       + '<div class="sbRating ' + (s.rating > 0 ? 'pos' : (s.rating < 0 ? 'neg' : 'zero')) + '">'
       +   s.rating + '</div>'
@@ -150,7 +143,7 @@
         $('sbNext').disabled = page >= pages;
         $('sbList').innerHTML = d.skins.length
           ? '<div class="sbGrid">' + d.skins.map(card).join('') + '</div>'
-          : '<div class="bfHint">' + T('noSkins', 'Скины не найдены') + '</div>';
+          : '<div class="bfHint">' + T('noSkins', 'No skins found') + '</div>';
         // owner.js дорисует свои кнопки, если он вообще загружен
         window.dispatchEvent(new CustomEvent('bf-skins-drawn', { detail: { skins: d.skins } }));
       })
@@ -171,10 +164,7 @@
     }
   });
 
-  fetch('/skin/catalog', { credentials:'same-origin' })
-    .then(function (r) { return r.json(); })
-    .then(function (d) { (d.items || []).forEach(function (i) { byId[i.id] = i; }); load(); })
-    .catch(load);
+  load();
 
   window.addEventListener('bf-lang', load);
 
@@ -182,6 +172,6 @@
   window.BFSkinsPage = { reload: load, msg: msg, post: post, t: T };
 })();
 </script>
-        <script src="skinAvatar.js?v=86" defer></script>
+        <script src="skinAvatar.js?v=100" defer></script>
 </body>
 </html>
