@@ -24,7 +24,7 @@ function register(app, acc) {
   app.post('/mapgen/unlock', (req, res) => {
     const u = currentUser(req);
     if (!u) return res.json({ status: 'error', code: 'guest',
-                              message: 'Сначала войдите в аккаунт' });
+                              message: 'Sign in first' });
     if (u.mapGenUnlocked)
       return res.json({ status: 'success', unlocked: true, coins: u.coins || 0 });
 
