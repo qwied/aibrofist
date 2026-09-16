@@ -33,7 +33,13 @@ function scenario(name, mkMap, spawn, input, frames){
   E.startRun();
   for(let i = 0; i < 6; i++) E.step();
   const mover = objs.find(o => o.moves);
-  const lim = mover ? platDX(mover, frames + 10) + MAXVX + 2.5 : 1e9;
+  /* Предел за кадр: ход платформы + собственный бег + одна законная
+     поправка выталкивания (|vx| + 8, см. capX в game.html). Поправку
+     стали учитывать с тех пор, как скорость берётся сразу в первом
+     кадре: раньше на кадре 0 игрок ещё только разгонялся, и её запас
+     прятался внутри +2.5. */
+  const FIX = MAXVX + 8;
+  const lim = mover ? platDX(mover, frames + 10) + MAXVX + FIX + 2.5 : 1e9;
   let worst = 0, wf = 0;
   for(let f = 0; f < frames; f++){
     if(input) input(f, E);
