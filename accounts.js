@@ -6,13 +6,10 @@ const crypto = require('crypto');
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'users.json');
 
-/* Список владельцев пуст по решению владельца: ни один прежний аккаунт
-   (System/AIBrofist/MAPS_MANAGER/SYSТEM/qwied) сейчас не должен иметь
-   прав. Пока OWNER_NAME/OWNER_ALIASES не заданы явно через переменные
-   окружения, isOwner() всегда возвращает false — владельческие
-   маршруты (включая /owner/restore) недоступны никому. */
-const OWNER = process.env.OWNER_NAME || '';
-const OWNER_ALIASES = String(process.env.OWNER_ALIASES || '')
+// qwied уже существует как обычный аккаунт на сайте (не создаётся
+// здесь) — единственный владелец.
+const OWNER = process.env.OWNER_NAME || 'qwied';
+const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'qwied')
   .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
 if (OWNER && OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.toLowerCase());
 
