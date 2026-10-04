@@ -6,11 +6,11 @@ const crypto = require('crypto');
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'users.json');
 
-const OWNER = process.env.OWNER_NAME || 'System';
-// ссылка в задаче вела на профиль System — считаем оба ника владельцем,
-// чтобы права не потерялись при переименовании аккаунта. MAPS_MANAGER
-// добавлен как третий равноправный алиас (не замена двух прежних).
-const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'System,AIBrofist,MAPS_MANAGER')
+const OWNER = process.env.OWNER_NAME || 'SYSТEM';
+// Единственный владелец сайта — этот конкретный аккаунт (четвёртый
+// символ — кириллическая «Т», U+0422, не латинская; это не опечатка,
+// имя совпадает с уже существующим аккаунтом один в один).
+const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'SYSТEM')
   .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
 if (OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.toLowerCase());
 
