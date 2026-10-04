@@ -6,14 +6,15 @@ const crypto = require('crypto');
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'users.json');
 
-const OWNER = process.env.OWNER_NAME || 'SYSТEM';
-// qwied добавлен как второй равноправный алиас — владелец планирует
-// переименовать SYSТEM (четвёртый символ — кириллическая «Т»,
-// U+0422) в qwied через самостоятельную смену ника, и права не должны
-// потеряться в процессе. Пока оба имени работают одинаково.
-const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'SYSТEM,qwied')
+/* Список владельцев пуст по решению владельца: ни один прежний аккаунт
+   (System/AIBrofist/MAPS_MANAGER/SYSТEM/qwied) сейчас не должен иметь
+   прав. Пока OWNER_NAME/OWNER_ALIASES не заданы явно через переменные
+   окружения, isOwner() всегда возвращает false — владельческие
+   маршруты (включая /owner/restore) недоступны никому. */
+const OWNER = process.env.OWNER_NAME || '';
+const OWNER_ALIASES = String(process.env.OWNER_ALIASES || '')
   .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
-if (OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.toLowerCase());
+if (OWNER && OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.toLowerCase());
 
 const isOwner = u => !!u && OWNER_ALIASES.indexOf(String(u.name).toLowerCase()) !== -1;
 
