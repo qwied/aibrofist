@@ -641,9 +641,11 @@ function register(app) {
         return res.status(400).send('Discord sign-in failed — please try again');
 
       const token = await exchangeCode(code, discordRedirectUri(req));
-      if (!token || !token.access_token) return res.status(400).send('Discord sign-in failed — please try again');
+      if (!token || !token.access_token)
+        return res.status(400).send('Discord sign-in failed — please try again');
       const profile = await fetchProfile(token.access_token);
-      if (!profile || !profile.id) return res.status(400).send('Discord sign-in failed — please try again');
+      if (!profile || !profile.id)
+        return res.status(400).send('Discord sign-in failed — please try again');
 
       const me = currentUser(req);
       const owner = userByDiscordId(profile.id);
@@ -673,6 +675,7 @@ function register(app) {
       addCookie(res, 'pendingAuth=' + pendingToken + '; Path=/; Max-Age=600; SameSite=Lax; HttpOnly' + (isHttps(req) ? '; Secure' : ''));
       res.redirect('/?authSignup=discord');
     } catch (e) {
+      console.error('[discord] callback threw:', e && e.stack || e);
       res.status(500).send('Discord sign-in failed — please try again');
     }
   });
