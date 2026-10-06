@@ -7,10 +7,12 @@ const { atomicWriteFileSync } = require('./fsAtomic.js');
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'users.json');
 
-// qwied уже существует как обычный аккаунт на сайте (не создаётся
-// здесь) — единственный владелец.
-const OWNER = process.env.OWNER_NAME || 'qwied';
-const OWNER_ALIASES = String(process.env.OWNER_ALIASES || 'qwied')
+// Старый аккаунт qwied не пережил переезд на новый постоянный том —
+// временно снимаем резерв с ника, чтобы его можно было завести заново
+// через обычную форму регистрации. Как только аккаунт создан, здесь
+// снова ставим 'qwied' и деплоим.
+const OWNER = process.env.OWNER_NAME || '';
+const OWNER_ALIASES = String(process.env.OWNER_ALIASES || '')
   .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
 if (OWNER && OWNER_ALIASES.indexOf(OWNER.toLowerCase()) === -1) OWNER_ALIASES.push(OWNER.toLowerCase());
 
