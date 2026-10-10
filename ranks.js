@@ -203,7 +203,15 @@ function raceDeclassified(u) {
 
 // оценка навыка в гонке, 0..1; null — сыграно слишком мало
 function raceScore(u, field, mapsByKey) {
-  if ((u.rcFin || 0) < RACE_MIN_FIN) return null;
+  /* Медали за время (см. выше) — про КОНКРЕТНЫЕ карты, которые разметил
+     владелец, а не про то, сколько всего карт человек прошёл. Если общего
+     опыта мало (ниже RACE_MIN_FIN/MIN_RUNNERS), это не должно прятать уже
+     заработанную медаль: ранг тогда и есть сама медаль, без примеси
+     процентиля. Раньше медаль пропадала целиком, пока человек не набегает
+     общий минимум, — противоречило самому смыслу разметки "ранг даётся за
+     определённые карты". */
+  const medalAvg = mapsByKey ? medalAvgRace(u, mapsByKey) : null;
+  if ((u.rcFin || 0) < RACE_MIN_FIN) return medalAvg;
   const r = (u.rcBest && typeof u.rcBest === 'object') ? u.rcBest : {};
 
   let sum = 0, n = 0;
@@ -216,14 +224,13 @@ function raceScore(u, field, mapsByKey) {
     sum += slower / (times.length - 1);
     n++;
   });
-  /* Ни одной карты, на которой есть с кем сравниться, — судить не о чем.
-     Ранга нет вовсе: это честнее, чем выдавать оценку авансом, и заодно
-     ничего не даёт тому, кто «проходит» только собственные карты. */
-  if (!n) return null;
+  /* Ни одной карты, на которой есть с кем сравниться, — судить не о чем
+     по процентилю. Но медаль за конкретную карту — это не процентиль,
+     ей сравнение с другими не нужно, так что рангом остаётся она. */
+  if (!n) return medalAvg;
   const base = clamp01(0.65 * (sum / n) + 0.35 * clamp01(n / BREADTH_FULL));
-  // медали за время (см. выше) — добавка сверху, а не замена; нет медалей
-  // ни на одной пройденной карте — оценка не меняется ни на сотую
-  const medalAvg = mapsByKey ? medalAvgRace(u, mapsByKey) : null;
+  // медали — добавка сверху, а не замена; нет медалей ни на одной
+  // пройденной карте — оценка не меняется ни на сотую
   return medalAvg === null ? base : clamp01(0.75 * base + 0.25 * medalAvg);
 }
 
@@ -237,14 +244,15 @@ function hsDeclassified(u) {
 
 // оценка навыка в прятках, 0..1; null — сыграно слишком мало
 function hsScore(u, mapsByKey) {
+  // та же логика, что в raceScore: медаль за конкретную карту не должна
+  // ждать общего минимума раундов — см. комментарий там
+  const medalAvg = mapsByKey ? medalAvgHs(u, mapsByKey) : null;
   const hide = u.hsHide || 0;
-  if (hide < HS_MIN_ROUNDS) return null;
+  if (hide < HS_MIN_ROUNDS) return medalAvg;
   const surv = clamp01((u.hsSurv || 0) / hide);
   const seek = u.hsSeek || 0;
   const base = seek < HS_MIN_SEEK ? surv
     : clamp01(0.6 * surv + 0.4 * clamp01(((u.hsCat || 0) / seek) / CATCH_FULL));
-  // медали за время, та же добавка, что и в raceScore — см. там
-  const medalAvg = mapsByKey ? medalAvgHs(u, mapsByKey) : null;
   return medalAvg === null ? base : clamp01(0.75 * base + 0.25 * medalAvg);
 }
 
