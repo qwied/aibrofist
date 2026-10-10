@@ -27,6 +27,22 @@
     });
   };
 
+  /* Та же лестница букв, что и в ranks.js (RANK_ORDER) — своя копия:
+     это браузерный скрипт без доступа к серверным модулям. */
+  var RANKS = ['S', 'A+', 'A', 'B+', 'B', 'C+', 'C'];
+  function ladderInputsHtml(group, label, tiers) {
+    var byRank = {}; (tiers || []).forEach(function (t) { byRank[t.rank] = t.ms; });
+    var rows = RANKS.map(function (r) {
+      var sec = byRank[r] > 0 ? (Math.round(byRank[r] / 100) / 10) : '';
+      return '<div class="ow-row2" style="margin:2px 0;align-items:center">'
+        + '<span style="width:30px;flex:0 0 30px;font-weight:700;font-size:13px">' + r + '</span>'
+        + '<input class="ow-i" style="margin:2px 0" type="number" step="0.1" min="0" '
+        +   'data-ladder="' + group + '" data-rank="' + esc(r) + '" value="' + esc(String(sec)) + '" placeholder="seconds">'
+        + '</div>';
+    }).join('');
+    return '<div class="ow-sub" style="margin:8px 0 2px;font-size:12px">' + esc(label) + '</div>' + rows;
+  }
+
   function post(url, data) {
     var body = Object.keys(data).map(function (k) {
       return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]);
@@ -78,6 +94,7 @@
     + '.ow-tag.add{border-color:#2e9b2e;color:#2e9b2e}.ow-tag.add:hover{background:#2e9b2e;color:#fff}'
     + '.ow-tag.on{border-color:#2e9b2e;background:#2e9b2e;color:#fff}'
     + '.ow-tag.vote{border-color:#d97706;color:#d97706}.ow-tag.vote:hover{background:#d97706;color:#fff}'
+    + '.ow-tag.rank{border-color:#7c3aed;color:#7c3aed}.ow-tag.rank:hover{background:#7c3aed;color:#fff}'
     + '.ow-tag.del{border-color:#dc2626;color:#dc2626}.ow-tag.del:hover{background:#dc2626;color:#fff}'
     + '.ow-modes{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;width:100%}'
     + '.ow-mode{border:1px solid #94a3b8;color:#475569;border-radius:5px;padding:3px 7px;'
@@ -166,6 +183,17 @@
       + '<div class="ow-b" id="owRGo">' + T('apply', 'Применить') + '</div>'
       + '<div class="ow-m" id="owRMsg"></div>'
 
+      + '<div class="ow-sub">Map rank tiers</div>'
+      + '<div class="ow-m" style="text-align:left;color:#6b7280;margin-bottom:4px">'
+      +   'Time thresholds for the per-map time medal shown on its card in Maps Browser '
+      +   '(separate from the S..C skill rank above — see ranks.js). Click "Rank" on a map '
+      +   'row in Maps Browser to load it here; empty a field to remove that letter.</div>'
+      + '<input class="ow-i" id="owTAuthor" placeholder="' + T('colAuthor', 'Автор') + '" readonly>'
+      + '<input class="ow-i" id="owTMap" placeholder="' + T('colName', 'Название карты') + '" readonly>'
+      + '<div id="owTLadders"><span style="color:#9aa3ad">' + T('mapRankPick', 'Откройте через карточку карты') + '</span></div>'
+      + '<div class="ow-b" id="owTGo">' + T('apply', 'Применить') + '</div>'
+      + '<div class="ow-m" id="owTMsg"></div>'
+
       + '<div class="ow-sub">' + T('addToGame', 'Добавить в игру') + '</div>'
       + '<div class="ow-m" style="text-align:left;color:#6b7280" id="owGList">…</div>'
 
@@ -232,6 +260,23 @@
         m.style.color = r.status === 'success' ? '#2e9b2e' : 'red';
         m.textContent = r.message || '';
       }).catch(function () { m.style.color = 'red'; m.textContent = T('serverDown', 'Сервер недоступен'); });
+    };
+
+    box.querySelector('#owTGo').onclick = function () {
+      var m = box.querySelector('#owTMsg');
+      var author = box.querySelector('#owTAuthor').value, mapName = box.querySelector('#owTMap').value;
+      if (!author || !mapName) { m.style.color = 'red'; m.textContent = T('mapRankPick', 'Откройте через карточку карты'); return; }
+      var tiers = {};
+      box.querySelectorAll('#owTLadders input[data-ladder]').forEach(function (inp) {
+        var g = inp.dataset.ladder, r = inp.dataset.rank, v = inp.value.trim();
+        if (!v) return;
+        (tiers[g] || (tiers[g] = {}))[r] = v;
+      });
+      post('/owner/setMapRankTiers', { author: author, mapName: mapName, tiers: JSON.stringify(tiers) })
+        .then(function (r) {
+          m.style.color = r.status === 'success' ? '#2e9b2e' : 'red';
+          m.textContent = r.message || (r.status === 'success' ? T('saved', 'Сохранено') : '');
+        }).catch(function () { m.style.color = 'red'; m.textContent = T('serverDown', 'Сервер недоступен'); });
     };
 
     /* ---------- резервная копия: скачать / восстановить ---------- */
@@ -306,7 +351,7 @@
      data-map и data-author, поэтому ничего угадывать не нужно. */
   function decorate(row) {
     if (!row || row.__owWired) return;
-    var info = { mapName: row.dataset.map, author: row.dataset.author };
+    var info = { mapName: row.dataset.map, author: row.dataset.author, mapType: row.dataset.type };
     if (!info.mapName) return;
     row.__owWired = true;
 
@@ -328,6 +373,29 @@
       box.querySelector('#owVAuthor').value = info.author;
       box.querySelector('#owVMap').value = info.mapName;
       box.querySelector('#owVLikes').focus();
+    };
+
+    var rankTag = document.createElement('span');
+    rankTag.className = 'ow-tag rank';
+    rankTag.textContent = T('mapRankTag', 'Ранг');
+    rankTag.onclick = function (e) {
+      e.stopPropagation();
+      open();
+      box.querySelector('#owTAuthor').value = info.author;
+      box.querySelector('#owTMap').value = info.mapName;
+      var laddersEl = box.querySelector('#owTLadders');
+      laddersEl.innerHTML = '<span style="color:#9aa3ad">' + T('loading', 'Загрузка…') + '</span>';
+      get('/owner/getMapRankTiers?author=' + encodeURIComponent(info.author)
+            + '&mapName=' + encodeURIComponent(info.mapName)).then(function (r) {
+        if (!r || r.status !== 'success') { laddersEl.innerHTML = '<span style="color:red">' + T('errorTxt', 'Ошибка') + '</span>'; return; }
+        var tiers = r.rankTiers || {};
+        laddersEl.innerHTML = r.mapType === 'race'
+          ? ladderInputsHtml('race', T('mapRankRaceHint', 'Время финиша (меньше — лучше)'), tiers.race)
+          : ladderInputsHtml('hider', T('mapRankHiderHint', 'Хайдер: сколько прожил (больше — лучше)'), tiers.hider)
+            + ladderInputsHtml('seeker', T('mapRankSeekerHint', 'Искатель: поймать всех (меньше — лучше)'), tiers.seeker);
+      }).catch(function () {
+        laddersEl.innerHTML = '<span style="color:red">' + T('errorTxt', 'Ошибка') + '</span>';
+      });
     };
 
     var del = document.createElement('span');
@@ -402,6 +470,7 @@
     });
 
     host.appendChild(vote);
+    host.appendChild(rankTag);
     host.appendChild(del);
     host.appendChild(modes);
   }

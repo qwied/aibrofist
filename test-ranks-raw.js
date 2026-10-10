@@ -41,6 +41,33 @@ console.log('часть A — чистые функции (bandFor/raceScore/hsS
 
   const field = rk.mapField([{ rcBest: { m1: 1000 } }, { rcBest: { m1: 2000 } }, { rcBest: { m1: 3000 } }]);
   ok(field.get('m1').length === 3, 'mapField собирает времена всех игроков по карте');
+
+  // медали за время на карте (см. /owner/setMapRankTiers в maps.js) — добавка к формуле выше
+  const raceTiers = [{ rank: 'S', ms: 10000 }, { rank: 'A+', ms: 15000 }, { rank: 'A', ms: 20000 }];
+  ok(rk.rankForTime(raceTiers, 9000, 'min') === 'S', 'rankForTime: быстрее порога S — S');
+  ok(rk.rankForTime(raceTiers, 14000, 'min') === 'A+', 'rankForTime: между S и A+ — A+');
+  ok(rk.rankForTime(raceTiers, 99999, 'min') === null, 'rankForTime: медленнее всех порогов — null (не ошибка)');
+  const hiderTiers = [{ rank: 'S', ms: 100000 }, { rank: 'B', ms: 50000 }];
+  ok(rk.rankForTime(hiderTiers, 110000, 'max') === 'S', 'rankForTime(dir=max): дольше порога S — S');
+  ok(rk.rankForTime(hiderTiers, 10000, 'max') === null, 'rankForTime(dir=max): меньше любого порога — null');
+  ok(rk.rankForTime(null, 1000, 'min') === null, 'rankForTime: без лестницы (карта без медалей) — null, не падает');
+
+  const mapsByKey = new Map([['own|m1', { race: raceTiers }]]);
+  const uGoodMedal = { rcFin: 10, rcBest: { 'own|m1': 9000 } };   // S на единственной карте с лестницей
+  ok(rk.medalAvgRace(uGoodMedal, mapsByKey) === rk.MEDAL_WEIGHT.S,
+     'medalAvgRace: одна карта с медалью S — средняя равна весу S');
+  ok(rk.medalAvgRace({ rcBest: {} }, mapsByKey) === null,
+     'medalAvgRace: нет времён ни на одной карте с лестницей — null (добавка не участвует)');
+
+  // добавка не портит оценку, когда владелец ещё НИЧЕГО не настроил —
+  // raceScore/hsScore должны совпадать с версией без mapsByKey совсем
+  const uRace = { rcFin: 10, rcBest: { a: 1000, b: 1000, c: 1000, d: 1000, e: 1000 } };
+  const emptyField = rk.mapField([uRace, { rcBest: { a: 2000 } }, { rcBest: { a: 3000 } }]);
+  const withoutMaps = rk.raceScore(uRace, emptyField);
+  const withEmptyMapsByKey = rk.raceScore(uRace, emptyField, new Map());
+  ok(withoutMaps === withEmptyMapsByKey,
+     'raceScore: пустая mapsByKey (владелец ничего не настроил) не меняет оценку',
+     withoutMaps + ' vs ' + withEmptyMapsByKey);
 })();
 
 console.log('\nчасть B — /owner/setRank и /getRank живьём:');
