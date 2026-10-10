@@ -68,6 +68,23 @@ console.log('часть A — чистые функции (bandFor/raceScore/hsS
   ok(withoutMaps === withEmptyMapsByKey,
      'raceScore: пустая mapsByKey (владелец ничего не настроил) не меняет оценку',
      withoutMaps + ' vs ' + withEmptyMapsByKey);
+
+  /* Главная просьба, из-за которой gate переписан: медаль за КОНКРЕТНУЮ
+     карту не должна ждать, пока человек набегает общий минимум
+     (RACE_MIN_FIN/HS_MIN_ROUNDS) по ВСЕЙ игре — ранг это и есть медаль,
+     без неё раньше было бы "нет ранга" даже с S на размеченной карте. */
+  const uFewFinishes = { rcFin: 1, rcBest: { 'own|m1': 9000 } };   // меньше RACE_MIN_FIN=5
+  ok(rk.raceScore(uFewFinishes, new Map(), mapsByKey) === rk.MEDAL_WEIGHT.S,
+     'raceScore: мало финишей всего, но есть медаль S на размеченной карте — ранг всё равно S',
+     rk.raceScore(uFewFinishes, new Map(), mapsByKey));
+  ok(rk.raceScore({ rcFin: 1, rcBest: {} }, new Map(), mapsByKey) === null,
+     'raceScore: мало финишей и вообще никаких медалей — честно null, не 0');
+
+  const hsMapsByKey = new Map([['own|hsmap', { hider: [{ rank: 'A', ms: 50000 }] }]]);
+  const uFewRounds = { hsHide: 1, hsMapBest: { 'own|hsmap': { hiderMs: 60000 } } };  // меньше HS_MIN_ROUNDS=6
+  ok(rk.hsScore(uFewRounds, hsMapsByKey) === rk.MEDAL_WEIGHT.A,
+     'hsScore: мало раундов всего, но есть медаль A на размеченной карте — ранг всё равно A',
+     rk.hsScore(uFewRounds, hsMapsByKey));
 })();
 
 console.log('\nчасть B — /owner/setRank и /getRank живьём:');
