@@ -1,0 +1,14 @@
+[
+  {
+    "id": "2026-10-12-1",
+    "date": "2026-10-12",
+    "title": "Sign-in is now Discord only",
+    "text": "Accounts are now created and signed in only with Discord. The old password sign-in is turned off, so nobody can create accounts or guess passwords without Discord. The Change password button is gone from Settings because it is no longer needed. If you already play, nothing changes for you."
+  },
+  {
+    "id": "2026-10-13-1",
+    "date": "2026-10-13",
+    "title": "Game updates in Discord",
+    "text": "From now on every game update is posted in Logs and in the #updates channel of our Discord server."
+  }
+]
