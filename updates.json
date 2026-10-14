@@ -16,5 +16,11 @@
     "date": "2026-10-13",
     "title": "Smoother loading and editor tool names",
     "text": "- On school and office networks the game could hang on \"Loading map...\" forever. It now switches to a backup connection after a few seconds and remembers it for that network.\n- Hovering any tool in the map editor now shows its name. Before, the names were cut off by the tool panel.\n- The Hide and Seek page now explains the current rules: in Classic a caught player turns orange and is out of the round, in Zombie Apocalypse they become a zombie and join the hunt."
+  },
+  {
+    "id": "2026-10-14-1",
+    "date": "2026-10-14",
+    "title": "Discord bot",
+    "text": "- Our Discord server now has its own bot.\n- Every game update is posted in the updates channel.\n- The bot removes spam, scams, adult content and insults automatically. Breaking the rules first gives a warning, then short mutes; bans are only for repeated serious cases."
   }
 ]
