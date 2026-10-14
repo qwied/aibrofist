@@ -22,5 +22,11 @@
     "date": "2026-10-14",
     "title": "Discord bot",
     "text": "- Our Discord server now has its own bot.\n- Every game update is posted in the updates channel.\n- The bot removes spam, scams, adult content and insults automatically. Breaking the rules first gives a warning, then short mutes; bans are only for repeated serious cases."
+  },
+  {
+    "id": "2026-10-14-2",
+    "date": "2026-10-14",
+    "title": "Smarter Discord moderation",
+    "text": "- The Discord bot now also checks nicknames and avatars.\n- It protects the server from raids and from second accounts of banned players.\n- It removes political arguments, cheat sharing and account trading for real money."
   }
 ]
