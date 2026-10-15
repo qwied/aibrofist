@@ -28,5 +28,19 @@
     "date": "2026-10-14",
     "title": "Smarter Discord moderation",
     "text": "- The Discord bot now also checks nicknames and avatars.\n- It protects the server from raids and from second accounts of banned players.\n- It removes political arguments, cheat sharing and account trading for real money."
+  },
+  {
+    "id": "2026-10-15-1",
+    "date": "2026-10-15",
+    "title": "AIBROFIST is out: Release",
+    "text": "- AIBROFIST is now in Release. Here is everything you can do in the game today.\n- Race: everyone starts at once and runs for the finish flag past spikes, poison, trampolines, moving platforms, spinners and portals. Checkpoints save your progress, every finish pays 1-5 coins and your time is always on screen.\n- Hide and Seek, Classic: a roulette picks the seeker, and everyone else hides while nobody is visible. A caught player turns orange and is out of the round.\n- Hide and Seek, Zombie Apocalypse: every caught player becomes a zombie and joins the hunt.\n- Story Mode: invite a friend to a private match on any map, with your own time limit.\n- Map Editor: blocks, circles, triangles, text, start point, checkpoints, finish, buttons, levers, lasers, portals, a zombie and a seeker spot.\n- Any object can be dangerous, bouncy, pushable, a hiding spot, a lift with its own route, a spinner, a size changer or a speed boost, in any color or gradient.\n- Test your map right in the editor and publish it to Maps Browser. A built-in helper answers questions about the editor.\n- Maps Browser: play maps made by other players, rate them, leave comments and keep favorites. Practice mode respawns you where you fell, and every map has its own best times for racers, hiders and seekers.\n- Coins: daily quests with a bonus for finishing them all, and a Daily Reward wheel with up to 50 coins every day.\n- Ranks from C to S for Race and for Hide and Seek. They grow with how well you play, not how long.\n- Leaderboards for coins, Race and Hide and Seek: today, this week and all time.\n- Skins: dress up your character with hats and outfits, draw your own skin or upload a picture, even an animated GIF. Rate skins in Skins Browser and buy the best ones for coins in the Avatar shop.\n- Your own chat color, nickname change, and light and dark themes for the whole site.\n- Friends, private messages and group chats, and an in-game chat where you can mute anyone.\n- Works on computers and phones and can be added to your home screen like an app. English and Russian.\n- News in Logs and in Discord now come with pictures.\n- Thank you for playing!",
+    "images": [
+      "/news/release-home.png",
+      "/news/release-race.png",
+      "/news/release-hide.png",
+      "/news/release-play.png",
+      "/news/release-editor.png",
+      "/news/release-daily.png"
+    ]
   }
 ]
