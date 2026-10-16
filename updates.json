@@ -72,5 +72,11 @@
     "date": "2026-10-16",
     "title": "Servers page",
     "text": "- New Servers page on the site: all rooms of both modes in one place, updated every second.\n- /servers in our Discord now sends a screenshot of this page.\n- /account now sends just the player profile, without the side menu."
+  },
+  {
+    "id": "2026-10-16-6",
+    "date": "2026-10-16",
+    "title": "Account periods",
+    "text": "- /account in our Discord now has Today, This Week and All Time buttons for coins and scores.\n- The Servers page is cleaner: online players and rooms on top, each mode with its rooms below."
   }
 ]
