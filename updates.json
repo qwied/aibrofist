@@ -66,5 +66,11 @@
     "date": "2026-10-16",
     "title": "Real screenshots in Discord",
     "text": "- /servers in our Discord now sends real screenshots of the Race and Hide and Seek room lists.\n- /account now sends real screenshots of the player page: friends, then maps.\n- Page through them, switch Dark and Light theme, or press Refresh for fresh data."
+  },
+  {
+    "id": "2026-10-16-5",
+    "date": "2026-10-16",
+    "title": "Servers page",
+    "text": "- New Servers page on the site: all rooms of both modes in one place, updated every second.\n- /servers in our Discord now sends a screenshot of this page.\n- /account now sends just the player profile, without the side menu."
   }
 ]
