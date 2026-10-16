@@ -48,5 +48,11 @@
     "date": "2026-10-16",
     "title": "Live server info",
     "text": "- New /servers command in our Discord shows game rooms and players online right now.\n- New map ServersInfo by qwied in Maps Browser: live online numbers of AIBROFIST, updated every second.\n- Text on maps can now show live data, like the number of players online."
+  },
+  {
+    "id": "2026-10-16-2",
+    "date": "2026-10-16",
+    "title": "Stability and security improvements",
+    "text": "- Stability and security improvements."
   }
 ]
