@@ -1,35 +1,5 @@
 [
   {
-    "id": "2026-10-12-1",
-    "date": "2026-10-12",
-    "title": "Sign-in is now Discord only",
-    "text": "Accounts are now created and signed in only with Discord. The old password sign-in is turned off, so nobody can create accounts or guess passwords without Discord. The Change password button is gone from Settings because it is no longer needed. If you already play, nothing changes for you."
-  },
-  {
-    "id": "2026-10-13-1",
-    "date": "2026-10-13",
-    "title": "Game updates in Discord",
-    "text": "From now on every game update is posted in Logs and in the #updates channel of our Discord server."
-  },
-  {
-    "id": "2026-10-13-2",
-    "date": "2026-10-13",
-    "title": "Smoother loading and editor tool names",
-    "text": "- On school and office networks the game could hang on \"Loading map...\" forever. It now switches to a backup connection after a few seconds and remembers it for that network.\n- Hovering any tool in the map editor now shows its name. Before, the names were cut off by the tool panel.\n- The Hide and Seek page now explains the current rules: in Classic a caught player turns orange and is out of the round, in Zombie Apocalypse they become a zombie and join the hunt."
-  },
-  {
-    "id": "2026-10-14-1",
-    "date": "2026-10-14",
-    "title": "Discord bot",
-    "text": "- Our Discord server now has its own bot.\n- Every game update is posted in the updates channel.\n- The bot removes spam, scams, adult content and insults automatically. Breaking the rules first gives a warning, then short mutes; bans are only for repeated serious cases."
-  },
-  {
-    "id": "2026-10-14-2",
-    "date": "2026-10-14",
-    "title": "Smarter Discord moderation",
-    "text": "- The Discord bot now also checks nicknames and avatars.\n- It protects the server from raids and from second accounts of banned players.\n- It removes political arguments, cheat sharing and account trading for real money."
-  },
-  {
     "id": "2026-10-15-1",
     "date": "2026-10-15",
     "title": "AIBROFIST is out: Release",
@@ -42,41 +12,5 @@
       "/news/release-editor.png",
       "/news/release-daily.png"
     ]
-  },
-  {
-    "id": "2026-10-16-1",
-    "date": "2026-10-16",
-    "title": "Live server info",
-    "text": "- New /servers command in our Discord shows game rooms and players online right now.\n- New map ServersInfo by qwied in Maps Browser: live online numbers of AIBROFIST, updated every second.\n- Text on maps can now show live data, like the number of players online."
-  },
-  {
-    "id": "2026-10-16-2",
-    "date": "2026-10-16",
-    "title": "Stability and security improvements",
-    "text": "- Stability and security improvements."
-  },
-  {
-    "id": "2026-10-16-3",
-    "date": "2026-10-16",
-    "title": "Discord bot pictures",
-    "text": "- /servers in our Discord now shows a picture of the game rooms, with Dark and Light theme buttons.\n- New /account command: a player profile as pictures you can page through (stats, maps, friends), with a link to the profile.\n- The bot now answers commands much faster."
-  },
-  {
-    "id": "2026-10-16-4",
-    "date": "2026-10-16",
-    "title": "Real screenshots in Discord",
-    "text": "- /servers in our Discord now sends real screenshots of the Race and Hide and Seek room lists.\n- /account now sends real screenshots of the player page: friends, then maps.\n- Page through them, switch Dark and Light theme, or press Refresh for fresh data."
-  },
-  {
-    "id": "2026-10-16-5",
-    "date": "2026-10-16",
-    "title": "Servers page",
-    "text": "- New Servers page on the site: all rooms of both modes in one place, updated every second.\n- /servers in our Discord now sends a screenshot of this page.\n- /account now sends just the player profile, without the side menu."
-  },
-  {
-    "id": "2026-10-16-6",
-    "date": "2026-10-16",
-    "title": "Account periods",
-    "text": "- /account in our Discord now has Today, This Week and All Time buttons for coins and scores.\n- The Servers page is cleaner: online players and rooms on top, each mode with its rooms below."
   }
 ]
