@@ -229,7 +229,8 @@ const find = (list, method, re) => list.filter(c => c.method === method && re.te
     DISCORD_CMD_PREFIX: 'qa', UPDATES_FILE: path.join(tmp, 'updates.json'), DISCORD_RULES_CHANNEL_ID: CH.rules,
     NEWS_DIR: path.join(tmp, 'news'), SERVERS_DATA_DIR: path.join(tmp, 'srv'),
     DISCORD_THREADS_POLL_MS: '1000',     // ветки второй канал ищет раз в секунду, а не раз в 10
-    DISCORD_SHOTS: 'off'                 // настоящего браузера здесь нет: снимок подменяем ниже
+    DISCORD_SHOTS: 'off',                // настоящего браузера здесь нет: снимок подменяем ниже
+    DISCORD_CARD_ALT: '1'                // описание картинок (alt) включено: по нему проверяем, что нарисовано (в жизни его нет)
   });
   fs.mkdirSync(path.join(tmp, 'news'));
   fs.writeFileSync(path.join(tmp, 'news', 'shot.png'), 'PNG');
@@ -1261,12 +1262,14 @@ const find = (list, method, re) => list.filter(c => c.method === method && re.te
 
   console.log('\nпредупреждения: список, снятие, флаги языка:');
   const alice = { id: '70001', username: 'alice_p', global_name: 'Alice' };
-  for (const why of ['link to another server', 'sold coins']) {
+  const tAlice = Date.now();
+  for (const [k, why] of ['link to another server', 'sold coins'].entries()) {
     t = Date.now();
     warnSend(alice, 2, why);
-    await waitFor(() => cardIn(since(t), /^Warning: Alice\./));
+    await waitFor(() => find(since(tAlice), 'POST', /^\/channels\/300\/messages$/).filter(x => /^Warning: Alice\./.test(altOf(x))).length > k);
   }
-  ok('у Alice два предупреждения — на второй карточке «2 из 3»', /Warnings: 2 of 3/.test(altOf(cardIn(since(t), /^Warning: Alice\./))) &&
+  const aliceCards = find(since(tAlice), 'POST', /^\/channels\/300\/messages$/).filter(x => /^Warning: Alice\./.test(altOf(x)));
+  ok('у Alice два предупреждения — на второй карточке «2 из 3»', aliceCards.length === 2 && /Warnings: 1 of 3/.test(altOf(aliceCards[0])) && /Warnings: 2 of 3/.test(altOf(aliceCards[1])) &&
      bot._test.state().warns[G + ':70001'].length === 2);
   t = Date.now();
   say(OWNER, '!qawarns alice_p');
@@ -1377,6 +1380,19 @@ const find = (list, method, re) => list.filter(c => c.method === method && re.te
      rowsOf(rlBody)[1].components.map(b => b.label + ':' + b.custom_id).join() === 'Тёмная тема:rules:ru:dark,Светлая тема:rules-theme' &&
      rowsOf(rlBody)[0].components.map(b => b.custom_id).join() === 'rules:en:light,rules-lang');
   cards.draw = origDraw;
+  // в жизни описания картинок (alt) нет: Discord показывает его плашкой «ALT» («ПОДСКАЗКА») поверх картинки
+  process.env.DISCORD_CARD_ALT = '';
+  t = Date.now();
+  warnSend({ id: '70008', username: 'finn' }, 3, 'без плашки');
+  await waitFor(() => find(since(t), 'POST', /^\/channels\/300\/messages$/).some(x => multipartOf(x)));
+  const noAlt = find(since(t), 'POST', /^\/channels\/300\/messages$/).find(x => multipartOf(x));
+  t = Date.now();
+  bid = press('U33', 'rules:ru:dark');
+  await waitFor(() => cb(since(t), bid).length || find(since(t), 'PATCH', new RegExp('tk' + bid + '/messages/@original$')).length, 5000);
+  const noAltRules = cb(since(t), bid).concat(find(since(t), 'PATCH', new RegExp('tk' + bid + '/messages/@original$'))).find(x => multipartOf(x));
+  process.env.DISCORD_CARD_ALT = '1';
+  ok('картинки без описания (alt): на них нет плашки «ALT» / «ПОДСКАЗКА» ни у карточки, ни у правил', noAlt && noAltRules && multipartOf(noAlt).png &&
+     !/"description"/.test(JSON.stringify(bodyOf(noAlt))) && !/"description"/.test(JSON.stringify(bodyOf(noAltRules))), noAlt && JSON.stringify(bodyOf(noAlt)).slice(0, 120));
 
   console.log('\nбан и разбан:');
   t = Date.now();
@@ -1658,8 +1674,8 @@ const find = (list, method, re) => list.filter(c => c.method === method && re.te
   bot.stop();
   await sleep(200);
   const sf2 = JSON.parse(fs.readFileSync(process.env.DISCORD_BOT_STATE, 'utf8'));
-  ok('в состоянии отмечено: пост правил уже в нынешнем оформлении', sf2.fixes.rulesCard === 2);
-  sf2.fixes.rulesCard = 1;                // состояние от прежнего оформления карточек
+  ok('в состоянии отмечено: пост правил уже в нынешнем оформлении', sf2.fixes.rulesCard === 3);
+  sf2.fixes.rulesCard = 2;                // состояние от прежнего оформления карточек
   fs.writeFileSync(process.env.DISCORD_BOT_STATE, JSON.stringify(sf2));
   t = Date.now();
   bot._test.reload();
@@ -1668,7 +1684,7 @@ const find = (list, method, re) => list.filter(c => c.method === method && re.te
   await sleep(500);
   const upg = find(since(t), 'PATCH', /^\/channels\/301\/messages\/\d+$/);
   ok('после выкладки нового оформления бот один раз правит пост правил на месте: нового поста нет, картинка новая, ряд тем на месте', upg.length === 1 && find(since(t), 'POST', /^\/channels\/301\/messages$/).length === 0 &&
-     rowsOf(bodyOf(upg[0])).length === 2 && multipartOf(upg[0]).png && bot._test.state().fixes.rulesCard === 2);
+     rowsOf(bodyOf(upg[0])).length === 2 && multipartOf(upg[0]).png && bot._test.state().fixes.rulesCard === 3);
 
   bot.stop();
   wss.close(); server.close();
