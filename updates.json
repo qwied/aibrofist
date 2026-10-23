@@ -24,5 +24,11 @@
     "date": "2026-10-23",
     "title": "Separate chat and nick colors",
     "text": "- Chat color and Nick color are now two separate colors on the Avatar page. One purchase unlocks both.\n- Names, clan tags and chat text in the game have a clear outline, so they no longer blend into the background.\n- The Change button in the nickname window is no longer cut off."
+  },
+  {
+    "id": "2026-10-23-3",
+    "date": "2026-10-23",
+    "title": "Zombie model fixed and a softer text outline",
+    "text": "- A zombie player now looks like a zombie again instead of a plain black figure, and the seeker is sent to the start point when the round begins.\n- Names, clan tags and chat text in the game now have one soft gray outline on every color instead of the double one."
   }
 ]
