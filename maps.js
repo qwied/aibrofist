@@ -41,6 +41,8 @@ const TOOL_MODES = {
   zombie:['hideAndSeek'],       // модификация Zombie Apocalypse — только прятки
   teleport:null,               // пара площадок — есть в обоих режимах, как кнопка/рычаг
   cover:['hideAndSeek'],
+  cannon:['hideAndSeek'],       // пушка «Пиратской войны» — стреляют из неё в режиме «Война»
+  camera:['race'], spyFlag:['race'],   // «Шпион» в гонке: камеры и флаг, без которого финиш закрыт
   checkpoint:['race'],
   // устаревшие типы — принимаем, но в палитре их больше нет
   poison:null, spike:null, bounce:null, platform:null, rotator:null,
@@ -187,9 +189,22 @@ function load() {
 /* Встроенные карты: лежат в репозитории (builtinMaps/) и при запуске сами
    появляются в каталоге от имени автора. showcase — витрина, а не уровень:
    в случайный подбор комнат такая карта не попадает (см. randomFor), её
-   открывают из Maps Browser. ver поднимаем, когда меняем саму карту, —
-   тогда она обновится; свою карту с тем же именем автор не потеряет. */
-const BUILTIN = [{ file: 'serversinfo.json', mapName: 'ServersInfo', author: 'qwied', mapType: 'race', ver: 2 }];
+   открывают из Maps Browser. play — уровень: он попадает в подбор карт своего
+   типа, даже если автор не владелец сайта, а с only — только в комнаты этого
+   режима (см. poolFor и hsMapOk в server.js). ver поднимаем, когда меняем саму
+   карту, — тогда она обновится; свою карту с тем же именем автор не потеряет. */
+const BUILTIN = [
+  { file: 'serversinfo.json', mapName: 'ServersInfo', author: 'qwied', mapType: 'race', ver: 2 },
+  // «Пиратская война» (см. war.js): два корабля с пушками над ядовитым морем
+  { file: 'piratebay.json', mapName: 'Pirate Bay', author: 'qwied', mapType: 'hideAndSeek', ver: 1, play: true, only: 'war' },
+  // гонка-«шпион»: камеры, лазеры, флаг в хранилище — финиш только с флагом (см. spyTick в game.html)
+  { file: 'spybase.json', mapName: 'Spy Base', author: 'qwied', mapType: 'race', ver: 1, play: true },
+  // «Приключение» (см. adventure.js): башня в 5 этажей с боссом и оборона кристалла от волн врагов
+  { file: 'brotower.json', mapName: 'Bro Tower', author: 'qwied', mapType: 'hideAndSeek', ver: 1, play: true, only: 'adventure' },
+  { file: 'crystaldefense.json', mapName: 'Crystal Defense', author: 'qwied', mapType: 'hideAndSeek', ver: 1, play: true, only: 'adventure' },
+  // общая арена отдельных режимов: без неё в пустой копии сайта Murder Mystery, Team Battle и «Вечеринка» стоят «No maps yet»
+  { file: 'broarena.json', mapName: 'Bro Arena', author: 'qwied', mapType: 'hideAndSeek', ver: 1, play: true, only: ['murder', 'team', 'party'] }
+];
 function seedBuiltin() {
   let changed = false;
   for (const b of BUILTIN) {
@@ -199,13 +214,14 @@ function seedBuiltin() {
     // low() объявлена ниже, а load() зовётся раньше — сравниваем здесь же
     const lc = v => String(v || '').toLowerCase();
     const m = maps.find(x => lc(x.author) === lc(b.author) && lc(x.mapName) === lc(b.mapName));
+    const kind = b.play ? { showcase: false, only: b.only } : { showcase: true };
     if (!m) {
-      maps.push({ mapName: b.mapName, mapType: b.mapType, mapData: data, author: b.author,
+      maps.push(Object.assign({ mapName: b.mapName, mapType: b.mapType, mapData: data, author: b.author,
                   date: Date.now(), created: Date.now(), rating: 0, votes: {}, boostLikes: 0, boostDislikes: 0,
-                  inGameModes: [], showcase: true, builtinVer: b.ver });
+                  inGameModes: [], builtinVer: b.ver }, kind));
       changed = true;
-    } else if (m.showcase && (m.builtinVer || 0) < b.ver) {
-      Object.assign(m, { mapData: data, mapType: b.mapType, builtinVer: b.ver });
+    } else if (m.builtinVer && m.builtinVer < b.ver) {
+      Object.assign(m, { mapData: data, mapType: b.mapType, builtinVer: b.ver }, kind);
       changed = true;
     }
   }
@@ -231,17 +247,46 @@ const low = s => String(s || '').toLowerCase();
    и игроки одной комнаты оказывались на разных картах — чужой персонаж
    при этом честно приходил с правильными координатами, но падал на
    другую геометрию и выглядел «парящим в воздухе». */
-function randomFor(mapType, not) {
-  const t = mapType;
-  // без указания режима берём любую карту, иначе — карты владельца
-  // плюс те, что он добавил кнопкой «Добавить в игру» в Maps Browser
-  const pool = !t
+// без указания режима — любая карта, иначе — карты владельца
+// плюс те, что он добавил кнопкой «Добавить в игру» в Maps Browser
+/* pred — необязательный отбор карт (отдельные режимы пряток берут только подходящие, см.
+   hsMapOk в server.js); если под него не подошла ни одна, берём весь пул режима — комната
+   без карты хуже, чем карта без укрытий. */
+/* Встроенный уровень своего режима (m.only, см. BUILTIN) попадает только туда, где pred его
+   принял: в другие комнаты — нет, даже когда больше брать нечего. */
+function poolFor(t, pred) {
+  const all = !t
     ? maps.filter(m => !m.showcase)
     : maps.filter(m => {
         // владелец мог вручную добавить карту в конкретный режим — даже витрину
         if (Array.isArray(m.inGameModes) && m.inGameModes.indexOf(t) !== -1) return true;
-        return !m.showcase && isOwnerName(m.author) && m.mapType === t;
+        // встроенный уровень (см. BUILTIN) — в пуле своего режима, даже если автор не владелец
+        return !m.showcase && (isOwnerName(m.author) || !!m.builtinVer) && m.mapType === t;
       });
+  if (pred) {
+    const ok = all.filter(m => { try { return !!pred(m); } catch (e) { return false; } });
+    if (ok.length) return ok;
+  }
+  return all.filter(m => !m.only || (Array.isArray(m.inGameModes) && m.inGameModes.indexOf(t) !== -1));
+}
+
+/* До n разных карт режима для голосования за следующую карту в прятках
+   (см. hsOpenVote в server.js). Текущую карту предлагаем только тогда,
+   когда без неё выбирать не из чего. */
+function candidatesFor(mapType, not, n, pred) {
+  const pool = poolFor(mapType, pred).slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const x = pool[i]; pool[i] = pool[j]; pool[j] = x;
+  }
+  const others = pool.filter(m => m.mapName !== not);
+  const pick = others.slice(0, n);
+  if (pick.length < Math.min(n, pool.length)) pool.forEach(m => { if (pick.length < n && pick.indexOf(m) === -1) pick.push(m); });
+  return pick;
+}
+
+function randomFor(mapType, not, pred) {
+  const pool = poolFor(mapType, pred);
   if (!pool.length) return null;
   let m = pool[Math.floor(Math.random() * pool.length)];
   // не повторяем ту же карту подряд, если есть выбор
@@ -890,4 +935,4 @@ function newFromFriends(user) {
   return out;
 }
 
-module.exports = { register, reload: load, MODES, COIN_LIMIT, OBJ_LIMIT, OBJ_MIN, TEXT_MAX_RATIO, REWARD, TOOL_MODES, find, allMaps, setBoost, setInGame, inGameList, tally, newFromFriends, randomFor, renameAuthor };
+module.exports = { register, reload: load, MODES, COIN_LIMIT, OBJ_LIMIT, OBJ_MIN, TEXT_MAX_RATIO, REWARD, TOOL_MODES, find, allMaps, setBoost, setInGame, inGameList, tally, newFromFriends, randomFor, candidatesFor, renameAuthor };

@@ -253,16 +253,16 @@ body.mob #msg h1{font-size:38px}
 #zoomBox,#hint,#hud,#file{display:none !important}
 body{background:#eef2f8;overflow:hidden}
 </style>
-        <script src="device.js?v=182"></script>
-        <script src="sound.js?v=182"></script>
-        <script src="skinRender.js?v=182"></script>
-        <script src="skinCanvas.js?v=182"></script>
-        <script src="gifuct.bundle.js?v=182"></script>
-        <script src="gifPlayer.js?v=182"></script>
-        <script src="coin.js?v=182"></script>
-        <script src="liveText.js?v=182"></script>
-        <link rel="stylesheet" type="text/css" href="mobile.css?v=182">
-        <script src="theme.js?v=182"></script>
+        <script src="device.js?v=200"></script>
+        <script src="sound.js?v=200"></script>
+        <script src="skinRender.js?v=200"></script>
+        <script src="skinCanvas.js?v=200"></script>
+        <script src="gifuct.bundle.js?v=200"></script>
+        <script src="gifPlayer.js?v=200"></script>
+        <script src="coin.js?v=200"></script>
+        <script src="liveText.js?v=200"></script>
+        <link rel="stylesheet" type="text/css" href="mobile.css?v=200">
+        <script src="theme.js?v=200"></script>
         <link rel="icon" href="/favicon.ico" sizes="any">
         <link rel="icon" type="image/svg+xml" href="/favicon.svg">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -773,12 +773,11 @@ var PAINT = {
      куда идёт заражённый. Хитбокс впритык как у игрока (см.
      SIZES.zombie) — силуэт рисуем той же figure(), что и игрока, чтобы
      форма совпадала буквально, а не просто размером; зомби узнаётся по
-     цвету, квадратным красным глазам и рваному краю одежды. */
+     цвету и рваному краю одежды (глаз у моделей нет). */
   zombie: function(o){
     var w = o.w, h = o.h;
     if(o._zface < 0){ ctx.translate(w, 0); ctx.scale(-1, 1); }
     figure(w, h, "#55722c");
-    var headD = w;
     ctx.fillStyle = "#3f5720";
     ctx.beginPath();
     ctx.moveTo(0, h*0.62);
@@ -787,10 +786,6 @@ var PAINT = {
     ctx.lineTo(w*0.14, h*0.9);
     ctx.lineTo(0, h);
     ctx.closePath(); ctx.fill();
-    var eyeS = Math.max(2, headD*0.17), eyeY = headD*0.42;
-    ctx.fillStyle = "#b91c1c";
-    ctx.fillRect(w/2 - headD*0.27 - eyeS/2, eyeY, eyeS, eyeS);
-    ctx.fillRect(w/2 + headD*0.27 - eyeS/2, eyeY, eyeS, eyeS);
   },
   /* Место ожидания искателя (классика) — та же модель, тот же приём, что
      у мертвеца выше, просто цвет искателя (COLOR_SEEKER), а не зелёный.
@@ -798,6 +793,9 @@ var PAINT = {
      "playing && ... seekerSpot" ниже) — на этом месте уже стоит настоящий
      искатель, второй фигуры там быть не должно. */
   seekerSpot: function(o){ figure(o.w, o.h, COLOR_SEEKER); },
+  cannon: function(o){ paintCannon(o); },
+  camera: function(o){ paintCamera(o); },
+  spyFlag: function(o){ paintSpyFlag(o); },
   // приёмник — только ориентир для автора карты, в игровую логику не входит
   laserReceiver: function(o){
     ctx.fillStyle = C.stone3; rr(0,0,o.w,o.h,3); ctx.fill();
@@ -837,6 +835,135 @@ var PAINT = {
   },
 };
 
+/* Наряды ролей в вариантах пряток (см. outfitFor в game.js): коп, грабитель (пойманный — в
+   тюремной робе), игрок команды, а свою тайную роль Murder Mystery — убийцу или шерифа — видишь
+   только ты сам. Как у зомби: силуэт рисует та же figure(), что у игрока, хитбокс не меняется,
+   роль видна по форме, головному убору и знакам. Рисуют в локальных координатах игрока (0,0 → w,h). */
+function outfitStar(cx, cy, r, color){
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for(var i = 0; i < 10; i++){
+    var a = -Math.PI/2 + i*Math.PI/5, rr2 = i % 2 ? r*0.45 : r;
+    ctx.lineTo(cx + Math.cos(a)*rr2, cy + Math.sin(a)*rr2);
+  }
+  ctx.closePath(); ctx.fill();
+}
+// глаз у моделей нет: роль видна по цвету, головному убору и знаку на груди
+var OUTFIT = {
+  // тёмно-синяя форма, фуражка с золотым значком, звезда-жетон
+  cop: function(w, h){
+    var d = w, top = d + h*FIG_GAP, bh = h - top;
+    figure(w, h, "#1e3a8a");
+    ctx.fillStyle = "#0f172a";
+    rr(-w*0.1, -d*0.16, w*1.2, d*0.4, d*0.14); ctx.fill();          // тулья
+    ctx.fillRect(-w*0.16, d*0.2, w*1.32, Math.max(2, d*0.1));      // козырёк
+    ctx.fillStyle = "#fbbf24";
+    ctx.beginPath(); ctx.moveTo(w*0.42, -d*0.06); ctx.lineTo(w*0.58, -d*0.06); ctx.lineTo(w*0.58, d*0.08);
+    ctx.lineTo(w*0.5, d*0.16); ctx.lineTo(w*0.42, d*0.08); ctx.closePath(); ctx.fill();   // значок-щиток
+    if(bh > 0) outfitStar(w*0.5, top + bh*0.22, Math.max(2.5, w*0.17), "#fbbf24");
+  },
+  // серая голова и кофта в полоску; пойманный — оранжевый, роба в оранжево-белую полоску
+  robber: function(w, h, jailed){
+    var d = w, top = d + h*FIG_GAP, bh = h - top;
+    figure(w, h, jailed ? "#f97316" : "#1f2937");
+    ctx.fillStyle = jailed ? "#f97316" : "#6b7280";
+    ctx.beginPath(); ctx.arc(w/2, d/2, d/2, 0, 6.2832); ctx.fill();
+    if(bh > 0){
+      ctx.fillStyle = jailed ? "#fff7ed" : "#f3f4f6";
+      var n = 4, sh = bh / (n*2 + 1);
+      for(var i = 0; i < n; i++) ctx.fillRect(0, top + sh*(2*i + 1), w, sh);
+    }
+  },
+  // цвет команды и свой головной убор: красные — каска с гербом, синие — бейсболка,
+  // зелёные — кепка, жёлтые — широкополая шляпа рейнджера
+  team: function(w, h, color){
+    var d = w;
+    var dark = ({ "#2563eb": "#1e40af", "#16a34a": "#166534", "#ca8a04": "#a16207" })[color] || "#b91c1c";
+    figure(w, h, color);
+    ctx.fillStyle = dark;
+    if(color === "#2563eb"){                                                        // бейсболка
+      ctx.beginPath(); ctx.arc(w/2, d*0.3, d*0.5, Math.PI, 0); ctx.closePath(); ctx.fill();
+      rr(w*0.4, d*0.22, w*0.8, Math.max(2, d*0.12), d*0.06); ctx.fill();
+      ctx.fillStyle = "#f9fafb"; ctx.beginPath(); ctx.arc(w/2, d*0.02, Math.max(1.2, d*0.06), 0, 6.2832); ctx.fill();
+    } else if(color === "#16a34a"){                                                 // кепка
+      ctx.beginPath(); ctx.arc(w/2, d*0.3, d*0.5, Math.PI, 0); ctx.closePath(); ctx.fill();
+      rr(-w*0.14, d*0.22, w*1.28, Math.max(2, d*0.11), d*0.05); ctx.fill();
+      ctx.fillStyle = "#f9fafb"; ctx.beginPath(); ctx.arc(w/2, d*0.02, Math.max(1.2, d*0.06), 0, 6.2832); ctx.fill();
+    } else if(color === "#ca8a04"){                                                 // шляпа рейнджера
+      rr(-w*0.3, d*0.14, w*1.6, Math.max(2, d*0.12), d*0.06); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(w*0.12, d*0.16); ctx.lineTo(w*0.26, -d*0.22); ctx.lineTo(w*0.74, -d*0.22); ctx.lineTo(w*0.88, d*0.16); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#713f12"; ctx.fillRect(w*0.14, d*0.04, w*0.72, Math.max(1.5, d*0.08));
+    } else {                                                                        // каска с гербом
+      rr(-w*0.32, d*0.16, w*1.64, Math.max(2, d*0.1), d*0.05); ctx.fill();
+      ctx.beginPath(); ctx.arc(w/2, d*0.2, d*0.46, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#fbbf24";
+      ctx.beginPath(); ctx.moveTo(w*0.4, -d*0.12); ctx.lineTo(w*0.6, -d*0.12); ctx.lineTo(w*0.6, d*0.04); ctx.lineTo(w*0.5, d*0.12); ctx.lineTo(w*0.4, d*0.04); ctx.closePath(); ctx.fill();
+    }
+  },
+  // только для себя: тёмно-красный капюшон по контуру головы
+  murderer: function(w, h){
+    var d = w;
+    figure(w, h, "#111827");
+    ctx.strokeStyle = "#7f1d1d"; ctx.lineWidth = Math.max(2, d*0.12);
+    ctx.beginPath(); ctx.arc(w/2, d/2, d/2, Math.PI*1.05, Math.PI*1.95); ctx.stroke();
+  },
+  // Bro RED (война): весь красный, как на рисунке режима, — его видно издалека
+  bro: function(w, h){
+    figure(w, h, "#dc2626");
+  },
+  // только для себя: коричневая шляпа и звезда шерифа
+  sheriff: function(w, h){
+    var d = w, top = d + h*FIG_GAP, bh = h - top;
+    figure(w, h, "#111827");
+    ctx.fillStyle = "#92400e";
+    rr(-w*0.4, d*0.02, w*1.8, Math.max(2, d*0.12), d*0.06); ctx.fill();     // поля
+    rr(w*0.1, -d*0.36, w*0.8, d*0.42, d*0.12); ctx.fill();                   // тулья
+    ctx.fillStyle = "#451a03"; ctx.fillRect(w*0.1, -d*0.04, w*0.8, Math.max(1.5, d*0.07));
+    if(bh > 0) outfitStar(w*0.5, top + bh*0.22, Math.max(2.5, w*0.17), "#fbbf24");
+  },
+  /* классы «Приключения» (см. adventure.js). Воин — стальной шлем с прорезью забрала, красный герб, ремень */
+  warrior: function(w, h){
+    var d = w, top = d + h*FIG_GAP, bh = h - top;
+    figure(w, h, "#4b5563");
+    ctx.fillStyle = "#9ca3af";
+    rr(-w*0.06, -d*0.06, w*1.12, d*0.52, d*0.18); ctx.fill();                    // шлем
+    ctx.fillStyle = "#374151"; ctx.fillRect(w*0.12, d*0.32, w*0.76, Math.max(2, d*0.12));   // прорезь забрала
+    if(bh > 0){
+      var sx = w*0.5, sy = top + bh*0.2, r = Math.max(2.5, w*0.17);
+      ctx.fillStyle = "#dc2626";
+      ctx.beginPath(); ctx.moveTo(sx - r, sy - r); ctx.lineTo(sx + r, sy - r); ctx.lineTo(sx + r, sy + r*0.2); ctx.lineTo(sx, sy + r*1.2); ctx.lineTo(sx - r, sy + r*0.2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#1f2937"; ctx.fillRect(0, top + bh*0.56, w, Math.max(2, bh*0.07));
+    }
+  },
+  // лучник — зелёный, капюшон по голове, ремень колчана через грудь и пояс
+  archer: function(w, h){
+    var d = w, top = d + h*FIG_GAP, bh = h - top;
+    figure(w, h, "#16a34a");
+    ctx.fillStyle = "#166534";
+    ctx.beginPath(); ctx.arc(w/2, d/2, d/2, Math.PI*0.95, Math.PI*2.05); ctx.closePath(); ctx.fill();   // капюшон
+    if(bh > 0){
+      ctx.strokeStyle = "#78350f"; ctx.lineWidth = Math.max(2, w*0.1);
+      ctx.beginPath(); ctx.moveTo(w*0.05, top + bh*0.02); ctx.lineTo(w*0.95, top + bh*0.45); ctx.stroke();
+      ctx.fillStyle = "#713f12"; ctx.fillRect(0, top + bh*0.62, w, Math.max(2, bh*0.07));
+    }
+  },
+  // маг — фиолетовый, высокая остроконечная шляпа, звезда на груди и посох с кристаллом
+  mage: function(w, h){
+    var d = w, top = d + h*FIG_GAP, bh = h - top;
+    ctx.fillStyle = "#78350f"; ctx.fillRect(w*1.12, d*0.2, Math.max(2, w*0.1), h - d*0.2);             // посох
+    ctx.fillStyle = "#a855f7";
+    ctx.beginPath(); ctx.moveTo(w*1.17, -d*0.12); ctx.lineTo(w*1.33, d*0.12); ctx.lineTo(w*1.17, d*0.36); ctx.lineTo(w*1.01, d*0.12); ctx.closePath(); ctx.fill();
+    figure(w, h, "#7c3aed");
+    ctx.fillStyle = "#6d28d9";
+    rr(-w*0.4, d*0.02, w*1.8, Math.max(2, d*0.12), d*0.06); ctx.fill();          // поля
+    ctx.beginPath(); ctx.moveTo(w*0.06, d*0.06); ctx.lineTo(w*0.5, -d*1.05); ctx.lineTo(w*0.94, d*0.06); ctx.closePath(); ctx.fill();
+    if(bh > 0) outfitStar(w*0.5, top + bh*0.22, Math.max(2.5, w*0.17), "#fde047");
+  }
+};
+function drawOutfit(kind, w, h, arg){
+  if(OUTFIT[kind]) OUTFIT[kind](w, h, arg); else figure(w, h, "#000000");
+}
+
 /* ══════════════════════════════════════════════════
    TOOL TABLE
    ══════════════════════════════════════════════════ */
@@ -866,6 +993,10 @@ var TOOLS = [
      обычный спавн вместе со всеми (см. findSeekerSpot/applySeeker в
      game.js). Без метки — прежнее поведение, искатель сразу на спавне. */
   {t:"seekerSpot", n:"Место искателя", k:"toolSeekerSpot", m:"hideAndSeek"},
+  /* Пушка «Пиратской войны» (идея 2019 года «Missile war»): в раундах режима «Война» у неё
+     встают и стреляют ядовитыми ядрами (см. war.js и fireCannon в game.js). Размер задан
+     движком, лафет всегда стоит ровно; куда смотрит ствол, пока не целятся, — o.aim. */
+  {t:"cannon",     n:"Пушка",       k:"toolCannon",     m:"hideAndSeek"},
   /* Лазер (старая идея из обратной связи) — не отдельный инструмент, а
      галочка «Лазер» на обычном блоке/круге/треугольнике (см. Game
      Properties в inspect() и laserFeeds() в step()): включает связанные
@@ -876,7 +1007,11 @@ var TOOLS = [
      которые их уже используют — просто без своей кнопки в палитре. */
   // только гонка
   {t:"checkpoint", n:"Чекпоинт",    k:"toolCheckpoint", m:"race"},
-  {t:"finishline", n:"Финиш",       k:"toolFinish",     m:"race"}
+  {t:"finishline", n:"Финиш",       k:"toolFinish",     m:"race"},
+  /* «Шпион» (идея 2019 года «Spy mode»): камера ловит взглядом — назад на чекпоинт; флаг шпиона —
+     финиш засчитывается, только если несёшь его (см. spyTick и касания в step) */
+  {t:"camera",     n:"Камера",      k:"toolCamera",     m:"race"},
+  {t:"spyFlag",    n:"Флаг шпиона", k:"toolSpyFlag",    m:"race"}
 ];
 var MODE_OF = {};
 TOOLS.forEach(function(T){ MODE_OF[T.t] = T.m; });
@@ -900,6 +1035,8 @@ var COLORS = {
   button:INK, lever:INK, laserFeed:INK, laserReceiver:INK,
   zombie:"",                       // мертвец всегда зелёный — красить его нечем и незачем
   seekerSpot:"",                   // всегда синий, как и сам искатель — красить нечем
+  cannon:"",                       // дерево и чугун — рисуется собой
+  camera:"", spyFlag:"",           // рисуются собой
   checkpoint:"", finishline:"", spawn:INK, teleport:""
 };
 /* Базовая фигура — клетка 20x20: из неё удобно складывать всё остальное.
@@ -914,7 +1051,9 @@ var SIZES = {
   zombie:[30,100],                 // впритык как у игрока — по прямой просьбе
   seekerSpot:[30,100],              // тоже впритык как у игрока
   checkpoint:[40,104], finishline:[52,126], spawn:[30,100],
-  teleport:[30,100]                 // тоже впритык как у игрока — по прямой просьбе
+  teleport:[30,100],                // тоже впритык как у игрока — по прямой просьбе
+  cannon:[72,44],                   // у всех пушек одна дальность — и размер один
+  camera:[36,26], spyFlag:[34,64]
 };
 var SOLID  = ["rect","circle","triangle"];
 /* Раньше яд, шипы и ротатор убивали просто потому, что так называются.
@@ -952,6 +1091,23 @@ var mode = "hideAndSeek", tool = "select", objects = [], sel = null, uid = 1;
    с галочкой «Зомби» в самой игре просто не существуют: карта играется как
    обычная, а не с россыпью блоков там, где стояли мертвецы. */
 var apoc = false;
+/* Правила гонки на карту (идеи 2019 года), хранятся в JSON карты рядом с apoc, только в Race:
+   raceLives — сколько смертей до перезапуска забега с самого начала (0 — без ограничения,
+   Deathrun — 3); raceTimeMin — время на карту в минутах (0 — обычные 2, лабиринту — 5 или 10);
+   raceGoal — цель общего раунда (см. raceRooms в server.js): "" — финишируют все, "first" —
+   побеждает первый, "last" — Last bro standing, только с жизнями. */
+var raceLives = 0, raceTimeMin = 0, raceGoal = "";
+var RACE_LIVES = [0, 1, 3, 5], RACE_TIMES = [0, 5, 10], RACE_GOALS = ["", "first", "last"];
+function cleanRaceRules(d){
+  raceLives = (mode === "race" && d && RACE_LIVES.indexOf(+d.lives) !== -1) ? +d.lives : 0;
+  raceTimeMin = (mode === "race" && d && RACE_TIMES.indexOf(+d.timeMin) !== -1) ? +d.timeMin : 0;
+  raceGoal = (mode === "race" && d && (d.goal === "first" || (d.goal === "last" && raceLives))) ? d.goal : "";
+}
+// поля правил гонки для сохранения карты — пустые не пишем
+function withRaceRules(m){
+  if(mode === "race"){ if(raceLives) m.lives = raceLives; if(raceTimeMin) m.timeMin = raceTimeMin; if(raceGoal) m.goal = raceGoal; }
+  return m;
+}
 
 /* ══════════════════════════════════════════════════
    ИНДЕКС ОБЪЕКТОВ
@@ -1240,6 +1396,9 @@ function maxFall(){ return (12 + gravityScale * 0.8) * TEMPO; }
 /* Множитель скорости платформы («Бустеры» из редактора) — см. editor.html
    для полного объяснения аддитивной формулы и порога 0.05. */
 function platBoost(o){ return (o && o.speedMul) ? Math.max(0.05, 1 + (+o.speedMul || 0)) : 1; }
+/* Бусты из магазина жетонов (скорость, прыжок — см. game.js): множитель задаёт игра снаружи,
+   без него — 1, как раньше. */
+function bMul(k){ var v = typeof BRIDGE !== "undefined" && BRIDGE ? +BRIDGE[k] : 0; return v > 0 ? Math.min(2, v) : 1; }
 
 var pl = {x:0,y:0,w:20,h:60,vx:0,vy:0,ground:false,wall:0,dead:false,face:1,selfJump:false,hidden:false,
   rideOn:null, standPlat:null, teleCooldown:0, grab:null, kick:0, climb:null, jumpLock:false,
@@ -1286,6 +1445,7 @@ function play(){
     o._hx = o.x; o._hy = o.y; o._t = 0; o._act = !!o.startsOpen;
     o._reached = false; o._spin = 0; o._squash = 0; o._pulseT = 0; o._hue = 0;
   });
+  pl.flag = false; pl.cpFlag = false;
   respawn();
   document.body.classList.add("play");
   sel = null; inspect(); hideMsg(); last = 0; acc = 0; stat();
@@ -1309,11 +1469,17 @@ function restartRun(){
   });
   var sp = findSpawn();
   if(sp){ spawnPt = {x:sp.x, y:sp.y}; lastSafePos = {x:sp.x, y:sp.y}; }
+  pl.flag = false; pl.cpFlag = false;
   stat(); respawn();
 }
 
 function respawn(){
   var p = (practiceMode && mode === "race") ? lastSafePos : spawnPt;
+  // флаг шпиона: не сохранённый на чекпоинте возвращается на место (в практике — остаётся у игрока)
+  if(!(practiceMode && mode === "race")){
+    if(pl.flag && !pl.cpFlag) spyNote("lost");
+    pl.flag = !!pl.cpFlag;
+  }
   pl.x = p.x; pl.y = p.y; pl.vx = 0; pl.vy = 0; pl.dead = false; coy = 0; buf = 0;
   pl.rideOn = null; pl.grab = null; grabCd = 0; pl.kick = 0; pl.climb = null; pl.jumpLock = false;
   stuckFrames = 0; stuckAir = 0; stuckHeld = 0; stuckSteer = 0; stuckMinX = stuckMaxX = pl.x; stuckMinY = stuckMaxY = pl.y;
@@ -1334,14 +1500,28 @@ function teleportToSeekerSpot(){
   return true;
 }
 function die(){
-  // в прятках умереть нельзя вообще — единая точка входа для любой смерти
-  if(mode === "hideAndSeek") return;
+  /* В прятках умереть нельзя вообще — единая точка входа для любой смерти. Но о касании
+     яда (и ядовитого лазера) сообщаем игре: в зомби-раунде прячущийся от яда заражается
+     (см. onHazard в game.js и hsPoisoned в server.js). */
+  if(mode === "hideAndSeek"){
+    if(typeof BRIDGE !== "undefined" && BRIDGE && BRIDGE.onHazard) BRIDGE.onHazard();
+    return;
+  }
   if(godMode) return;   // Practice: неуязвимость — та же единая точка входа
   if(pl.dead || done) return;
   pl.dead = true; deaths++; shake = 13; stat();
   if(window.BFSound) BFSound.death();
   burst(pl.x+pl.w/2, pl.y+pl.h/2, 22, "#ef4444", 4.4, 34);
-  setTimeout(function(){ if(playing) respawn(); }, 300);
+  // жизни карты кончились — забег заново с самого начала: время, смерти и чекпоинты сбрасываются
+  var outOfLives = mode === "race" && raceLives > 0 && deaths >= raceLives && !practiceMode;
+  setTimeout(function(){
+    if(!playing) return;
+    if(!outOfLives){ respawn(); return; }
+    /* игра решает сама: в Last bro standing игрок выбывает до конца раунда (стоит на месте) —
+       иначе забег начинается заново */
+    var out = typeof BRIDGE !== "undefined" && BRIDGE && BRIDGE.onOutOfLives ? BRIDGE.onOutOfLives() : null;
+    if(out === "out") respawn(); else restartRun();
+  }, 300);
 }
 function stat(){
   document.getElementById("sDeath").textContent = deaths;
@@ -1935,6 +2115,10 @@ function step(){
      гравитация ниже не трогают игрока вовсе: он висит неподвижно. */
   var grabbing = false;
   if(!keys.u) pl.jumpLock = false;
+  /* Пойманный грабитель в Cops and Robbers стоит на месте, пока его не освободят (см.
+     GAME.frozen в game.js): ни шагов, ни прыжков, ни залезания — падать при этом может. */
+  var frz = typeof BRIDGE !== "undefined" && BRIDGE && BRIDGE.frozen;
+  if(frz) buf = 0;
   if(pl.climb){
     /* Залезание на уступ — плавно, по CLIMB_SPEED px за кадр, а не
        мгновенным переносом на всю высоту игрока: тот рывок на 100 px
@@ -1959,7 +2143,7 @@ function step(){
     }
   } else if(pl.grab){
     var gWall = pl.wall, gAway = (gWall === 1 && keys.l) || (gWall === -1 && keys.r);
-    if(keys.u){
+    if(keys.u && !frz){
       /* Залезть наверх — на кромку блока, с лёгким сдвигом от края
          (см. ветку pl.climb выше: подъём идёт по кадрам). grabbing
          остаётся true и в этом кадре тоже: иначе обычный триггер прыжка
@@ -1979,7 +2163,7 @@ function step(){
   }
   if(grabCd > 0) grabCd--;
 
-  var dir = grabbing ? 0 : (keys.r?1:0)-(keys.l?1:0);
+  var dir = (grabbing || frz) ? 0 : (keys.r?1:0)-(keys.l?1:0);
   // отброс от бока рикошета (см. RICO_KICK) кончается раньше, если игрок
   // уже встал — упёрся в обычную стену или повис на уступе
   if(pl.kick > 0 && (grabbing || Math.abs(pl.vx) < 0.05)) pl.kick = 0;
@@ -1991,7 +2175,7 @@ function step(){
        короткий разбег читался как вялость — особенно на коротких
        перебежках, где игрок отпускал кнопку, не дойдя до максимума.
        Инерция при отпускании остаётся: см. FRIC в ветке ниже. */
-    pl.vx = dir * maxVX() * platBoost(pl.standPlat); pl.face = dir;
+    pl.vx = dir * maxVX() * platBoost(pl.standPlat) * bMul("speedMul"); pl.face = dir;
   } else {
     pl.vx *= pl.ground ? FRIC : AIR;
     if(Math.abs(pl.vx) < .05) pl.vx = 0;
@@ -2024,14 +2208,15 @@ function step(){
   } else {
     /* Кнопку прыжка можно держать: как только игрок коснулся земли,
        он прыгает снова, без повторного нажатия. */
-    if(keys.u && !pl.selfJump && !pl.jumpLock && (pl.ground || coy > 0)) buf = BUFFER;
+    if(keys.u && !frz && !pl.selfJump && !pl.jumpLock && (pl.ground || coy > 0)) buf = BUFFER;
     if(buf > 0){
       /* По стене не оттолкнуться и на бегу по ней не забраться — только
          соскальзывание (WALL_SLIDE ниже). Забраться можно только с
          явного захвата уступа у самого верха стены — см. pl.grab выше
          и tryGrab() ниже. */
       if(coy > 0 || pl.ground){
-        pl.vy = jumpV(); buf = 0; coy = 0; hold = 0; pl.ground = false; pl.selfJump = true;
+        // буст прыжка (магазин жетонов, см. game.js): высота растёт как квадрат скорости
+        pl.vy = jumpV() * Math.sqrt(bMul("jumpMul")); buf = 0; coy = 0; hold = 0; pl.ground = false; pl.selfJump = true;
         if(window.BFSound) BFSound.jump();
       }
     }
@@ -2354,6 +2539,17 @@ function step(){
       return;
     }
     if(hazard(o)){ die(); return; }
+    // флаг шпиона: коснулся — несёшь; с ним на чекпоинте — сохранён (см. respawn)
+    if(o.type === "spyFlag" && !pl.flag && !pl.dead){
+      pl.flag = true;
+      burst(o.x+o.w/2, o.y+o.h*0.3, 16, "#111827", 3, 34);
+      if(window.BFSound) BFSound.checkpoint();
+      spyNote("flag");
+    }
+    if(o.type === "checkpoint" && pl.flag && !pl.cpFlag){
+      pl.cpFlag = true; spawnPt = {x:o.x, y:o.y+o.h-pl.h}; lastSafePos = {x:spawnPt.x, y:spawnPt.y};
+      spyNote("saved");
+    }
     if(o.type === "checkpoint" && !o._reached){
       o._reached = true; spawnPt = {x:o.x, y:o.y+o.h-pl.h}; lastSafePos = {x:spawnPt.x, y:spawnPt.y};
       burst(o.x+o.w/2, o.y+o.h*0.25, 14, "#4ade80", 2.6, 30);
@@ -2375,7 +2571,8 @@ function step(){
       }
     }
     // Дверь — это выход: игроку достаточно дойти до неё самому.
-    if(o.type === "finishline" && !done){
+    if(o.type === "finishline" && !done && spyLocked()) spyNote("need");
+    if(o.type === "finishline" && !done && !spyLocked()){
       done = true; shake = 6;
       if(window.BFSound) BFSound.finish();
       burst(o.x+o.w/2, o.y+o.h/2, 40, "#fbbf24", 5, 60);
@@ -2391,6 +2588,7 @@ function step(){
     if(o.type === "lever" && !o._latch){ o._act = !o._act; o._latch = true; drive(o); if(window.BFSound) BFSound.toggle(); }
   });
   laserFeeds();
+  spyTick();
   // не внутри опасности прямо сейчас — можно смело вернуть сюда при смерти
   // в Practice Mode (если умер этим же кадром, pl.dead уже true — не трогаем)
   if(!pl.dead) lastSafePos = {x:pl.x, y:pl.y};
@@ -2548,6 +2746,197 @@ function drawGrid(){
   ctx.moveTo(view.x,0); ctx.lineTo(view.x,VH()); ctx.moveTo(0,view.y); ctx.lineTo(VW(),view.y);
   ctx.stroke();
 }
+/* Пушка: лафет на двух колёсах стоит ровно (поворота у неё нет), ствол смотрит по прицелу —
+   o.aim в градусах (0 — вправо, -45 — вправо-вверх, 180 — влево), а в бою — туда, куда целятся
+   сейчас (o._aim, см. game.js). Пока пушка перезаряжается (o._ready === false), зелёного огонька у жерла нет. */
+function paintCannon(o){
+  var w = o.w, h = o.h, a = o._aim !== undefined ? o._aim : (+o.aim||0)*Math.PI/180;
+  ctx.save();
+  // ствол — первым, лафет закрывает его казённую часть
+  ctx.translate(w*0.5, h*0.4);
+  ctx.rotate(a);
+  ctx.fillStyle = "#1f2937"; ctx.strokeStyle = "#0b1220"; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-w*0.2, -h*0.2); ctx.lineTo(w*0.52, -h*0.15); ctx.lineTo(w*0.52, h*0.15); ctx.lineTo(-w*0.2, h*0.2);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#4b5563"; ctx.fillRect(-w*0.12, -h*0.13, w*0.56, h*0.07);
+  ctx.fillStyle = "#111827"; ctx.fillRect(w*0.48, -h*0.24, w*0.1, h*0.48);
+  ctx.beginPath(); ctx.arc(-w*0.22, 0, h*0.13, 0, 6.2832); ctx.fill();
+  if(o._ready !== false){
+    ctx.fillStyle = "#84cc16";
+    ctx.beginPath(); ctx.arc(w*0.6, 0, h*0.07, 0, 6.2832); ctx.fill();
+  }
+  ctx.restore();
+  ctx.fillStyle = "#7c4a21"; ctx.strokeStyle = "#4a2a10"; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(w*0.2, h*0.42); ctx.lineTo(w*0.8, h*0.42); ctx.lineTo(w*0.94, h*0.8); ctx.lineTo(w*0.06, h*0.8);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#a16207"; ctx.fillRect(w*0.14, h*0.55, w*0.72, h*0.06);
+  [0.24, 0.76].forEach(function(k){
+    ctx.fillStyle = "#3f2a14";
+    ctx.beginPath(); ctx.arc(w*k, h*0.8, h*0.2, 0, 6.2832); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#ca8a04";
+    ctx.beginPath(); ctx.arc(w*k, h*0.8, h*0.06, 0, 6.2832); ctx.fill();
+  });
+}
+/* ══════════ ШПИОН (идея 2019 года «Spy mode», гонка) ══════════
+   Камера смотрит конусом и поворачивается туда-сюда: o.aim — середина (градусы), o.sweep — на
+   сколько в каждую сторону, o.range — дальность, o.fov — ширина взгляда. Стены закрывают ей обзор.
+   Кто пробыл у неё на виду CAM_CATCH_MS — пойман: умирает, как от яда (в гонке — назад на
+   чекпоинт). У скрытой камеры (o.hidden) взгляд во время игры не виден — только мигает огонёк.
+   Флаг шпиона на карте один: коснулся — несёшь его; финиш засчитывается только с ним. Умер —
+   флаг возвращается на место, если ты не донёс его до чекпоинта: чекпоинт его «сохраняет».
+   Лазер, который пересекает игрок, и так включает связанные объекты, как кнопка (см. laserFeeds), —
+   из него получается сигнализация. */
+var CAM_PERIOD = 4200, CAM_CATCH_MS = 160, CAM_RAYS = 18;
+function camParams(o){
+  return { sweep: isFinite(o.sweep) ? Math.max(0, Math.min(90, +o.sweep)) : 35,
+           range: isFinite(o.range) ? Math.max(100, Math.min(1500, +o.range)) : 450,
+           fov: isFinite(o.fov) ? Math.max(6, Math.min(80, +o.fov)) : 30 };
+}
+// куда камера смотрит сейчас (радианы); у разных камер — разная фаза, чтобы не качались хором
+function camAngle(o){
+  var t = playing ? timeMs : Date.now();
+  return ((+o.aim || 0) + camParams(o).sweep * Math.sin(2 * Math.PI * t / CAM_PERIOD + (o.id || 0) * 1.7)) * Math.PI / 180;
+}
+function camPivot(o){ return { x: o.x + o.w / 2, y: o.y + o.h * 0.45 }; }
+function camLens(o, a){ var p = camPivot(o); return { x: p.x + Math.cos(a) * o.w * 0.45, y: p.y + Math.sin(a) * o.w * 0.45 }; }
+// сплошные объекты вокруг камеры (на её дальность) — по ним и считается, что ей видно
+function sightList(x, y, r){ return nearby(x - r, y - r, 2 * r, 2 * r).filter(function(w){ return solid(w); }); }
+// докуда виден отрезок: доля пути до первой стены (1 — виден весь)
+function sightT(list, x0, y0, x1, y1){
+  var best = 1;
+  for(var i = 0; i < list.length; i++){
+    var bb = bbox(list[i]);
+    if(segHitsRect(x0, y0, x1, y1, bb[0], bb[1], bb[2] - bb[0], bb[3] - bb[1]) === null) continue;
+    var t = raySegHitsPoly(x0, y0, x1, y1, polyOf(list[i]));
+    if(t !== null && t < best) best = t;
+  }
+  return best;
+}
+function camSeesPlayer(o, c, a, L){
+  var half = c.fov / 2 * Math.PI / 180, cx = pl.x + pl.w / 2;
+  var pts = [[cx, pl.y + 14], [cx, pl.y + pl.h / 2], [cx, pl.y + pl.h - 12]];
+  for(var i = 0; i < pts.length; i++){
+    var dx = pts[i][0] - L.x, dy = pts[i][1] - L.y, d = Math.sqrt(dx * dx + dy * dy);
+    if(d > c.range) continue;
+    var da = Math.atan2(dy, dx) - a;
+    while(da > Math.PI) da -= 2 * Math.PI;
+    while(da < -Math.PI) da += 2 * Math.PI;
+    if(Math.abs(da) > half) continue;
+    if(sightT(o._list, L.x, L.y, pts[i][0], pts[i][1]) > 0.999) return true;
+  }
+  return false;
+}
+function findSpyFlag(){ for(var i = 0; i < objects.length; i++) if(objects[i].type === "spyFlag") return objects[i]; return null; }
+// финиш закрыт: на карте есть флаг шпиона, а игрок его не несёт
+function spyLocked(){ return !pl.flag && !!findSpyFlag(); }
+// каждый кадр игры: камеры смотрят, кого видно
+function spyTick(){
+  for(var i = 0; i < objects.length; i++){
+    var o = objects[i];
+    if(o.type !== "camera") continue;
+    var c = camParams(o), a = camAngle(o), L = camLens(o, a);
+    o._a = a;
+    o._list = sightList(L.x, L.y, c.range);
+    var see = !pl.dead && !done && camSeesPlayer(o, c, a, L);
+    o._sees = see;
+    o._seeT = see ? (o._seeT || 0) + 16.67 : 0;
+    if(see && o._seeT >= CAM_CATCH_MS){
+      o._seeT = 0;
+      if(!godMode) spyNote("seen");
+      die();
+    }
+  }
+}
+// подсказки шпиона: в игре — сообщением страницы (BRIDGE.onSpy), в редакторе — табличкой на секунду
+var spyNoteAt = {}, spyMsgT = null;
+function spyNote(kind){
+  var now = Date.now();
+  if(now - (spyNoteAt[kind] || 0) < 1500) return;
+  spyNoteAt[kind] = now;
+  if(typeof BRIDGE !== "undefined" && BRIDGE && BRIDGE.onSpy){ BRIDGE.onSpy(kind); return; }
+  var M = { flag: TR("spyGotFlag", "Флаг у тебя! Неси его к финишу."), need: TR("spyNeedFlag", "Сначала возьми флаг шпиона — без него финиш не засчитают."),
+            seen: TR("spySeen", "Тебя заметила камера!"), saved: TR("spySaved", "Флаг сохранён на чекпоинте."),
+            lost: TR("spyFlagBack", "Флаг вернулся на место.") };
+  if(!M[kind] || done) return;
+  showMsg(TR("spyTitle", "Шпион"), M[kind]);
+  clearTimeout(spyMsgT);
+  spyMsgT = setTimeout(function(){ if(!done) hideMsg(); }, 1600);
+}
+// взгляды камер — отдельным проходом поверх карты (как лучи лазеров)
+function drawCams(){
+  for(var i = 0; i < objects.length; i++){
+    var o = objects[i];
+    if(o.type !== "camera") continue;
+    var c = camParams(o), a = playing && o._a !== undefined ? o._a : camAngle(o), L = camLens(o, a), half = c.fov / 2 * Math.PI / 180;
+    if(playing && o.hidden && !o._sees) continue;
+    var red = playing && o._sees;
+    ctx.save();
+    ctx.fillStyle = red ? "rgba(239,68,68,.32)" : "rgba(250,204,21,.22)";
+    ctx.strokeStyle = red ? "rgba(220,38,38,.8)" : "rgba(202,138,4,.6)";
+    ctx.lineWidth = 1.5 / view.s;
+    ctx.beginPath(); ctx.moveTo(L.x, L.y);
+    for(var k = 0; k <= CAM_RAYS; k++){
+      var aa = a - half + 2 * half * k / CAM_RAYS, ex = L.x + Math.cos(aa) * c.range, ey = L.y + Math.sin(aa) * c.range;
+      var t = playing && o._list ? sightT(o._list, L.x, L.y, ex, ey) : 1;
+      ctx.lineTo(L.x + (ex - L.x) * t, L.y + (ey - L.y) * t);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // в редакторе — пунктиром крайние положения поворота
+    if(!playing && c.sweep > 0){
+      ctx.setLineDash([6 / view.s, 5 / view.s]);
+      [-1, 1].forEach(function(s){
+        var ea = ((+o.aim || 0) + s * c.sweep) * Math.PI / 180, P = camLens(o, ea);
+        ctx.beginPath(); ctx.moveTo(P.x, P.y); ctx.lineTo(P.x + Math.cos(ea) * c.range, P.y + Math.sin(ea) * c.range); ctx.stroke();
+      });
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+}
+// камера: крепление сверху, корпус с объективом поворачивается туда, куда она смотрит
+function paintCamera(o){
+  var w = o.w, h = o.h, a = playing && o._a !== undefined ? o._a : camAngle(o);
+  ctx.fillStyle = "#4b5563";
+  ctx.fillRect(w * 0.3, 0, w * 0.4, h * 0.18);
+  ctx.save();
+  ctx.translate(w / 2, h * 0.45);
+  ctx.rotate(a);
+  ctx.fillStyle = "#374151"; ctx.strokeStyle = "#111827"; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.rect(-w * 0.32, -h * 0.26, w * 0.72, h * 0.52); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#6b7280"; ctx.fillRect(-w * 0.28, -h * 0.22, w * 0.6, h * 0.1);
+  ctx.fillStyle = "#0f172a";
+  ctx.beginPath(); ctx.arc(w * 0.42, 0, h * 0.2, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = "#38bdf8";
+  ctx.beginPath(); ctx.arc(w * 0.44, -h * 0.04, h * 0.08, 0, 6.2832); ctx.fill();
+  // огонёк: горит красным через раз — по нему и видно скрытую камеру
+  var blink = ((playing ? timeMs : Date.now()) / 450 | 0) % 2 === 0;
+  ctx.fillStyle = blink || (playing && o._sees) ? "#ef4444" : "#7f1d1d";
+  ctx.beginPath(); ctx.arc(-w * 0.2, h * 0.1, h * 0.07, 0, 6.2832); ctx.fill();
+  ctx.restore();
+}
+// полотнище флага шпиона: тёмное, с белым глазом
+function spyCloth(x, y, w, h){
+  ctx.fillStyle = "#111827";
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y + h * 0.1); ctx.lineTo(x + w * 0.85, y + h * 0.5); ctx.lineTo(x + w, y + h * 0.9); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath(); ctx.ellipse(x + w * 0.42, y + h * 0.5, w * 0.24, h * 0.2, 0, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = "#111827";
+  ctx.beginPath(); ctx.arc(x + w * 0.42, y + h * 0.5, h * 0.12, 0, 6.2832); ctx.fill();
+}
+function paintSpyFlag(o){
+  if(playing && pl.flag) return;            // флаг сейчас у игрока — на месте его нет
+  var w = o.w, h = o.h;
+  ctx.fillStyle = "#9ca3af"; ctx.fillRect(w * 0.12, 0, w * 0.1, h);
+  ctx.fillStyle = "#6b7280"; ctx.fillRect(0, h - h * 0.06, w * 0.5, h * 0.06);
+  spyCloth(w * 0.22, h * 0.04, w * 0.78, h * 0.42);
+}
+// флаг за спиной у игрока, который его несёт (рисуется в его системе координат)
+function drawCarriedFlag(w, h){
+  ctx.fillStyle = "#9ca3af"; ctx.fillRect(w * 0.85, -h * 0.28, 3, h * 0.75);
+  spyCloth(w * 0.85 + 3, -h * 0.28, 26, 18);
+}
 function paint(o, isSel){
   var open = opened(o);
   ctx.save();
@@ -2675,6 +3064,7 @@ function paintFrame(){
      от самого объекта. Во время игры путь уже посчитан в laserFeeds();
      вне игры считаем его тут же — так автор карты сразу видит, куда луч
      реально попадёт и от чего отскочит, ещё до нажатия «Играть». */
+  drawCams();
   for(var lfi=0; lfi<objects.length; lfi++){
     var lo = objects[lfi];
     if(lo.type !== "laserFeed" && !lo.laser) continue;
@@ -2753,10 +3143,15 @@ function paintFrame(){
     ctx.save(); ctx.translate(pl.x, pl.y);
     // себя в укрытии видно бледным — чужие не видят вообще
     if(pl.hidden) ctx.globalAlpha = 0.35;
+    // невидимость из магазина и выбитый в войне — тоже бледным (см. myAlpha в game.js)
+    if(BRIDGE && BRIDGE.myAlpha < 1) ctx.globalAlpha = Math.min(ctx.globalAlpha, Math.max(0.1, BRIDGE.myAlpha));
     // заразился в apoc-раунде — сам теперь выглядишь зомби (см. meIsZombie в game.js)
     if(BRIDGE && BRIDGE.meIsZombie) PAINT.zombie({w: pl.w, h: pl.h, _zface: pl.face || 1});
+    // роль варианта пряток — в её наряде (см. outfitFor в game.js)
+    else if(BRIDGE && BRIDGE.myOutfit) drawOutfit(BRIDGE.myOutfit.kind, pl.w, pl.h, BRIDGE.myOutfit.arg);
     else figure(pl.w, pl.h, (BRIDGE && BRIDGE.myColor) || "#000000", true,
            (BRIDGE && BRIDGE.mySkin) || null);
+    if(pl.flag) drawCarriedFlag(pl.w, pl.h);     // несёт флаг шпиона
     ctx.restore();
   }
   if(BRIDGE && BRIDGE.onDraw){ BRIDGE.viewScale = view.s; BRIDGE.onDraw(ctx); }
@@ -3602,8 +3997,8 @@ function inspect(){
   grp(TR("grpGameProps","Игровые свойства"));
   /* В прятках умереть нельзя в принципе (см. hazard()) — галочка «Яд»
      там бы включала свойство, которое физика всё равно игнорирует. */
-  if(mode !== "hideAndSeek" && ["spawn","checkpoint","finishline","zombie","teleport","seekerSpot"].indexOf(sel.type) === -1)
-    chk(TR("chkDeadly","Яд (убивает)"), sel.deadly, function(v){ sel.deadly = v; });
+  if((mode !== "hideAndSeek" || apoc) && ["spawn","checkpoint","finishline","zombie","teleport","seekerSpot"].indexOf(sel.type) === -1)
+    chk(mode === "hideAndSeek" ? TR("chkDeadlyApoc","Яд (заражает)") : TR("chkDeadly","Яд (убивает)"), sel.deadly, function(v){ sel.deadly = v; });
   if(SOLID.indexOf(sel.type) !== -1)
     chk(TR("chkGhost","Проходимый (декорация)"), !!sel.ghost, function(v){ sel.ghost = v; });
   /* Прятки: за таким объектом игрок исчезает для искателя вместе с ником.
@@ -3803,7 +4198,7 @@ document.getElementById("file").addEventListener("change", function(e){
   };
   rd.readAsText(f); e.target.value = "";
 });
-window.getEditorMap = function(){ return { mode: mode, data: JSON.stringify({mode:mode,apoc:apoc,gravity:gravityScale,objects:clean()}) }; };
+window.getEditorMap = function(){ return { mode: mode, data: JSON.stringify(withRaceRules({mode:mode,apoc:apoc,gravity:gravityScale,objects:clean()})) }; };
 document.getElementById("bJson").addEventListener("click", function(){
   var a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify({mode:mode,gravity:gravityScale,objects:clean()},null,2)],{type:"application/json"}));
@@ -3851,6 +4246,26 @@ window.GAME = BRIDGE = {
   // классика: искатель ждёт раунд в отмеченном месте, если оно есть на
   // карте (см. teleportToSeekerSpot/applySeeker в game.js)
   seekerWaitSpot: teleportToSeekerSpot,
+  /* Война (см. war.js и game.js): удар отбрасывает — скорость держится RICO_KICK-подобное время,
+     а не стирается тут же стрелкой; снаряды гаснут о стены — solidAt. */
+  knock: function(vx, vy){
+    if(!isFinite(vx) || !isFinite(vy)) return;
+    pl.vx = Math.max(-30, Math.min(30, vx)); pl.vy = Math.max(-30, Math.min(30, vy));
+    pl.kick = 14; pl.ground = false; pl.grab = null; pl.climb = null;
+  },
+  solidAt: function(x, y){
+    var near = nearby(x - 2, y - 2, 4, 4);
+    for(var i = 0; i < near.length; i++) if(solid(near[i]) && inside(near[i], x, y)) return true;
+    return false;
+  },
+  speedMul: 1, jumpMul: 1, myAlpha: 1,
+  // командные варианты пряток: в лобби команда стоит на своей базе (см. hsTeamSpawn в game.js)
+  teleportTo: function(x, y){
+    if(!isFinite(x) || !isFinite(y)) return;
+    pl.x = x; pl.y = y; pl.vx = 0; pl.vy = 0;
+    pl.rideOn = null; pl.grab = null; grabCd = 0; pl.kick = 0; pl.climb = null; pl.jumpLock = false;
+    stuckFrames = 0; stuckAir = 0; stuckHeld = 0; stuckSteer = 0; stuckMinX = stuckMaxX = pl.x; stuckMinY = stuckMaxY = pl.y;
+  },
   step: step,                     // один шаг физики — нужен автотестам
   stepAlways: stepAlways,         // тик вне забега — для автотестов
   zoomAt: zoomAt,                   // камера — тесты предела отдаления
@@ -3868,6 +4283,13 @@ window.GAME = BRIDGE = {
   get objects(){ return objects; },
   get mode(){ return mode; },
   get apoc(){ return apoc; },
+  // правила гонки карты (см. raceLives/raceTimeMin) и счётчик смертей текущего забега
+  get raceLives(){ return raceLives; },
+  get raceTimeMin(){ return raceTimeMin; },
+  get raceGoal(){ return raceGoal; },
+  restartRun: restartRun,         // общий раунд гонки: все с самого старта (см. racePhase в game.js)
+  get deaths(){ return deaths; },
+  onOutOfLives: null,
   toolOK: function(t){ return toolOK(t); },   // автотесты: доступность инструмента (зомби/apoc)
   /* Заражённый игрок apoc-раунда рисуется моделью зомби вместо обычной
      фигурки (см. hsApocRound в game.js) — вызывается уже внутри save/
@@ -3876,7 +4298,14 @@ window.GAME = BRIDGE = {
   figureZombie: function(w, h){
     PAINT.zombie({w: w, h: h});
   },
+  // чужой игрок в наряде роли (см. OUTFIT) — тоже внутри save/translate чужого игрока
+  myOutfit: null,
+  figureOutfit: function(kind, w, h, arg){ drawOutfit(kind, w, h, arg); },
   get done(){ return done; },
+  // «Шпион»: несёт ли игрок флаг и кого сейчас видят камеры (см. spyTick); onSpy — подсказки игре
+  get spyFlag(){ return !!pl.flag; },
+  get cams(){ return objects.filter(function(o){ return o.type === "camera"; }).map(function(o){ return { sees: !!o._sees, a: o._a }; }); },
+  onSpy: null,
   // Practice Mode включается снаружи (game.js) до старта — см. respawn()
   get practice(){ return practiceMode; },
   set practice(v){ practiceMode = !!v; },
@@ -3905,6 +4334,7 @@ window.GAME = BRIDGE = {
     // в старых картах модификации не было — классика; в гонке её не бывает
     // в принципе (см. TOOL_MODES.zombie), даже если в JSON что-то лежит
     apoc = (mode === "hideAndSeek") && !!d.apoc;
+    cleanRaceRules(d);
     syncApocBtns();
     syncApocVisibility();
     // объекты чужого режима в карту не пускаем
@@ -3955,6 +4385,12 @@ window.GAME = BRIDGE = {
       // размер игрока и зомби больше не настраивается — приводим старые объекты
       if(o.type === "spawn"){ o.w = SIZES.spawn[0]; o.h = SIZES.spawn[1]; }
       if(o.type === "zombie" || o.type === "teleport" || o.type === "seekerSpot"){ o.w = SIZES[o.type][0]; o.h = SIZES[o.type][1]; }
+      // пушка: размер задан движком, поворота нет — только прицел ствола (o.aim, градусы)
+      if(o.type === "cannon"){ o.w = SIZES.cannon[0]; o.h = SIZES.cannon[1]; o.rot = 0;
+        o.aim = isFinite(o.aim) ? Math.max(-360, Math.min(360, +o.aim)) : 0; }
+      // камера и флаг шпиона: размер задан движком; куда смотрит камера — o.aim и camParams
+      if(o.type === "camera" || o.type === "spyFlag"){ o.w = SIZES[o.type][0]; o.h = SIZES[o.type][1]; o.rot = 0;
+        if(o.type === "camera") o.aim = isFinite(o.aim) ? Math.max(-360, Math.min(360, +o.aim)) : 90; }
       // Платформа, ротатор, батут, яд и шипы стали свойствами обычных
       // объектов — переносим их поведение, чтобы старые карты играли так же
       if(o.type === "platform"){ o.type = "rect"; o.moves = true;
@@ -4015,8 +4451,8 @@ requestAnimationFrame(loop);
 <!-- Administrative/account panels are not part of the game screen. -->
 
 
-<script src="game.js?v=182"></script>
-        <script src="i18n.js?v=182"></script>
-        <script src="skinAvatar.js?v=182" defer></script>
+<script src="game.js?v=200"></script>
+        <script src="i18n.js?v=200"></script>
+        <script src="skinAvatar.js?v=200" defer></script>
 </body>
 </html>

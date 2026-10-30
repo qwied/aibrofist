@@ -36,5 +36,11 @@
     "date": "2026-10-24",
     "title": "Chat text readable again",
     "text": "- Chat messages and the text you are typing are no longer lost in their outline: messages are white and the text you type is light gray."
+  },
+  {
+    "id": "2026-10-30-1",
+    "date": "2026-10-30",
+    "title": "Five new game modes",
+    "text": "- Five new modes in the main menu: Murder Mystery, Team Battle, War, Party and Adventure, each with its own page, rules and room list.\n- Murder Mystery: a secret murderer takes players out with a touch after the first 20 seconds, and a secret sheriff wins by catching them.\n- Team Battle: two or four teams play Capture the Flag and Domination in turns.\n- War: fists, slings, bombs and magic in Free for All, Team War, Hunger Games, Control Points, Bro RED and Pirate War with cannons on the new Pirate Bay map.\n- Party: a Quiz, Guess the Word and Build Battle, with random rounds of other modes in between.\n- Adventure: play alone or as a team as a Warrior, Archer or Mage, climb Bro Tower to a crowned boss or defend the crystal from waves of monsters.\n- Tokens lie around the map in War and Hide and Seek; spend them in the shop on ammo, shields, speed, a super jump and more.\n- Hide and Seek: vote for the next map during the hunt, poison turns hiders into zombies in Zombie rounds, and big rooms sometimes play Cops and Robbers.\n- Race: everyone in a room runs the same map at the same time, and map makers can set lives, a time limit and a goal for their map.\n- New map editor objects: cannons for Hide and Seek maps, and security cameras and a spy flag for spy missions in Race, shown on the new Spy Base map.\n- Roles have their own outfits and hats, and Adventure enemies got new looks.\n- The main menu shows all modes in one row with a scroll bar, and new modes have their own arena map so they open even on an empty server."
   }
 ]
