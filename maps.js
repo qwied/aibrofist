@@ -6,7 +6,11 @@ const { atomicWriteFileSync } = require('./fsAtomic.js');
 const DATA_DIR = path.join(__dirname, 'data');
 const MAPS_FILE = path.join(DATA_DIR, 'maps.json');
 
-const MODES = ['hideAndSeek', 'race'];
+const MODES = ['hideAndSeek', 'race', 'murder', 'team', 'war', 'party', 'adventure'];
+/* Отдельные режимы играются на механике пряток: карта Murder Mystery, Team Battle, War, Party или Adventure —
+   это карта пряток со своим видом (mapType), её объекты — те же, что у пряток (см. wrongForMode). */
+const FAMILY = { murder: 'hideAndSeek', team: 'hideAndSeek', war: 'hideAndSeek', party: 'hideAndSeek', adventure: 'hideAndSeek' };
+function familyOf(t) { return FAMILY[t] || t; }
 /* Владелец сайта — ОДИН список, accounts.js (OWNER_ALIASES, обычно
    'qwied'). Раньше здесь был свой отдельный список с другим
    умолчанием ('System,AIBrofist') — он разошёлся с accounts.js, и
@@ -43,6 +47,7 @@ const TOOL_MODES = {
   cover:['hideAndSeek'],
   cannon:['hideAndSeek'],       // пушка «Пиратской войны» — стреляют из неё в режиме «Война»
   camera:['race'], spyFlag:['race'],   // «Шпион» в гонке: камеры и флаг, без которого финиш закрыт
+  enemy:['adventure'], crystal:['adventure'],   // «Приключение» из Map Editor (см. fromObjects в adventure.js)
   checkpoint:['race'],
   // устаревшие типы — принимаем, но в палитре их больше нет
   poison:null, spike:null, bounce:null, platform:null, rotator:null,
@@ -72,7 +77,7 @@ function wrongForMode(list, mode) {
     // и .indexOf на ней рвёт запрос — hasOwnProperty отсекает это заранее
     if (!Object.prototype.hasOwnProperty.call(TOOL_MODES, o.type)) return;
     const allowed = TOOL_MODES[o.type];
-    if (allowed && allowed.indexOf(mode) === -1) bad.add(o.type);
+    if (allowed && allowed.indexOf(mode) === -1 && allowed.indexOf(familyOf(mode)) === -1) bad.add(o.type);
   });
   return Array.from(bad);
 }
@@ -254,8 +259,9 @@ const low = s => String(s || '').toLowerCase();
    без карты хуже, чем карта без укрытий. */
 /* Встроенный уровень своего режима (m.only, см. BUILTIN) попадает только туда, где pred его
    принял: в другие комнаты — нет, даже когда больше брать нечего. */
-function poolFor(t, pred) {
-  const all = !t
+// все карты в игре этого вида — до отбора по pred и по m.only (см. poolFor)
+function rawPool(t) {
+  return !t
     ? maps.filter(m => !m.showcase)
     : maps.filter(m => {
         // владелец мог вручную добавить карту в конкретный режим — даже витрину
@@ -263,11 +269,18 @@ function poolFor(t, pred) {
         // встроенный уровень (см. BUILTIN) — в пуле своего режима, даже если автор не владелец
         return !m.showcase && (isOwnerName(m.author) || !!m.builtinVer) && m.mapType === t;
       });
+}
+/* t — вид карты или несколько видов сразу: комната отдельного режима берёт и свои карты (Map Editor →
+   War и т.п.), и карты пряток (см. hsPickMap в server.js). */
+function poolFor(t, pred) {
+  const kinds = Array.isArray(t) ? t : [t];
+  const seen = new Set(), all = [];
+  kinds.forEach(k => rawPool(k).forEach(m => { if (!seen.has(m)) { seen.add(m); all.push(m); } }));
   if (pred) {
     const ok = all.filter(m => { try { return !!pred(m); } catch (e) { return false; } });
     if (ok.length) return ok;
   }
-  return all.filter(m => !m.only || (Array.isArray(m.inGameModes) && m.inGameModes.indexOf(t) !== -1));
+  return all.filter(m => !m.only || (Array.isArray(m.inGameModes) && kinds.some(k => m.inGameModes.indexOf(k) !== -1)));
 }
 
 /* До n разных карт режима для голосования за следующую карту в прятках
@@ -935,4 +948,4 @@ function newFromFriends(user) {
   return out;
 }
 
-module.exports = { register, reload: load, MODES, COIN_LIMIT, OBJ_LIMIT, OBJ_MIN, TEXT_MAX_RATIO, REWARD, TOOL_MODES, find, allMaps, setBoost, setInGame, inGameList, tally, newFromFriends, randomFor, candidatesFor, renameAuthor };
+module.exports = { register, reload: load, MODES, FAMILY, familyOf, COIN_LIMIT, OBJ_LIMIT, OBJ_MIN, TEXT_MAX_RATIO, REWARD, TOOL_MODES, find, allMaps, setBoost, setInGame, inGameList, tally, newFromFriends, randomFor, candidatesFor, renameAuthor };
